@@ -2666,6 +2666,27 @@ function getManualPlayersForCurrentFrame(){
  return s.manualPlayers;
 }
 
+function manualPlayersForAnalysis(scn,t){
+ if(!scn)return [];
+ const sceneWide=Array.isArray(scn.manualPlayers)?scn.manualPlayers:[];
+ const timed=(scn.manualPlayersByTime&&Array.isArray(scn.manualPlayersByTime[timeKey(t)]))
+   ? scn.manualPlayersByTime[timeKey(t)]
+   : [];
+ const merged=sceneWide.map(p=>({...p}));
+
+ // Un ajout fait pendant le calibrage doit compter dans le résultat final.
+ // Si la même personne a aussi été corrigée depuis la galerie, on ne la compte qu'une fois.
+ for(const p of timed){
+   const duplicate=merged.some(q=>
+     Math.hypot((q.x||0)-(p.x||0),(q.y||0)-(p.y||0))<.012 &&
+     Math.abs((q.w||0)-(p.w||0))<.015 &&
+     Math.abs((q.h||0)-(p.h||0))<.025
+   );
+   if(!duplicate)merged.push({...p});
+ }
+ return merged;
+}
+
 
 function rgbToHsv(r,g,b){
  r/=255;g/=255;b/=255;
@@ -5917,7 +5938,7 @@ $('analyzeBtn').onclick=async()=>{
    ignoredT+=classified.filter(x=>x.cat==='ignored'||x.cat==='review').length;
    const si=sceneIndexAt(t);
    const scn=scenes[si];
-   const mp=(scn&&scn.manualPlayersByTime&&Array.isArray(scn.manualPlayersByTime[timeKey(t)]))?scn.manualPlayersByTime[timeKey(t)]:[];
+   const mp=manualPlayersForAnalysis(scn,t);
    manualT+=mp.length;
    fieldT+=field.length+mp.length;
    drawResultBoxes(c,classified,rejected);
