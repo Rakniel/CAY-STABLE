@@ -436,10 +436,11 @@ header{display:flex;justify-content:space-between;align-items:center;gap:15px;ma
   <div class="btnrow">
     <button id="runCalibAI" class="secondary">◎ Relancer la détection IA</button>
     <button id="manualPlayerMode" class="secondary manualmode">＋ Joueur manquant</button>
+    <button id="manualGroundPlayerMode" class="secondary manualmode">＋ Joueur au sol</button>
     <button id="clearManualPlayers" class="secondary red">Effacer ajouts</button>
   </div>
   <div id="calibAIState" class="calib-spinner">Calibrage STABLE : moteur léger uniquement. YOLO football reste éteint jusqu'au tracking.</div>
-  <div class="tip" style="margin-top:8px">Ajout manuel : clic = joueur debout • <strong>Maj + clic = joueur au sol / très penché</strong>. Un vrai cadre violet est créé.</div>
+  <div class="tip" style="margin-top:8px">Ajout manuel : choisis « Joueur manquant » ou « Joueur au sol », puis clique sur la personne. <strong>Maj + clic</strong> reste disponible pour un joueur au sol.</div>
   <div class="legendmini">
     <span><b style="background:#63d889"></b> accepté</span> ·
     <span><b style="background:#56a9ff"></b> accepté grâce à la tolérance du bord</span> ·
@@ -684,7 +685,7 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Escape')document.querySelectorAll('.infohelp.open').forEach(x=>x.classList.remove('open'));
 });
 
-const video=$('video'),input=$('fileInput'),drop=$('drop');let currentFile=null,objUrl=null,scenes=[],currentScene=-1,points=[],baseCanvas=null,polygonClosed=false,model=null,calibModel=null,footballSession=null,footballProvider='—',footballModelLoadPromise=null,footballLocalBuffer=null,guidedCalibrationRefs=[],guidedCalibrationPos=-1,guidedStadiumModels=[],guidedCandidatePool=[],cumulativeLearningHistory=[],restoredSession=null,calibWalkMode='needs',calibReviewQueue=[],dragPoint=-1,hoverPoint=-1,pointerMoved=false,calibDetections=[],manualPlayerMode=false,calibTimeOverride=null,calibCurrentTime=null,correctionFromResult=false,lastResultsScrollY=0,lastResultTimes=[],jerseyPickMode=null,jerseyRefs={team:[],goalkeeper:[],ignored:[]},manualClassOverrides={},showDiagnosticBoxes=false,selectedPoints=[],groupDragStart=null,boxSelectMode=false,boxSelectStart=null,boxSelectCurrent=null,jerseyRefHistory=[],calibZoom=1,lastDiagnosticImages=[];
+const video=$('video'),input=$('fileInput'),drop=$('drop');let currentFile=null,objUrl=null,scenes=[],currentScene=-1,points=[],baseCanvas=null,polygonClosed=false,model=null,calibModel=null,footballSession=null,footballProvider='—',footballModelLoadPromise=null,footballLocalBuffer=null,guidedCalibrationRefs=[],guidedCalibrationPos=-1,guidedStadiumModels=[],guidedCandidatePool=[],cumulativeLearningHistory=[],restoredSession=null,calibWalkMode='needs',calibReviewQueue=[],dragPoint=-1,hoverPoint=-1,pointerMoved=false,calibDetections=[],manualPlayerMode=false,manualPlayerLying=false,calibTimeOverride=null,calibCurrentTime=null,correctionFromResult=false,lastResultsScrollY=0,lastResultTimes=[],jerseyPickMode=null,jerseyRefs={team:[],goalkeeper:[],ignored:[]},manualClassOverrides={},showDiagnosticBoxes=false,selectedPoints=[],groupDragStart=null,boxSelectMode=false,boxSelectStart=null,boxSelectCurrent=null,jerseyRefHistory=[],calibZoom=1,lastDiagnosticImages=[];
 function sf(b){if(b<1048576)return(b/1024).toFixed(1)+' Ko';if(b<1073741824)return(b/1048576).toFixed(1)+' Mo';return(b/1073741824).toFixed(2)+' Go'}
 function tf(t){t=Math.max(0,Math.round(t));let h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${m}:${String(s).padStart(2,'0')}`}
 function status(el,s,c=''){el.className='status '+c;el.textContent=s}
@@ -1514,6 +1515,8 @@ async function chooseNextGuidedReference(targetPos){
 function activateDefaultTeamMode56(){
  exitTerrainSelectionModes();
  manualPlayerMode=false;
+ manualPlayerLying=false;
+ if($('manualGroundPlayerMode'))$('manualGroundPlayerMode').classList.remove('active');
  jerseyPickMode='team';
  document.querySelectorAll('.jerseybtn[data-jersey]').forEach(
    x=>x.classList.toggle('active',x.dataset.jersey==='team')
@@ -1670,7 +1673,7 @@ function saveCurrentCalibration(markValidated=true){
  autoSaveCalibrationSession();
 }
 async function goToCalibration(index){
- correctionFromResult=false;calibTimeOverride=null;manualPlayerMode=false;if($('manualPlayerMode')){$('manualPlayerMode').classList.remove('active');$('manualPlayerMode').textContent='＋ Joueur manquant';}
+ correctionFromResult=false;calibTimeOverride=null;manualPlayerMode=false;manualPlayerLying=false;if($('manualPlayerMode')){$('manualPlayerMode').classList.remove('active');$('manualPlayerMode').textContent='＋ Joueur manquant';}if($('manualGroundPlayerMode')){$('manualGroundPlayerMode').classList.remove('active');$('manualGroundPlayerMode').textContent='＋ Joueur au sol';}
  if(!scenes.length) return;
  index=Math.max(0,Math.min(scenes.length-1,index));
  await openCalib(index);
@@ -3289,9 +3292,14 @@ function exitPlayerSelectionModes(message=''){
  document.querySelectorAll('.jerseybtn[data-jersey]').forEach(x=>x.classList.remove('active'));
 
  manualPlayerMode=false;
+ manualPlayerLying=false;
  if($('manualPlayerMode')){
    $('manualPlayerMode').classList.remove('active');
    $('manualPlayerMode').textContent='＋ Joueur manquant';
+ }
+ if($('manualGroundPlayerMode')){
+   $('manualGroundPlayerMode').classList.remove('active');
+   $('manualGroundPlayerMode').textContent='＋ Joueur au sol';
  }
 
  if(cc)cc.style.cursor='crosshair';
@@ -3543,9 +3551,14 @@ async function openCalib(i,timeOverride=null,fromResult=false){
  if(!Array.isArray(s.manualPlayers)) s.manualPlayers=[];
  calibDetections=[];
  manualPlayerMode=correctionFromResult;
+ manualPlayerLying=false;
  if($('manualPlayerMode')){
    $('manualPlayerMode').classList.toggle('active',manualPlayerMode);
    $('manualPlayerMode').textContent=manualPlayerMode?'✓ Mode joueur actif — clique sur le manquant':'＋ Joueur manquant';
+ }
+ if($('manualGroundPlayerMode')){
+   $('manualGroundPlayerMode').classList.remove('active');
+   $('manualGroundPlayerMode').textContent='＋ Joueur au sol';
  }
  if($('resultCorrectionBanner')) $('resultCorrectionBanner').classList.toggle('hidden',!correctionFromResult);
  if($('returnToResult')) $('returnToResult').classList.toggle('hidden',!correctionFromResult);
@@ -3785,7 +3798,7 @@ cc.addEventListener('pointerdown',e=>{
    // STABLE : chaque clic crée un NOUVEAU cadre. Les superpositions sont autorisées.
    let h=Math.max(.055,Math.min(.17,.055+pos.y*.115));
    let w=Math.max(.022,Math.min(.075,h*.34));
-   let lying=!!e.shiftKey;
+   let lying=manualPlayerLying||!!e.shiftKey;
    if(lying){
      w=Math.max(.075,Math.min(.18,h*1.45));
      h=Math.max(.035,Math.min(.075,h*.46));
@@ -3911,11 +3924,14 @@ $('returnToResult').onclick=()=>{
  correctionFromResult=false;
  calibTimeOverride=null;
  manualPlayerMode=false;
+ manualPlayerLying=false;
  $('calibSection').classList.add('hidden');
  $('resultCorrectionBanner').classList.add('hidden');
  $('returnToResult').classList.add('hidden');
  $('manualPlayerMode').classList.remove('active');
  $('manualPlayerMode').textContent='＋ Joueur manquant';
+ $('manualGroundPlayerMode').classList.remove('active');
+ $('manualGroundPlayerMode').textContent='＋ Joueur au sol';
  $('results').scrollIntoView({behavior:'smooth',block:'start'});
  setTimeout(()=>window.scrollTo({top:lastResultsScrollY,behavior:'smooth'}),350);
 };
@@ -3925,10 +3941,13 @@ document.querySelectorAll('.jerseybtn[data-jersey]').forEach(btn=>{
  btn.onclick=()=>{
    exitTerrainSelectionModes();
    manualPlayerMode=false;
+   manualPlayerLying=false;
    if($('manualPlayerMode')){
      $('manualPlayerMode').classList.remove('active');
      $('manualPlayerMode').textContent='＋ Joueur manquant';
    }
+   $('manualGroundPlayerMode').classList.remove('active');
+   $('manualGroundPlayerMode').textContent='＋ Joueur au sol';
    const cat=btn.dataset.jersey;
    jerseyPickMode=jerseyPickMode===cat?null:cat;
    document.querySelectorAll('.jerseybtn[data-jersey]').forEach(x=>x.classList.toggle('active',x.dataset.jersey===jerseyPickMode));
@@ -4015,10 +4034,27 @@ $('manualPlayerMode').onclick=()=>{
  exitTerrainSelectionModes();
  jerseyPickMode=null;
  document.querySelectorAll('.jerseybtn[data-jersey]').forEach(x=>x.classList.remove('active'));
- manualPlayerMode=!manualPlayerMode;
- $('manualPlayerMode').classList.toggle('active',manualPlayerMode);
- $('manualPlayerMode').textContent=manualPlayerMode?'✓ Mode joueur actif — clique sur les manquants':'＋ Joueur manquant';
- cc.style.cursor=manualPlayerMode?'cell':'crosshair';
+ const activate=!manualPlayerMode||manualPlayerLying;
+ manualPlayerMode=activate;
+ manualPlayerLying=false;
+ $('manualPlayerMode').classList.toggle('active',activate);
+ $('manualPlayerMode').textContent=activate?'✓ Mode joueur actif — clique sur les manquants':'＋ Joueur manquant';
+ $('manualGroundPlayerMode').classList.remove('active');
+ $('manualGroundPlayerMode').textContent='＋ Joueur au sol';
+ cc.style.cursor=activate?'cell':'crosshair';
+};
+$('manualGroundPlayerMode').onclick=()=>{
+ exitTerrainSelectionModes();
+ jerseyPickMode=null;
+ document.querySelectorAll('.jerseybtn[data-jersey]').forEach(x=>x.classList.remove('active'));
+ const activate=!manualPlayerMode||!manualPlayerLying;
+ manualPlayerMode=activate;
+ manualPlayerLying=activate;
+ $('manualPlayerMode').classList.remove('active');
+ $('manualPlayerMode').textContent='＋ Joueur manquant';
+ $('manualGroundPlayerMode').classList.toggle('active',activate);
+ $('manualGroundPlayerMode').textContent=activate?'✓ Mode joueur au sol — clique sur le manquant':'＋ Joueur au sol';
+ cc.style.cursor=activate?'cell':'crosshair';
 };
 $('clearManualPlayers').onclick=()=>{
  if(currentScene<0)return;
