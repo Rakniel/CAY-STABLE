@@ -1,0 +1,36 @@
+--- a/CAY_ANALYZER_STABLE.html
++++ b/CAY_ANALYZER_STABLE.html
+@@
+ async function refreshNextReferenceFromLearning11(ref,targetPos){
+  if(!ref)return;
+ 
+  try{
+    const c=await frame(ref.time,900);
+    const anchor=previousValidatedFieldAnchor12(targetPos);
+-   let chosen=null;
+-
+-   if(anchor && anchor.sceneIndex===ref.sceneIndex){
+-     // Même cadrage : la géométrie validée est fiable.
+-     chosen={
+-       poly:anchor.poly.map(p=>({...p})),
+-       mode:'MEME_PLAN_REUTILISE',
+-       confidence:1
+-     };
+-   }else{
+-     // Nouveau cadrage : INTERDICTION de recopier la forme précédente.
+-     // On conserve seulement l'apparence de la pelouse apprise.
+-     chosen=stableConnectedPitchField(c,targetPos);
+-   }
++   // STABLE : chaque image recalcule sa propre géométrie terrain.
++   // Même sceneIndex ne signifie pas même recadrage/pan/zoom : recopier les points
++   // précédents décale les joueurs et fausse ensuite tracking + statistiques.
++   // L'ancre précédente reste seulement une trace d'apprentissage/diagnostic.
++   const chosen=stableConnectedPitchField(c,targetPos);
+ 
+    if(!chosen?.poly?.length){
+      throw new Error('terrain automatique non fiable sur ce cadrage');
+    }
+@@
+-   ref.fieldAnchorRef=anchor?.refIndex!=null?anchor.refIndex+1:null;
++   ref.fieldAnchorRef=anchor?.refIndex!=null?anchor.refIndex+1:null;
++   ref.fieldGeometryRecalculated=true;
