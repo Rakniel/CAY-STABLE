@@ -3979,29 +3979,34 @@ function applyCalibZoom(){
  cc.style.width=(calibZoom*100)+'%';
  if($('zoomLabel'))$('zoomLabel').textContent=Math.round(calibZoom*100)+'%';
 }
-if($('zoomIn'))$('zoomIn').onclick=()=>{calibZoom=Math.min(8,calibZoom+.5);applyCalibZoom();};
-if($('zoomOut'))$('zoomOut').onclick=()=>{calibZoom=Math.max(1,calibZoom-.5);applyCalibZoom();};
-if($('zoomReset'))$('zoomReset').onclick=()=>{calibZoom=1;applyCalibZoom();};
-if($('zoom200'))$('zoom200').onclick=()=>{calibZoom=2;applyCalibZoom();};
-if($('zoom400'))$('zoom400').onclick=()=>{calibZoom=4;applyCalibZoom();};
-if($('zoom800'))$('zoom800').onclick=()=>{calibZoom=8;applyCalibZoom();};
-cc.addEventListener('wheel',e=>{
- if(currentScene<0)return;
- e.preventDefault();
- const box=cc.parentElement;
- const before=cc.getBoundingClientRect();
- const rx=(e.clientX-before.left)/before.width;
- const ry=(e.clientY-before.top)/before.height;
- const old=calibZoom;
- const step=calibZoom>=4?.5:.25;
- calibZoom=Math.max(1,Math.min(8,calibZoom+(e.deltaY<0?step:-step)));
- if(calibZoom===old)return;
+function setCalibZoom(next,clientX=null,clientY=null){
+ const box=cc.parentElement,before=cc.getBoundingClientRect(),viewport=box.getBoundingClientRect();
+ const ax=clientX===null?viewport.left+box.clientWidth/2:clientX;
+ const ay=clientY===null?viewport.top+box.clientHeight/2:clientY;
+ const rx=Math.max(0,Math.min(1,(ax-before.left)/Math.max(1,before.width)));
+ const ry=Math.max(0,Math.min(1,(ay-before.top)/Math.max(1,before.height)));
+ calibZoom=Math.max(1,Math.min(8,next));
  applyCalibZoom();
  requestAnimationFrame(()=>{
    const after=cc.getBoundingClientRect();
-   box.scrollLeft += rx*(after.width-before.width);
-   box.scrollTop  += ry*(after.height-before.height);
+   box.scrollLeft+=rx*(after.width-before.width);
+   box.scrollTop+=ry*(after.height-before.height);
  });
+}
+if($('zoomIn'))$('zoomIn').onclick=()=>setCalibZoom(calibZoom+.5);
+if($('zoomOut'))$('zoomOut').onclick=()=>setCalibZoom(calibZoom-.5);
+if($('zoomReset'))$('zoomReset').onclick=()=>setCalibZoom(1);
+if($('zoom200'))$('zoom200').onclick=()=>setCalibZoom(2);
+if($('zoom400'))$('zoom400').onclick=()=>setCalibZoom(4);
+if($('zoom800'))$('zoom800').onclick=()=>setCalibZoom(8);
+cc.addEventListener('wheel',e=>{
+ if(currentScene<0)return;
+ e.preventDefault();
+ const old=calibZoom;
+ const step=calibZoom>=4?.5:.25;
+ const next=Math.max(1,Math.min(8,calibZoom+(e.deltaY<0?step:-step)));
+ if(next===old)return;
+ setCalibZoom(next,e.clientX,e.clientY);
 },{passive:false});
 
 if($('exportTeamProfile'))$('exportTeamProfile').onclick=()=>{
