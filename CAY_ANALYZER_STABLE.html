@@ -684,7 +684,7 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Escape')document.querySelectorAll('.infohelp.open').forEach(x=>x.classList.remove('open'));
 });
 
-const video=$('video'),input=$('fileInput'),drop=$('drop');let currentFile=null,objUrl=null,scenes=[],currentScene=-1,points=[],baseCanvas=null,polygonClosed=false,model=null,calibModel=null,footballSession=null,footballProvider='—',footballModelLoadPromise=null,footballLocalBuffer=null,guidedCalibrationRefs=[],guidedCalibrationPos=-1,guidedStadiumModels=[],guidedCandidatePool=[],cumulativeLearningHistory=[],restoredSession=null,calibWalkMode='needs',calibReviewQueue=[],dragPoint=-1,hoverPoint=-1,pointerMoved=false,calibDetections=[],manualPlayerMode=false,calibTimeOverride=null,correctionFromResult=false,lastResultsScrollY=0,lastResultTimes=[],jerseyPickMode=null,jerseyRefs={team:[],goalkeeper:[],ignored:[]},showDiagnosticBoxes=false,selectedPoints=[],groupDragStart=null,boxSelectMode=false,boxSelectStart=null,boxSelectCurrent=null,jerseyRefHistory=[],calibZoom=1,lastDiagnosticImages=[];
+const video=$('video'),input=$('fileInput'),drop=$('drop');let currentFile=null,objUrl=null,scenes=[],currentScene=-1,points=[],baseCanvas=null,polygonClosed=false,model=null,calibModel=null,footballSession=null,footballProvider='—',footballModelLoadPromise=null,footballLocalBuffer=null,guidedCalibrationRefs=[],guidedCalibrationPos=-1,guidedStadiumModels=[],guidedCandidatePool=[],cumulativeLearningHistory=[],restoredSession=null,calibWalkMode='needs',calibReviewQueue=[],dragPoint=-1,hoverPoint=-1,pointerMoved=false,calibDetections=[],manualPlayerMode=false,calibTimeOverride=null,calibCurrentTime=null,correctionFromResult=false,lastResultsScrollY=0,lastResultTimes=[],jerseyPickMode=null,jerseyRefs={team:[],goalkeeper:[],ignored:[]},manualClassOverrides={},showDiagnosticBoxes=false,selectedPoints=[],groupDragStart=null,boxSelectMode=false,boxSelectStart=null,boxSelectCurrent=null,jerseyRefHistory=[],calibZoom=1,lastDiagnosticImages=[];
 function sf(b){if(b<1048576)return(b/1024).toFixed(1)+' Ko';if(b<1073741824)return(b/1048576).toFixed(1)+' Mo';return(b/1073741824).toFixed(2)+' Go'}
 function tf(t){t=Math.max(0,Math.round(t));let h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${m}:${String(s).padStart(2,'0')}`}
 function status(el,s,c=''){el.className='status '+c;el.textContent=s}
@@ -710,7 +710,8 @@ function autoSaveCalibrationSession(){
        time:r.time,sceneIndex:r.sceneIndex,score:r.score,count:r.count,teamCount:r.teamCount||0,poly:r.poly||null
      })),
      guidedStadiumModels,
-     cumulativeLearningHistory
+     cumulativeLearningHistory,
+     manualClassOverrides
    };
    localStorage.setItem(key,JSON.stringify(payload));
  }catch(err){console.warn('Sauvegarde locale impossible',err);}
@@ -732,6 +733,7 @@ function restoreCalibrationSession(){
    if(Array.isArray(p.guidedCalibrationRefs))guidedCalibrationRefs=p.guidedCalibrationRefs;
    if(Array.isArray(p.guidedStadiumModels))guidedStadiumModels=p.guidedStadiumModels;
    if(Array.isArray(p.cumulativeLearningHistory))cumulativeLearningHistory=p.cumulativeLearningHistory;
+   if(p.manualClassOverrides&&typeof p.manualClassOverrides==='object')manualClassOverrides=p.manualClassOverrides;
    if(p.teamName&&$('analysisTeamName'))$('analysisTeamName').value=p.teamName;
    if(p.teamShort&&$('analysisTeamShort'))$('analysisTeamShort').value=p.teamShort;
    sanitizeJerseyReferences58(true);
@@ -792,6 +794,7 @@ function setFile(f){
    $('guidedCalibSection').classList.add('hidden');
    $('reviewSection').classList.add('hidden');
    $('readySection').classList.add('hidden');
+   manualClassOverrides={};
    if(restoreCalibrationSession()){
      status($('scanStatus'),'Calibrage précédent de cette vidéo retrouvé automatiquement. Lance le scan caméra.','success');
    }
@@ -2645,6 +2648,53 @@ $('verifyAllBtn').onclick=()=>{if(!scenes.length)return;calibWalkMode='all';cali
 
 
 function timeKey(t){ return String(Math.round((t||0)*10)/10); }
+function manualOverridesForTime(t,create=false){
+ const k=timeKey(t);
+ if(create&&!Array.isArray(manualClassOverrides[k]))manualClassOverrides[k]=[];
+ return Array.isArray(manualClassOverrides[k])?manualClassOverrides[k]:[];
+}
+function rememberManualClassification(box,cat,t=calibCurrentTime){
+ if(!box||t===null||!baseCanvas)return;
+ const W=baseCanvas.width,H=baseCanvas.height;
+ const entry={
+   x:box.x/W,y:box.y/H,w:box.w/W,h:box.h/H,
+   clickX:(Number.isFinite(box.clickX)?box.clickX:box.x+box.w/2)/W,
+   clickY:(Number.isFinite(box.clickY)?box.clickY:box.y+box.h/2)/H,
+   cat
+ };
+ const arr=manualOverridesForTime(t,true);
+ const previous=arr.findIndex(o=>
+   Math.hypot((o.clickX||0)-entry.clickX,(o.clickY||0)-entry.clickY)<.025
+ );
+ if(previous>=0)arr[previous]=entry;else arr.push(entry);
+ if(arr.length>40)arr.splice(0,arr.length-40);
+ autoSaveCalibrationSession();
+}
+function applyManualClassifications(boxes,t,W,H){
+ const out=(boxes||[]).map(b=>({...b}));
+ for(const o of manualOverridesForTime(t)){
+   if(!o||!['team','goalkeeper','ignored'].includes(o.cat))continue;
+   const clickX=o.clickX*W,clickY=o.clickY*H;
+   let best=-1,bestArea=Infinity;
+   for(let i=0;i<out.length;i++){
+     const b=out[i];
+     if(clickX>=b.x&&clickX<=b.x+b.w&&clickY>=b.y&&clickY<=b.y+b.h){
+       const area=b.w*b.h;
+       if(area<bestArea){best=i;bestArea=area}
+     }
+   }
+   if(best>=0){
+     out[best]={...out[best],forcedCat:o.cat,manualDecision:true};
+   }else{
+     out.push({
+       x:o.x*W,y:o.y*H,w:o.w*W,h:o.h*H,
+       clickX,clickY,score:1,source:'manual_classification_saved',
+       forcedCat:o.cat,manualDecision:true
+     });
+   }
+ }
+ return out;
+}
 function getManualPlayersForCurrentFrame(){
  if(currentScene<0 || !scenes[currentScene]) return [];
  const s=scenes[currentScene];
@@ -3398,6 +3448,7 @@ async function runCalibrationDetection(){
    const pm=currentMaskForCalibration();
    const jerseyRecovered=recoverTeamByJersey(baseCanvas,pm,calibDetections,4);
    if(jerseyRecovered.length)calibDetections=footballDedupe(calibDetections.concat(jerseyRecovered));
+   calibDetections=applyManualClassifications(calibDetections,calibCurrentTime,baseCanvas.width,baseCanvas.height);
    $('calibAIState').textContent=`${calibDetections.length} candidat(s) • ${jerseyRecovered.length} joueur(s) récupéré(s) par le maillot.`;
    updateCalibPlayerStats();
    drawPoly();
@@ -3425,6 +3476,7 @@ async function openCalib(i,timeOverride=null,fromResult=false){
  let s=scenes[i];
  if(!s.manualPlayersByTime)s.manualPlayersByTime={};
  let t=calibTimeOverride!==null ? calibTimeOverride : Math.min(s.end-.1,s.start+Math.max(1,Math.min(5,(s.end-s.start)*.3)));
+ calibCurrentTime=t;
  baseCanvas=await frame(t,1100);
  points=s.manual?[...s.manual]:(s.auto?[...s.auto]:[]);selectedPoints=[];groupDragStart=null;boxSelectMode=false;boxSelectStart=null;boxSelectCurrent=null;polygonClosed=points.length>=3;
  cc.width=baseCanvas.width;cc.height=baseCanvas.height;
@@ -3701,6 +3753,7 @@ cc.addEventListener('pointerdown',e=>{
    // La correction manuelle du plan a priorité, même si la référence existe déjà.
    target.forcedCat=pickedCat;
    target.manualDecision=true;
+   rememberManualClassification(target,pickedCat);
 
    const f=jerseyFeature(baseCanvas,target);
    let refAdded=false;
@@ -5884,7 +5937,7 @@ $('analyzeBtn').onclick=async()=>{
  let m=await getModel();$('results').classList.remove('hidden');$('aiProgress').classList.remove('hidden');$('gallery').innerHTML='';let tests=[];
  for(const s of scenes){tests.push(Math.min(s.end-.1,s.start+Math.max(1,(s.end-s.start)*.35)))}if(tests.length>20)tests=tests.filter((_,i)=>i%Math.ceil(tests.length/20)===0);
  let rawT=0,fieldT=0,autoUsed=0,teamT=0,gkT=0,ignoredT=0,manualT=0,postureT=0;
- for(let i=0;i<tests.length;i++){let t=tests[i],s=sceneAt(t),c=await frame(t,1100),raw=await detect(m,c);rawT+=raw.length;
+ for(let i=0;i<tests.length;i++){let t=tests[i],s=sceneAt(t),c=await frame(t,1100),raw=await detect(m,c);
    postureT+=raw.filter(b=>String(b.source||'').startsWith('posture_')).length;
    // STABLE: une calibration manuelle validée est PRIORITAIRE.
    // L'auto-détection ne peut plus remplacer le polygone utilisateur.
@@ -5906,6 +5959,8 @@ $('analyzeBtn').onclick=async()=>{
 
    const jerseyRecovered=recoverTeamByJersey(c,poly,raw,4);
    if(jerseyRecovered.length)raw=footballDedupe(raw.concat(jerseyRecovered));
+   raw=applyManualClassifications(raw,t,c.width,c.height);
+   rawT+=raw.length;
 
    let accepted=[],rejected=[],edgeCount=0;
    for(const b of raw){
