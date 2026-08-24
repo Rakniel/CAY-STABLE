@@ -28,7 +28,7 @@
     return spatial*2.65+appearance*.60+catPenalty+Math.min(.25,track.missed*.05);
   }
   function createState(){
-    return {nextGlobalId:1,segment:1,segments:1,active:[],archive:[],created:0,totalMatches:0,maxVisible:0,skippedWeak:0};
+    return {nextGlobalId:1,segment:1,segments:1,active:[],archive:[],created:0,totalMatches:0,maxVisible:0,skippedWeak:0,reidentified:0};
   }
   function archiveTrack(state,tr,reason){
     if(tr.archived)return;
@@ -38,14 +38,41 @@
     for(const tr of state.active)archiveTrack(state,tr,reason||'camera_cut');
     state.active=[]; state.segment++; state.segments++;
   }
+  function pointFor(state,d,t){ return {x:clamp01(d.x),y:clamp01(d.y),time:t,segment:state.segment}; }
   function newTrack(state,d,t){
-    const p={x:clamp01(d.x),y:clamp01(d.y),time:t,segment:state.segment};
+    const p=pointFor(state,d,t);
     const tr={
-      globalId:state.nextGlobalId++,segment:state.segment,cat:d.cat||'team',feature:d.feature||null,
+      globalId:state.nextGlobalId++,segment:state.segment,segmentsSeen:[state.segment],cat:d.cat||'team',feature:d.feature||null,
       x:p.x,y:p.y,missed:0,seen:1,firstTime:t,lastTime:t,archived:false,exitReason:null,
-      motionHistory:[p],fullPath:[p],confidenceSamples:[Number.isFinite(d.score)?d.score:null].filter(v=>v!==null)
+      motionHistory:[p],fullPath:[p],confidenceSamples:[Number.isFinite(d.score)?d.score:null].filter(v=>v!==null),
+      reidentifications:0
     };
     state.active.push(tr); state.created++; return tr;
+  }
+  function reidentifyArchived(state,d,t,opts){
+    if(opts.reidentifyArchived!==true)return null;
+    const threshold=Number.isFinite(opts.reidAppearanceThreshold)?opts.reidAppearanceThreshold:.10;
+    const candidates=[];
+    for(let i=0;i<state.archive.length;i++){
+      const tr=state.archive[i];
+      if(!tr||tr.cat!==(d.cat||'team')||tr.segment===state.segment)continue;
+      const appearance=appearanceDistance(tr.feature,d.feature);
+      if(appearance<=threshold)candidates.push({i,tr,appearance});
+    }
+    candidates.sort((a,b)=>a.appearance-b.appearance || b.tr.lastTime-a.tr.lastTime);
+    if(!candidates.length)return null;
+    const best=candidates[0];
+    const tr=best.tr;
+    state.archive.splice(best.i,1);
+    const p=pointFor(state,d,t);
+    tr.archived=false; tr.exitReason=null; tr.segment=state.segment;
+    if(!tr.segmentsSeen.includes(state.segment))tr.segmentsSeen.push(state.segment);
+    tr.x=p.x; tr.y=p.y; tr.missed=0; tr.seen++; tr.lastTime=t;
+    tr.feature=d.feature||tr.feature; tr.motionHistory=[p]; tr.fullPath.push(p);
+    if(Number.isFinite(d.score))tr.confidenceSamples.push(d.score);
+    tr.reidentifications=(tr.reidentifications||0)+1;
+    state.active.push(tr); state.reidentified++;
+    return tr;
   }
   function assignFrame(state,inputDetections,t,opts){
     opts=opts||{};
@@ -69,17 +96,19 @@
     for(const p of pairs){
       if(usedT.has(p.ti)||usedD.has(p.di))continue;
       const tr=state.active[p.ti],d=dets[p.di]; usedT.add(p.ti);usedD.add(p.di);
-      const point={x:d.x,y:d.y,time:t,segment:state.segment};
+      const point=pointFor(state,d,t);
       tr.x=d.x;tr.y=d.y;tr.cat=d.cat||tr.cat;tr.feature=d.feature||tr.feature;tr.missed=0;tr.seen++;tr.lastTime=t;
       tr.motionHistory.push(point); if(tr.motionHistory.length>30)tr.motionHistory.shift();
       tr.fullPath.push(point);
       if(Number.isFinite(d.score))tr.confidenceSamples.push(d.score);
-      assigned.push({...d,trackId:tr.globalId,track:tr}); state.totalMatches++;
+      assigned.push({...d,trackId:tr.globalId,track:tr,reidentified:false}); state.totalMatches++;
     }
     for(let i=0;i<state.active.length;i++)if(!usedT.has(i))state.active[i].missed++;
     if(opts.allowNew!==false){
       for(let di=0;di<dets.length;di++)if(!usedD.has(di)){
-        const tr=newTrack(state,dets[di],t); assigned.push({...dets[di],trackId:tr.globalId,track:tr});
+        const d=dets[di];
+        const tr=reidentifyArchived(state,d,t,opts)||newTrack(state,d,t);
+        assigned.push({...d,trackId:tr.globalId,track:tr,reidentified:(tr.reidentifications||0)>0});
       }
     } else state.skippedWeak+=dets.filter((_,i)=>!usedD.has(i)).length;
     const keep=[];
@@ -89,21 +118,25 @@
     return assigned;
   }
   function summarizeTrack(tr){
-    let travel=0; for(let i=1;i<tr.fullPath.length;i++)travel+=dist(tr.fullPath[i-1],tr.fullPath[i]);
+    let travel=0;
+    for(let i=1;i<tr.fullPath.length;i++){
+      const a=tr.fullPath[i-1],b=tr.fullPath[i];
+      if(a.segment===b.segment)travel+=dist(a,b);
+    }
     const scores=tr.confidenceSamples||[];
     const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
     return {
-      id:tr.globalId,segment:tr.segment,cat:tr.cat,observations:tr.seen,pathPoints:tr.fullPath.length,
+      id:tr.globalId,segments:[...(tr.segmentsSeen||[tr.segment])],cat:tr.cat,observations:tr.seen,pathPoints:tr.fullPath.length,
       firstTime:+tr.firstTime.toFixed(3),lastTime:+tr.lastTime.toFixed(3),observedSpan:+Math.max(0,tr.lastTime-tr.firstTime).toFixed(3),
       normalizedTravel:+travel.toFixed(6),identityConfidence:avg===null?null:+avg.toFixed(4),exitReason:tr.exitReason||null,
-      quality:tr.seen>=10?'FIABLE':'PARTIEL'
+      reidentifications:tr.reidentifications||0,quality:tr.seen>=10?'FIABLE':'PARTIEL'
     };
   }
   function summary(state){
     const all=[...state.archive,...state.active];
     const unique=new Map(); for(const tr of all)unique.set(tr.globalId,tr);
     const tracks=[...unique.values()].map(summarizeTrack).sort((a,b)=>a.id-b.id);
-    return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,tracks};
+    return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,tracks};
   }
-  return {createState,startSegment,assignFrame,summary,matchCost};
+  return {createState,startSegment,assignFrame,summary,matchCost,appearanceDistance};
 });
