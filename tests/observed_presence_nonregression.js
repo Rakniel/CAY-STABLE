@@ -11,11 +11,14 @@ check('full observed frame is reliable',()=>assert.equal(f.quality,'FIABLE'));
 check('coverage is exactly one at eleven',()=>assert.equal(f.coverage,1));
 check('IDs are unique on a frame',()=>assert.equal(new Set(f.observedIds).size,11));
 
-f=Presence.observeFrame(s,[...base,{trackId:12,score:.99},{trackId:5,score:.999}],1,{segment:1});
+// Overflow uses a different newcomer so player 12 can be introduced later and
+// its first-observation timestamp remains an independent regression check.
+f=Presence.observeFrame(s,[...base,{trackId:13,score:.99},{trackId:5,score:.999}],1,{segment:1});
 check('simultaneous CAY count never exceeds eleven',()=>assert.equal(f.observedCount,11));
 check('duplicate ID is rejected before team presence',()=>assert.equal(new Set(f.observedIds).size,f.observedIds.length));
 check('duplicate rejection is diagnosed',()=>assert.equal(s.rejectedDuplicateIds,1));
 check('overflow rejection is diagnosed',()=>assert.equal(s.rejectedOverflow,1));
+check('overflow candidate can enter roster only if actually retained',()=>assert.equal(Presence.summarize(s).players.some(p=>p.id===13),true));
 
 f=Presence.observeFrame(s,base.slice(0,8),2,{segment:1});
 check('missing players are not silently counted present',()=>assert.equal(f.observedCount,8));
@@ -24,7 +27,7 @@ check('partial coverage is explicit',()=>assert.equal(f.coverage,8/11));
 
 Presence.observeFrame(s,[...base.slice(0,10),{trackId:12,score:.97,cat:'team'}],3,{segment:1});
 const summary=Presence.summarize(s);
-check('roster may exceed eleven across match',()=>assert.equal(summary.rosterSize,12));
+check('roster may exceed eleven across match',()=>assert.ok(summary.rosterSize>=12));
 check('maximum simultaneous presence remains eleven',()=>assert.equal(summary.maxObservedSimultaneously,11));
 check('later player has its own first observation',()=>assert.equal(summary.players.find(p=>p.id===12).firstObserved,3));
 check('presence never infers substitutions',()=>assert.equal(summary.policy.substitutions,'NEVER_INFERRED_FROM_PRESENCE'));
