@@ -96,7 +96,10 @@
     function report(projectors){
       const supplied=projectors||{};
       const r=Stats.buildReport(state,Core,supplied);
-      const segments=provenance().map(s=>({...s,metricProjectionValidated:typeof supplied[s.segment]==='function'}));
+      const segments=provenance().map(s=>{
+        const calibration=typeof Stats.projectorInfo==='function'?Stats.projectorInfo(supplied[s.segment]):{validated:false,source:null,confidence:null,reason:'validation calibration indisponible'};
+        return {...s,metricProjectionValidated:calibration.validated,metricCalibrationSource:calibration.source,metricCalibrationConfidence:calibration.confidence,metricCalibrationReason:calibration.reason};
+      });
       return {...r,bridge:{frames,segmentBreaks,lastTime,timeline:[...timeline],segments}};
     }
     function snapshot(){
