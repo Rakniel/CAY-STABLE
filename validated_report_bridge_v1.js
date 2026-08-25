@@ -6,6 +6,7 @@
   }
 })(typeof globalThis!=='undefined'?globalThis:this,function(PlayerStats,ReplacementEvents){
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
   function ensureDeps(){
     if(!PlayerStats||typeof PlayerStats.buildReport!=='function')throw new Error('CAYPlayerStats.buildReport requis');
     if(!ReplacementEvents||typeof ReplacementEvents.buildValidatedReplacementLayer!=='function'||typeof ReplacementEvents.applyToPlayerCard!=='function')throw new Error('CAYReplacementEvents requis');
@@ -57,25 +58,54 @@
     const byId=new Map();
     const projectorInfo=PlayerStats&&typeof PlayerStats.projectorInfo==='function'
       ?PlayerStats.projectorInfo
-      :(entry=>({validated:false,source:null,confidence:null,reason:entry?'validation de projection indisponible':'aucune projection terrain fournie'}));
+      :(entry=>({validated:false,project:null,source:null,confidence:null,reason:entry?'validation de projection indisponible':'aucune projection terrain fournie'}));
     for(const tr of [...(coreState?.archive||[]),...(coreState?.active||[])]){
       const grouped=new Map();
       for(const p of tr.fullPath||[]){
         const segment=Number(p.segment),time=Number(p.time);
         if(!Number.isFinite(segment)||!Number.isFinite(time))continue;
         if(!grouped.has(segment))grouped.set(segment,[]);
-        grouped.get(segment).push({time});
+        grouped.get(segment).push({time,x:Number(p.x),y:Number(p.y),segment});
       }
       const rows=[...grouped.entries()].sort((a,b)=>a[0]-b[0]).map(([segment,points])=>{
         points.sort((a,b)=>a.time-b.time);
-        let eligibleSeconds=0;
-        for(let i=1;i<points.length;i++){
-          const dt=points[i].time-points[i-1].time;
-          if(dt>0&&dt<=3)eligibleSeconds+=dt;
-        }
         const info=projectorInfo((projectors||{})[segment]);
-        const measuredSeconds=info.validated?eligibleSeconds:0;
+        let eligibleSeconds=0,measuredSeconds=0,rejectedSeconds=0,rejectedPairs=0,acceptedPairs=0,distanceM=0;
+        const rejectionReasons={};
+        const reject=(reason,dt)=>{
+          rejectedPairs++;
+          rejectedSeconds+=dt;
+          rejectionReasons[reason]=(rejectionReasons[reason]||0)+1;
+        };
+        for(let i=1;i<points.length;i++){
+          const a=points[i-1],b=points[i];
+          const dt=b.time-a.time;
+          if(!(dt>0&&dt<=3))continue;
+          eligibleSeconds+=dt;
+          if(!info.validated){ reject('PROJECTION_NON_VALIDEE',dt); continue; }
+          let pa=null,pb=null;
+          try{
+            pa=info.project(a); pb=info.project(b);
+          }catch(e){
+            reject('ERREUR_PROJECTION',dt); continue;
+          }
+          if(!pa||!pb||![pa.x,pa.y,pb.x,pb.y].every(Number.isFinite)){
+            reject('COORDONNEES_METRIQUES_INVALIDES',dt); continue;
+          }
+          const d=hypot(pa,pb);
+          if(!Number.isFinite(d)||d<0){ reject('DISTANCE_INVALIDE',dt); continue; }
+          const speedKmh=(d/dt)*3.6;
+          if(!Number.isFinite(speedKmh)||speedKmh>45){ reject('VITESSE_NON_DEFENDABLE',dt); continue; }
+          measuredSeconds+=dt;
+          distanceM+=d;
+          acceptedPairs++;
+        }
         const coverage=eligibleSeconds>0?measuredSeconds/eligibleSeconds:0;
+        let reason=null;
+        if(eligibleSeconds<=0)reason='aucun intervalle temporel éligible sur ce segment';
+        else if(!info.validated)reason=info.reason||'projection terrain non validée';
+        else if(measuredSeconds<=0)reason='projection validée mais aucune paire métrique exploitable';
+        else if(measuredSeconds<eligibleSeconds)reason='projection métrique exploitable seulement sur une partie des intervalles éligibles';
         return {
           segment,
           firstTime:points.length?points[0].time:null,
@@ -83,13 +113,16 @@
           observations:points.length,
           eligibleSeconds:+eligibleSeconds.toFixed(3),
           measuredSeconds:+measuredSeconds.toFixed(3),
+          rejectedSeconds:+rejectedSeconds.toFixed(3),
           coverage:+coverage.toFixed(4),
+          acceptedPairs,rejectedPairs,rejectionReasons,
+          distanceM:measuredSeconds>0?+distanceM.toFixed(2):null,
           metricProjectionValidated:info.validated===true,
           calibrationSource:info.source||null,
           calibrationConfidence:Number.isFinite(info.confidence)?info.confidence:null,
-          reason:info.validated?null:(info.reason||'projection terrain non validée'),
-          quality:eligibleSeconds<=0?'INDISPONIBLE':(info.validated?'FIABLE':'INDISPONIBLE'),
-          aggregationPolicy:'DISTANCE_VITESSE_SPRINTS_UNIQUEMENT_SUR_SEGMENT_METRIQUE_VALIDE'
+          reason,
+          quality:eligibleSeconds<=0?'INDISPONIBLE':(coverage>=.8?'FIABLE':(coverage>0?'PARTIEL':'INDISPONIBLE')),
+          aggregationPolicy:'DISTANCE_VITESSE_SPRINTS_UNIQUEMENT_SUR_PAIRES_METRIQUES_VALIDES_ET_DEFENDABLES'
         };
       });
       byId.set(tr.globalId,rows);
@@ -115,7 +148,7 @@
           segmentVisuals.every(v=>v.quality==='FIABLE')?'FIABLE':'PARTIEL'
         ):'INDISPONIBLE',
         visualCoordinatesPolicy:'coordonnées image et heatmaps conservées par segment; aucune fusion inter-plans implicite',
-        metricAggregationPolicy:'distance, vitesse et sprints agrégés uniquement depuis les segments à projection métrique validée; aucune extrapolation silencieuse'
+        metricAggregationPolicy:'distance, vitesse et sprints agrégés uniquement depuis les paires à projection métrique validée et physiquement défendable; aucune extrapolation silencieuse'
       };
     });
     const unavailable={...(base.unavailable||{})};
@@ -142,7 +175,7 @@
       metricProvenance:{
         segmentSeparated:true,
         crossSegmentCalibrationReuse:false,
-        aggregation:'UNIQUEMENT_SEGMENTS_METRIQUES_VALIDES',
+        aggregation:'UNIQUEMENT_PAIRES_METRIQUES_VALIDES_ET_DEFENDABLES',
         unvalidatedPolicy:'conserver présence/identité/coordonnées image, métriques physiques indisponibles'
       },
       unavailable
