@@ -7,6 +7,9 @@ on:
       - '.github/workflows/cay-stable-integration.yml'
       - 'stable_runtime_tracking_v2.js'
       - 'tools/integrate_tracking_v2.py'
+      - 'tests/runtime_integration_contract.js'
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
