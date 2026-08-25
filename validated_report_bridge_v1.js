@@ -53,22 +53,69 @@
     }
     return byId;
   }
+  function buildMetricSegmentProvenance(coreState,projectors){
+    const byId=new Map();
+    const projectorInfo=PlayerStats&&typeof PlayerStats.projectorInfo==='function'
+      ?PlayerStats.projectorInfo
+      :(entry=>({validated:false,source:null,confidence:null,reason:entry?'validation de projection indisponible':'aucune projection terrain fournie'}));
+    for(const tr of [...(coreState?.archive||[]),...(coreState?.active||[])]){
+      const grouped=new Map();
+      for(const p of tr.fullPath||[]){
+        const segment=Number(p.segment),time=Number(p.time);
+        if(!Number.isFinite(segment)||!Number.isFinite(time))continue;
+        if(!grouped.has(segment))grouped.set(segment,[]);
+        grouped.get(segment).push({time});
+      }
+      const rows=[...grouped.entries()].sort((a,b)=>a[0]-b[0]).map(([segment,points])=>{
+        points.sort((a,b)=>a.time-b.time);
+        let eligibleSeconds=0;
+        for(let i=1;i<points.length;i++){
+          const dt=points[i].time-points[i-1].time;
+          if(dt>0&&dt<=3)eligibleSeconds+=dt;
+        }
+        const info=projectorInfo((projectors||{})[segment]);
+        const measuredSeconds=info.validated?eligibleSeconds:0;
+        const coverage=eligibleSeconds>0?measuredSeconds/eligibleSeconds:0;
+        return {
+          segment,
+          firstTime:points.length?points[0].time:null,
+          lastTime:points.length?points[points.length-1].time:null,
+          observations:points.length,
+          eligibleSeconds:+eligibleSeconds.toFixed(3),
+          measuredSeconds:+measuredSeconds.toFixed(3),
+          coverage:+coverage.toFixed(4),
+          metricProjectionValidated:info.validated===true,
+          calibrationSource:info.source||null,
+          calibrationConfidence:Number.isFinite(info.confidence)?info.confidence:null,
+          reason:info.validated?null:(info.reason||'projection terrain non validée'),
+          quality:eligibleSeconds<=0?'INDISPONIBLE':(info.validated?'FIABLE':'INDISPONIBLE'),
+          aggregationPolicy:'DISTANCE_VITESSE_SPRINTS_UNIQUEMENT_SUR_SEGMENT_METRIQUE_VALIDE'
+        };
+      });
+      byId.set(tr.globalId,rows);
+    }
+    return byId;
+  }
   function buildReport(coreState,coreApi,projectors,replacementEvents){
     ensureDeps();
     const base=PlayerStats.buildReport(coreState,coreApi,projectors||{});
     const ids=(base.players||[]).map(p=>p.id);
     const layer=ReplacementEvents.buildValidatedReplacementLayer(replacementEvents||[],ids);
     const visualById=buildSegmentVisuals(coreState);
+    const metricById=buildMetricSegmentProvenance(coreState,projectors||{});
     const players=(base.players||[]).map(card=>{
       const withReplacement=ReplacementEvents.applyToPlayerCard(card,layer);
       const segmentVisuals=visualById.get(card.id)||[];
+      const metricSegmentProvenance=metricById.get(card.id)||[];
       return {
         ...withReplacement,
         segmentVisuals,
+        metricSegmentProvenance,
         visualTrajectoryQuality:segmentVisuals.length?(
           segmentVisuals.every(v=>v.quality==='FIABLE')?'FIABLE':'PARTIEL'
         ):'INDISPONIBLE',
-        visualCoordinatesPolicy:'coordonnées image et heatmaps conservées par segment; aucune fusion inter-plans implicite'
+        visualCoordinatesPolicy:'coordonnées image et heatmaps conservées par segment; aucune fusion inter-plans implicite',
+        metricAggregationPolicy:'distance, vitesse et sprints agrégés uniquement depuis les segments à projection métrique validée; aucune extrapolation silencieuse'
       };
     });
     const unavailable={...(base.unavailable||{})};
@@ -92,8 +139,14 @@
         crossSegmentFusion:false,
         reason:'les cadrages caméra peuvent être incompatibles après cut, zoom ou pan'
       },
+      metricProvenance:{
+        segmentSeparated:true,
+        crossSegmentCalibrationReuse:false,
+        aggregation:'UNIQUEMENT_SEGMENTS_METRIQUES_VALIDES',
+        unvalidatedPolicy:'conserver présence/identité/coordonnées image, métriques physiques indisponibles'
+      },
       unavailable
     };
   }
-  return {buildReport,buildSegmentVisuals,segmentHeatmap};
+  return {buildReport,buildSegmentVisuals,buildMetricSegmentProvenance,segmentHeatmap};
 });
