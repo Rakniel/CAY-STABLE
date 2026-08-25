@@ -10,6 +10,7 @@ on:
       - 'player_stats_v1.js'
       - 'replacement_events_v1.js'
       - 'observed_presence_v1.js'
+      - 'observed_presence_report_v1.js'
       - 'validated_report_bridge_v1.js'
       - 'stable_tracking_bridge_v1.js'
       - 'stable_runtime_tracking_v2.js'
@@ -40,6 +41,7 @@ jobs:
           node --check player_stats_v1.js
           node --check replacement_events_v1.js
           node --check observed_presence_v1.js
+          node --check observed_presence_report_v1.js
           node --check validated_report_bridge_v1.js
           node --check stable_tracking_bridge_v1.js
           node --check stable_runtime_tracking_v2.js
