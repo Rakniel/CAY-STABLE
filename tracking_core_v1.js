@@ -163,17 +163,22 @@
     if(!target||!source)throw new Error('ID introuvable');
     if(target.cat!==source.cat)throw new Error('catégories incompatibles');
     if(simultaneousConflict(target,source))throw new Error('fusion refusée: IDs simultanés sur une même image');
+    const targetWasActive=state.active.includes(target),sourceWasActive=state.active.includes(source);
+    const freshest=(source.lastTime||0)>(target.lastTime||0)?source:target;
     target.fullPath=[...(target.fullPath||[]),...(source.fullPath||[])].sort((a,b)=>a.time-b.time||a.segment-b.segment);
-    target.motionHistory=target.fullPath.slice(-30);
     target.confidenceSamples=[...(target.confidenceSamples||[]),...(source.confidenceSamples||[])];
-    target.presenceIntervals=[...(target.presenceIntervals||[]),...(source.presenceIntervals||[])].sort((a,b)=>a.start-b.start);
+    target.presenceIntervals=[...(target.presenceIntervals||[]),...(source.presenceIntervals||[])].sort((a,b)=>a.start-b.start||a.segment-b.segment);
     target.segmentsSeen=[...new Set([...(target.segmentsSeen||[]),...(source.segmentsSeen||[])])].sort((a,b)=>a-b);
     target.firstTime=Math.min(target.firstTime,source.firstTime); target.lastTime=Math.max(target.lastTime,source.lastTime);
     target.seen=(target.seen||0)+(source.seen||0); target.observedDuration=(target.observedDuration||0)+(source.observedDuration||0);
     target.reidentifications=(target.reidentifications||0)+(source.reidentifications||0);
     target.mergedFrom=[...new Set([...(target.mergedFrom||[]),source.globalId,...(source.mergedFrom||[])])];
-    const remove=arr=>{ const i=arr.findIndex(t=>t.globalId===sourceId); if(i>=0)arr.splice(i,1); };
-    remove(state.archive);remove(state.active);
+    target.x=freshest.x; target.y=freshest.y; target.segment=freshest.segment; target.feature=freshest.feature||target.feature;
+    target.missed=freshest.missed||0; target.motionHistory=target.fullPath.filter(p=>p.segment===target.segment).slice(-30);
+    const removeAll=arr=>{ for(let i=arr.length-1;i>=0;i--)if(arr[i]===target||arr[i]===source||arr[i].globalId===sourceId)arr.splice(i,1); };
+    removeAll(state.archive); removeAll(state.active);
+    if(targetWasActive||sourceWasActive){ target.archived=false; target.exitReason=null; state.active.push(target); }
+    else { target.archived=true; target.exitReason=freshest.exitReason||target.exitReason||source.exitReason||'merged'; state.archive.push(target); }
     state.manualMerges=(state.manualMerges||0)+1;
     return target;
   }
