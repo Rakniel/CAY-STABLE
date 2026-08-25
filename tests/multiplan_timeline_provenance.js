@@ -1,0 +1,25 @@
+const Bridge=require('../stable_tracking_bridge_v1.js');
+let pass=0,fail=0;
+function check(name,cond){if(cond){console.log('PASS',name);pass++;}else{console.error('FAIL',name);fail++;}}
+const b=Bridge.create({maxPlayers:11,lostAfter:3});
+const d=(x,y,f=[1,0,.7,.5,.2,.1,.1])=>({x,y,cat:'team',feature:f,score:.9});
+b.processFrame([d(.2,.3),d(.4,.4)],0,{width:100,height:100});
+b.processFrame([d(.21,.31),d(.41,.41)],1,{width:100,height:100});
+b.processFrame([d(.6,.3),d(.8,.4)],2,{width:100,height:100,segmentBreak:true,segmentReason:'visual_cut'});
+b.processFrame([d(.61,.31),d(.81,.41)],3,{width:100,height:100});
+const snap=b.snapshot();
+const report=b.report({2:p=>({x:p.x*105,y:p.y*68})});
+const frames=report.bridge.timeline.filter(e=>e.type==='FRAME');
+const breaks=report.bridge.timeline.filter(e=>e.type==='SEGMENT_BREAK');
+check('global timeline keeps every processed frame',frames.length===4);
+check('timeline remains globally time ordered',frames.map(f=>f.time).join(',')==='0,1,2,3');
+check('camera cut is explicit',breaks.length===1&&breaks[0].reason==='visual_cut');
+check('camera cut starts a new segment',breaks[0].segment===2&&frames[2].segment===2);
+check('frame provenance keeps persistent track ids',frames.every(f=>Array.isArray(f.trackIds)&&new Set(f.trackIds).size===f.trackIds.length));
+check('segment provenance contains both observed segments',snap.segmentProvenance.length===2);
+check('segment 1 has no invented metric projection',report.bridge.segments.find(s=>s.segment===1).metricProjectionValidated===false);
+check('segment 2 records validated projector only',report.bridge.segments.find(s=>s.segment===2).metricProjectionValidated===true);
+check('segment frame counts are preserved',report.bridge.segments.map(s=>s.frames).join(',')==='2,2');
+check('snapshot exposes timeline event count',snap.timelineEvents===5);
+console.log(`multiplan timeline provenance: ${pass} PASS / ${fail} FAIL`);
+if(fail)process.exit(1);
