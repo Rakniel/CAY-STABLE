@@ -12,7 +12,7 @@ const summaries=[
   {id:2,quality:'PARTIEL',dataQuality:{identity:'PARTIEL'}},
   {id:3,quality:'FIABLE',dataQuality:{identity:'FIABLE'}}
 ];
-const instant=stats.buildInstantTeamTimeline({active:[tracks[0],tracks[2]],archive:[tracks[1]]},{tracks:summaries},{2:p=>({x:p.x*100,y:p.y*60})});
+const instant=stats.buildInstantTeamTimeline({active:[tracks[0],tracks[2]],archive:[tracks[1]]},{tracks:summaries},{2:{validated:true,source:'manual_4_points',confidence:.96,project:p=>({x:p.x*100,y:p.y*60})}});
 ok(instant.observedInstants===3,'trois instants observés');
 ok(instant.frames[0].presentCount===2,'instant 0: uniquement deux joueurs réellement observés');
 ok(instant.frames[2].presentCount===2,'instant 2: deux joueurs présents après changement de plan');
@@ -21,6 +21,7 @@ ok(instant.frames[0].identityCoverage===0.5,'couverture identité instantanée c
 ok(instant.frames[2].identityCoverage===1,'identités fiables au plan 2');
 ok(instant.frames[0].metricProjectionValidated===false,'plan 1 non métrique');
 ok(instant.frames[2].metricProjectionValidated===true,'plan 2 métrique validé');
+ok(instant.frames[2].metricCalibrationSource==='manual_4_points','provenance calibration conservée');
 ok(instant.metricCoverage===0.3333,'couverture métrique pondérée par joueurs réellement observés');
 ok(instant.calculation==='PAR_INSTANT_JOUEURS_OBSERVES_UNIQUEMENT','méthode explicite et défendable');
-console.log(`PASS ${pass}/10 team instant stats`);
+console.log(`PASS ${pass}/11 team instant stats`);
