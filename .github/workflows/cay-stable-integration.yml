@@ -5,9 +5,13 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/cay-stable-integration.yml'
+      - 'CAY_ANALYZER_STABLE.html'
+      - 'tracking_core_v1.js'
+      - 'player_stats_v1.js'
+      - 'stable_tracking_bridge_v1.js'
       - 'stable_runtime_tracking_v2.js'
       - 'tools/integrate_tracking_v2.py'
-      - 'tests/runtime_integration_contract.js'
+      - 'tests/**'
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
