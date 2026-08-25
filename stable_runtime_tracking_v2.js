@@ -113,7 +113,7 @@ async function runTrackingLongTermStable(){
   ['tFrames','tIds','tStable','tMatches'].forEach(id=>$(id).textContent='0');$('tLongest').textContent='0';$('tSegments').textContent='1';
   ensureStatsPanel();if($('stableStatsCardsV2'))$('stableStatsCardsV2').innerHTML='';
   const bridge=root.CAYStableTrackingBridge.create({maxPlayers:11,lostAfter:8,reidentifyArchived:true,reidAppearanceThreshold:.16});
-  const frames=[];let prevSig=null,prevDetCount=0,sparseFrames=0;
+  const frames=[];let prevSig=null,prevDetCount=0;
   try{
     const model=await getModel(),stride=Math.max(1,Math.floor(times.length/12));
     for(let i=0;i<times.length;i++){
@@ -127,11 +127,8 @@ async function runTrackingLongTermStable(){
       }
       const sig=trackingImageSignature(c),visualDiff=prevSig?hd(prevSig,sig):0;
       const countShock=prevDetCount>=5&&dets.length<=Math.max(1,prevDetCount*.34);
-      const strongCut=!!prevSig&&(visualDiff>.74||(visualDiff>.52&&countShock));
-      if(dets.length<=1&&prevDetCount>=5)sparseFrames++;else if(dets.length>=3)sparseFrames=0;
-      const segmentBreak=strongCut||sparseFrames>=2;
-      const assigned=bridge.processFrame(dets,t,{width:c.width,height:c.height,maxPlayers:11,allowNew:dets.length>=2||bridge.state.active.length>0,segmentBreak,segmentReason:strongCut?'visual_cut':'sparse_team'});
-      if(segmentBreak)sparseFrames=0;
+      const sceneCutScore=clamp01(visualDiff+(countShock?.12:0));
+      const assigned=bridge.processFrame(dets,t,{width:c.width,height:c.height,maxPlayers:11,allowNew:dets.length>=2||bridge.state.active.length>0,sceneCutScore,visualDiscontinuity:clamp01(visualDiff),reidentifyArchived:true});
       drawLongTrackFrame(c,assigned);prevSig=sig;prevDetCount=dets.length;
       frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,detections:assigned.map(a=>({id:a.trackId,cat:a.cat,x:+a.x.toFixed(4),y:+a.y.toFixed(4),source:a.source,score:+Number(a.score||0).toFixed(4)}))});
       if(i%stride===0||i===times.length-1){const card=document.createElement('div');card.className='trackcard';const copy=document.createElement('canvas');copy.width=c.width;copy.height=c.height;copy.getContext('2d').drawImage(c,0,0);const info=document.createElement('div');info.className='trackinfo';info.innerHTML='<span>'+tf(t)+'</span><strong>'+assigned.length+' joueur(s)</strong>';card.append(copy,info);$('trackingGallery').append(card);}
