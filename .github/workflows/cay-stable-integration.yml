@@ -1,0 +1,68 @@
+name: CAY STABLE integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cay-stable-integration.yml'
+      - 'stable_runtime_tracking_v2.js'
+      - 'tools/integrate_tracking_v2.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Integrate runtime into STABLE HTML
+        run: python3 tools/integrate_tracking_v2.py
+      - name: Syntax check JavaScript modules
+        run: |
+          node --check tracking_core_v1.js
+          node --check player_stats_v1.js
+          node --check stable_tracking_bridge_v1.js
+          node --check stable_runtime_tracking_v2.js
+      - name: Run non-regression tests
+        run: |
+          set -e
+          for test in tests/*.js; do
+            echo "== $test =="
+            node "$test"
+          done
+      - name: Verify HTML integration guards
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('CAY_ANALYZER_STABLE.html')
+          s=p.read_text(encoding='utf-8')
+          required=[
+            '<!-- STABLE_LONG_TERM_TRACKING_V2 -->',
+            './tracking_core_v1.js',
+            './player_stats_v1.js',
+            './stable_tracking_bridge_v1.js',
+            './stable_runtime_tracking_v2.js'
+          ]
+          missing=[x for x in required if x not in s]
+          if missing: raise SystemExit('missing integration markers: '+', '.join(missing))
+          if s.count('STABLE_LONG_TERM_TRACKING_V2') != 1: raise SystemExit('integration marker duplicated')
+          print('HTML integration guards: PASS')
+          PY
+      - name: Commit validated HTML integration
+        run: |
+          if git diff --quiet -- CAY_ANALYZER_STABLE.html; then
+            echo 'HTML already integrated; nothing to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CAY_ANALYZER_STABLE.html
+          git commit -m 'feat(stable): enable long-term player tracking runtime'
+          git push origin HEAD:main
