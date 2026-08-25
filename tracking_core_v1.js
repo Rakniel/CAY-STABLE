@@ -28,7 +28,7 @@
     return spatial*2.65+appearance*.60+catPenalty+Math.min(.25,track.missed*.05);
   }
   function createState(){
-    return {nextGlobalId:1,segment:1,segments:1,active:[],archive:[],created:0,totalMatches:0,maxVisible:0,skippedWeak:0,reidentified:0,manualMerges:0,reidRejectedAmbiguous:0,reidRejectedStale:0};
+    return {nextGlobalId:1,segment:1,segments:1,active:[],archive:[],created:0,totalMatches:0,maxVisible:0,skippedWeak:0,reidentified:0,manualMerges:0,reidRejectedAmbiguous:0,reidRejectedStale:0,reidRejectedLowScore:0};
   }
   function archiveTrack(state,tr,reason){
     if(tr.archived)return;
@@ -67,12 +67,29 @@
     recordObservation(tr,p,d.score);
     state.active.push(tr); state.created++; return tr;
   }
+  function reidCandidateScore(tr,d,t,opts,appearance,gap){
+    const threshold=Math.max(.0001,Number.isFinite(opts.reidAppearanceThreshold)?opts.reidAppearanceThreshold:.10);
+    const maxGap=Math.max(1,Number.isFinite(opts.maxReidGap)?opts.maxReidGap:180);
+    const sameSegment=tr.segment===opts.currentSegment;
+    const appearanceStrength=clamp01(1-appearance/threshold);
+    let spatialStrength=.55;
+    if(sameSegment){
+      const radius=Math.min(.80,.18+Math.max(0,gap)*.12);
+      spatialStrength=clamp01(1-dist(prediction(tr,t),d)/Math.max(.08,radius));
+    }
+    const historyStrength=clamp01((tr.seen||0)/8);
+    const detectionStrength=clamp01(d.score);
+    const temporalStrength=clamp01(1-gap/maxGap);
+    const segmentStrength=sameSegment?1:.72;
+    return clamp01(.62*appearanceStrength+.14*spatialStrength+.08*historyStrength+.08*detectionStrength+.05*temporalStrength+.03*segmentStrength);
+  }
   function reidentifyArchived(state,d,t,opts){
     if(opts.reidentifyArchived!==true)return null;
     const threshold=Number.isFinite(opts.reidAppearanceThreshold)?opts.reidAppearanceThreshold:.10;
     const minSameSegmentGap=Number.isFinite(opts.minSameSegmentReidGap)?Math.max(0,opts.minSameSegmentReidGap):2;
     const maxGap=Number.isFinite(opts.maxReidGap)?Math.max(minSameSegmentGap,opts.maxReidGap):180;
-    const uniquenessMargin=Number.isFinite(opts.reidUniquenessMargin)?Math.max(0,opts.reidUniquenessMargin):.02;
+    const minScore=Number.isFinite(opts.reidScoreThreshold)?clamp01(opts.reidScoreThreshold):.78;
+    const uniquenessMargin=Number.isFinite(opts.reidScoreUniquenessMargin)?Math.max(0,opts.reidScoreUniquenessMargin):.035;
     const candidates=[];
     for(let i=0;i<state.archive.length;i++){
       const tr=state.archive[i];
@@ -81,12 +98,15 @@
       if(gap>maxGap){ state.reidRejectedStale++; continue; }
       if(tr.segment===state.segment&&gap<minSameSegmentGap)continue;
       const appearance=appearanceDistance(tr.feature,d.feature);
-      if(appearance<=threshold)candidates.push({i,tr,appearance,gap});
+      if(appearance>threshold)continue;
+      const score=reidCandidateScore(tr,d,t,{...opts,currentSegment:state.segment},appearance,gap);
+      candidates.push({i,tr,appearance,gap,score});
     }
-    candidates.sort((a,b)=>a.appearance-b.appearance || a.gap-b.gap || b.tr.lastTime-a.tr.lastTime);
+    candidates.sort((a,b)=>b.score-a.score || a.appearance-b.appearance || a.gap-b.gap || b.tr.lastTime-a.tr.lastTime);
     if(!candidates.length)return null;
     const best=candidates[0],second=candidates[1]||null;
-    if(second&&second.appearance-best.appearance<uniquenessMargin){
+    if(best.score<minScore){ state.reidRejectedLowScore++; return null; }
+    if(second&&best.score-second.score<uniquenessMargin){
       state.reidRejectedAmbiguous++;
       return null;
     }
@@ -98,6 +118,8 @@
     tr.feature=d.feature||tr.feature; tr.motionHistory=[];
     recordObservation(tr,p,d.score);
     tr.reidentifications=(tr.reidentifications||0)+1;
+    tr.lastReidScore=best.score;
+    tr.lastReidEvidence={appearance:+best.appearance.toFixed(6),gap:+best.gap.toFixed(3),score:+best.score.toFixed(4),segment:state.segment};
     state.active.push(tr); state.reidentified++;
     return tr;
   }
@@ -206,14 +228,15 @@
       firstTime:+tr.firstTime.toFixed(3),lastTime:+tr.lastTime.toFixed(3),observedSpan:+Math.max(0,tr.lastTime-tr.firstTime).toFixed(3),
       observedDuration:+(tr.observedDuration||0).toFixed(3),presenceIntervals:(tr.presenceIntervals||[]).map(x=>({...x})),segmentStats:segmentStats(tr),
       normalizedTravel:+travel.toFixed(6),identityConfidence:avg===null?null:+avg.toFixed(4),exitReason:tr.exitReason||null,
-      reidentifications:tr.reidentifications||0,mergedFrom:[...(tr.mergedFrom||[])],quality,
+      reidentifications:tr.reidentifications||0,lastReidScore:Number.isFinite(tr.lastReidScore)?+tr.lastReidScore.toFixed(4):null,lastReidEvidence:tr.lastReidEvidence?{...tr.lastReidEvidence}:null,
+      mergedFrom:[...(tr.mergedFrom||[])],quality,
       dataQuality:{identity:quality,normalizedMovement:tr.fullPath.length>=2?quality:'INDISPONIBLE',metricDistance:'INDISPONIBLE',metricSpeed:'INDISPONIBLE'},
       unavailableReasons:{metricDistance:'projection terrain métrique non fournie au tracking core',metricSpeed:'projection terrain métrique non fournie au tracking core'}
     };
   }
   function summary(state){
     const tracks=allUniqueTracks(state).map(summarizeTrack).sort((a,b)=>a.id-b.id);
-    return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,tracks};
+    return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,reidRejectedLowScore:state.reidRejectedLowScore||0,tracks};
   }
-  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance};
+  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,reidCandidateScore};
 });
