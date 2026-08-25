@@ -4,7 +4,8 @@ let pass=0,fail=0;
 function check(name,cond){if(cond){console.log('PASS',name);pass++;}else{console.error('FAIL',name);fail++;}}
 check('uses long-term bridge',src.includes('CAYStableTrackingBridge.create'));
 check('hard cap 11 players',src.includes('maxPlayers:11'));
-check('preserves segment breaks',src.includes('segmentBreak'));
+check('feeds visual segment-break evidence to bridge',src.includes('sceneCutScore')&&src.includes('visualDiscontinuity'));
+check('does not split camera segment from sparse detections alone',!src.includes('sparseFrames')&&!src.includes("segmentReason:strongCut?'visual_cut':'sparse_team'"));
 check('appearance vector for re-identification',src.includes('appearanceVector(cls.feature)'));
 check('no metric projector is invented',src.includes('bridge.report({})'));
 check('shows metric unavailable when uncalibrated',src.includes('projection métrique non validée'));
