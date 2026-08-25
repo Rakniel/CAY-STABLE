@@ -6,6 +6,18 @@
   const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function qualityFromCoverage(c){ return c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE'; }
+  function projectorInfo(entry){
+    if(!entry)return {validated:false,project:null,source:null,confidence:null,reason:'aucune projection terrain fournie'};
+    if(typeof entry==='function')return {validated:false,project:null,source:'legacy_function',confidence:null,reason:'projection fournie sans validation explicite'};
+    const validated=entry.validated===true&&typeof entry.project==='function';
+    return {
+      validated,
+      project:validated?entry.project:null,
+      source:entry.source||entry.method||null,
+      confidence:Number.isFinite(Number(entry.confidence))?clamp(Number(entry.confidence),0,1):null,
+      reason:validated?null:(entry.reason||'projection terrain non validée')
+    };
+  }
   function heatmap(points,cols=6,rows=4){
     const cells=Array.from({length:rows},()=>Array(cols).fill(0));
     for(const p of points||[]){
@@ -24,9 +36,9 @@
       const dt=b.time-a.time;
       if(!(dt>0&&dt<=3))continue;
       eligibleDt+=dt;
-      const projector=projectors&&projectors[a.segment];
-      if(typeof projector!=='function')continue;
-      const pa=projector(a),pb=projector(b);
+      const info=projectorInfo(projectors&&projectors[a.segment]);
+      if(!info.validated)continue;
+      const pa=info.project(a),pb=info.project(b);
       if(!pa||!pb||![pa.x,pa.y,pb.x,pb.y].every(Number.isFinite))continue;
       const d=hypot(pa,pb);
       if(!Number.isFinite(d)||d<0)continue;
@@ -73,7 +85,7 @@
       identityConfidence:trackSummary.identityConfidence,identityQuality:trackSummary.dataQuality?.identity||trackSummary.quality,
       normalizedTravel:trackSummary.normalizedTravel,heatmap:hm,
       rosterState:rosterState(trackSummary,trackRaw,analysisStart),
-      metric:{...metric,reason:metric.metricCoverage>0?null:'aucun segment avec projection terrain métrique validée'},
+      metric:{...metric,reason:metric.metricCoverage>0?null:'aucun segment avec projection terrain métrique explicitement validée'},
       quality:{
         identity:trackSummary.dataQuality?.identity||trackSummary.quality,
         heatmap:hm.observations>=2?(hm.observations>=10?'FIABLE':'PARTIEL'):'INDISPONIBLE',
@@ -99,12 +111,16 @@
       const reliable=players.filter(p=>p.identityQuality==='FIABLE').length;
       const present=players.length;
       const identityCoverage=present?reliable/present:0;
-      const metricProjectionValidated=typeof (projectors||{})[frame.segment]==='function';
+      const calibration=projectorInfo((projectors||{})[frame.segment]);
+      const metricProjectionValidated=calibration.validated;
       return {
         time:frame.time,segment:frame.segment,presentIds:players.map(p=>p.id),presentCount:present,
         reliableIdentityCount:reliable,uncertainIdentityCount:present-reliable,
         identityCoverage:+identityCoverage.toFixed(4),identityQuality:qualityFromCoverage(identityCoverage),
         metricProjectionValidated,
+        metricCalibrationSource:calibration.source,
+        metricCalibrationConfidence:calibration.confidence,
+        metricCalibrationReason:calibration.reason,
         metricPlayerCoverage:metricProjectionValidated&&present?1:0,
         metricQuality:metricProjectionValidated&&present?'FIABLE':'INDISPONIBLE'
       };
@@ -159,5 +175,5 @@
       unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé',confirmedReplacements:'aucun détecteur de remplacement validé'}
     };
   }
-  return {heatmap,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage};
+  return {heatmap,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage,projectorInfo};
 });
