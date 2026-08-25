@@ -81,6 +81,52 @@
       }
     };
   }
+  function buildInstantTeamTimeline(coreState,base,projectors){
+    const summaryById=new Map((base.tracks||[]).map(t=>[t.id,t]));
+    const frames=new Map();
+    for(const tr of [...(coreState.archive||[]),...(coreState.active||[])]){
+      const summary=summaryById.get(tr.globalId)||null;
+      const identityQuality=summary?.dataQuality?.identity||summary?.quality||'PARTIEL';
+      for(const p of tr.fullPath||[]){
+        if(!Number.isFinite(p.time)||!Number.isFinite(p.segment))continue;
+        const rounded=+p.time.toFixed(3),key=`${p.segment}:${rounded}`;
+        if(!frames.has(key))frames.set(key,{time:rounded,segment:p.segment,players:new Map()});
+        frames.get(key).players.set(tr.globalId,{id:tr.globalId,identityQuality});
+      }
+    }
+    const timeline=[...frames.values()].sort((a,b)=>a.time-b.time||a.segment-b.segment).map(frame=>{
+      const players=[...frame.players.values()].slice(0,11);
+      const reliable=players.filter(p=>p.identityQuality==='FIABLE').length;
+      const present=players.length;
+      const identityCoverage=present?reliable/present:0;
+      const metricProjectionValidated=typeof (projectors||{})[frame.segment]==='function';
+      return {
+        time:frame.time,segment:frame.segment,presentIds:players.map(p=>p.id),presentCount:present,
+        reliableIdentityCount:reliable,uncertainIdentityCount:present-reliable,
+        identityCoverage:+identityCoverage.toFixed(4),identityQuality:qualityFromCoverage(identityCoverage),
+        metricProjectionValidated,
+        metricPlayerCoverage:metricProjectionValidated&&present?1:0,
+        metricQuality:metricProjectionValidated&&present?'FIABLE':'INDISPONIBLE'
+      };
+    });
+    const observedPlayerSlots=timeline.reduce((s,f)=>s+f.presentCount,0);
+    const reliablePlayerSlots=timeline.reduce((s,f)=>s+f.reliableIdentityCount,0);
+    const metricPlayerSlots=timeline.reduce((s,f)=>s+(f.metricProjectionValidated?f.presentCount:0),0);
+    const identityCoverage=observedPlayerSlots?reliablePlayerSlots/observedPlayerSlots:0;
+    const metricCoverage=observedPlayerSlots?metricPlayerSlots/observedPlayerSlots:0;
+    return {
+      frames:timeline,
+      observedInstants:timeline.length,
+      observedPlayerSlots,
+      reliablePlayerSlots,
+      metricPlayerSlots,
+      identityCoverage:+identityCoverage.toFixed(4),
+      metricCoverage:+metricCoverage.toFixed(4),
+      identityQuality:qualityFromCoverage(identityCoverage),
+      metricQuality:qualityFromCoverage(metricCoverage),
+      calculation:'PAR_INSTANT_JOUEURS_OBSERVES_UNIQUEMENT'
+    };
+  }
   function buildReport(coreState,coreApi,projectors){
     if(!coreState||!coreApi||typeof coreApi.summary!=='function')throw new Error('tracking core requis');
     const base=coreApi.summary(coreState);
@@ -91,6 +137,7 @@
     const measuredPlayers=players.filter(p=>p.metric.metricCoverage>0);
     const totalDistanceM=measuredPlayers.reduce((s,p)=>s+(p.metric.distanceM||0),0);
     const avgMetricCoverage=players.length?players.reduce((s,p)=>s+p.metric.metricCoverage,0)/players.length:0;
+    const instant=buildInstantTeamTimeline(coreState,base,projectors||{});
     return {
       version:'STABLE_PLAYER_STATS_V1',segments:base.segments,rosterTotal:base.rosterTotal,maxVisible:base.maxVisible,analysisStart,
       players,team:{
@@ -100,10 +147,17 @@
         appearedLater:players.filter(p=>p.rosterState.entry==='APPARU_PLUS_TARD').length,
         confirmedReplacements:0,
         measuredDistanceM:+totalDistanceM.toFixed(2),avgMetricCoverage:+avgMetricCoverage.toFixed(4),
-        quality:qualityFromCoverage(avgMetricCoverage)
+        instantaneousIdentityCoverage:instant.identityCoverage,
+        instantaneousMetricCoverage:instant.metricCoverage,
+        observedInstants:instant.observedInstants,
+        observedPlayerSlots:instant.observedPlayerSlots,
+        quality:instant.identityQuality,
+        calculation:instant.calculation
       },
+      teamTimeline:instant.frames,
+      teamCoverage:{identity:instant.identityCoverage,metric:instant.metricCoverage,identityQuality:instant.identityQuality,metricQuality:instant.metricQuality,calculation:instant.calculation},
       unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé',confirmedReplacements:'aucun détecteur de remplacement validé'}
     };
   }
-  return {heatmap,metricForTrack,rosterState,buildPlayerCard,buildReport,qualityFromCoverage};
+  return {heatmap,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage};
 });
