@@ -49,16 +49,30 @@
       quality:qualityFromCoverage(coverage),speedSamples:speeds
     };
   }
-  function buildPlayerCard(trackSummary,trackRaw,projectors){
+  function rosterState(trackSummary,trackRaw,analysisStart){
+    const uncertain=(trackSummary.dataQuality?.identity||trackSummary.quality)!=='FIABLE';
+    const active=trackRaw&&trackRaw.archived!==true;
+    const presentAtStart=Number.isFinite(analysisStart)&&trackSummary.firstTime<=analysisStart+2.5;
+    return {
+      visibility:uncertain?'IDENTITE_INCERTAINE':(active?'ACTIF_TRACKING':'HORS_CHAMP_OU_SORTI'),
+      entry:presentAtStart?'PRESENT_AU_DEBUT_ANALYSE':'APPARU_PLUS_TARD',
+      replacementConfirmed:false,
+      replacementReason:'aucun événement de remplacement validé',
+      exitReason:trackSummary.exitReason||null
+    };
+  }
+  function buildPlayerCard(trackSummary,trackRaw,projectors,analysisStart){
     const metric=metricForTrack(trackRaw,projectors||{});
     const hm=heatmap(trackRaw.fullPath||[]);
     return {
       id:trackSummary.id,cat:trackSummary.cat,segments:trackSummary.segments,
       firstTime:trackSummary.firstTime,lastTime:trackSummary.lastTime,
       observedDuration:trackSummary.observedDuration,observations:trackSummary.observations,
+      presenceIntervals:trackSummary.presenceIntervals||[],
       reidentifications:trackSummary.reidentifications||0,mergedFrom:trackSummary.mergedFrom||[],
       identityConfidence:trackSummary.identityConfidence,identityQuality:trackSummary.dataQuality?.identity||trackSummary.quality,
       normalizedTravel:trackSummary.normalizedTravel,heatmap:hm,
+      rosterState:rosterState(trackSummary,trackRaw,analysisStart),
       metric:{...metric,reason:metric.metricCoverage>0?null:'aucun segment avec projection terrain métrique validée'},
       quality:{
         identity:trackSummary.dataQuality?.identity||trackSummary.quality,
@@ -71,19 +85,25 @@
     if(!coreState||!coreApi||typeof coreApi.summary!=='function')throw new Error('tracking core requis');
     const base=coreApi.summary(coreState);
     const rawById=new Map([...(coreState.archive||[]),...(coreState.active||[])].map(t=>[t.globalId,t]));
-    const players=base.tracks.map(s=>buildPlayerCard(s,rawById.get(s.id),projectors||{}));
+    const starts=base.tracks.map(t=>t.firstTime).filter(Number.isFinite);
+    const analysisStart=starts.length?Math.min(...starts):null;
+    const players=base.tracks.map(s=>buildPlayerCard(s,rawById.get(s.id),projectors||{},analysisStart));
     const measuredPlayers=players.filter(p=>p.metric.metricCoverage>0);
     const totalDistanceM=measuredPlayers.reduce((s,p)=>s+(p.metric.distanceM||0),0);
     const avgMetricCoverage=players.length?players.reduce((s,p)=>s+p.metric.metricCoverage,0)/players.length:0;
     return {
-      version:'STABLE_PLAYER_STATS_V1',segments:base.segments,rosterTotal:base.rosterTotal,maxVisible:base.maxVisible,
+      version:'STABLE_PLAYER_STATS_V1',segments:base.segments,rosterTotal:base.rosterTotal,maxVisible:base.maxVisible,analysisStart,
       players,team:{
         playersTracked:players.length,playersWithMetricData:measuredPlayers.length,
+        activeTracking:players.filter(p=>p.rosterState.visibility==='ACTIF_TRACKING').length,
+        uncertainIdentity:players.filter(p=>p.rosterState.visibility==='IDENTITE_INCERTAINE').length,
+        appearedLater:players.filter(p=>p.rosterState.entry==='APPARU_PLUS_TARD').length,
+        confirmedReplacements:0,
         measuredDistanceM:+totalDistanceM.toFixed(2),avgMetricCoverage:+avgMetricCoverage.toFixed(4),
         quality:qualityFromCoverage(avgMetricCoverage)
       },
-      unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé'}
+      unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé',confirmedReplacements:'aucun détecteur de remplacement validé'}
     };
   }
-  return {heatmap,metricForTrack,buildPlayerCard,buildReport,qualityFromCoverage};
+  return {heatmap,metricForTrack,rosterState,buildPlayerCard,buildReport,qualityFromCoverage};
 });
