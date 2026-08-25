@@ -28,7 +28,7 @@
     return spatial*2.65+appearance*.60+catPenalty+Math.min(.25,track.missed*.05);
   }
   function createState(){
-    return {nextGlobalId:1,segment:1,segments:1,active:[],archive:[],created:0,totalMatches:0,maxVisible:0,skippedWeak:0,reidentified:0,manualMerges:0};
+    return {nextGlobalId:1,segment:1,segments:1,active:[],archive:[],created:0,totalMatches:0,maxVisible:0,skippedWeak:0,reidentified:0,manualMerges:0,reidRejectedAmbiguous:0,reidRejectedStale:0};
   }
   function archiveTrack(state,tr,reason){
     if(tr.archived)return;
@@ -70,16 +70,27 @@
   function reidentifyArchived(state,d,t,opts){
     if(opts.reidentifyArchived!==true)return null;
     const threshold=Number.isFinite(opts.reidAppearanceThreshold)?opts.reidAppearanceThreshold:.10;
+    const minSameSegmentGap=Number.isFinite(opts.minSameSegmentReidGap)?Math.max(0,opts.minSameSegmentReidGap):2;
+    const maxGap=Number.isFinite(opts.maxReidGap)?Math.max(minSameSegmentGap,opts.maxReidGap):180;
+    const uniquenessMargin=Number.isFinite(opts.reidUniquenessMargin)?Math.max(0,opts.reidUniquenessMargin):.02;
     const candidates=[];
     for(let i=0;i<state.archive.length;i++){
       const tr=state.archive[i];
-      if(!tr||tr.cat!==(d.cat||'team')||tr.segment===state.segment)continue;
+      if(!tr||tr.cat!==(d.cat||'team'))continue;
+      const gap=Math.max(0,t-tr.lastTime);
+      if(gap>maxGap){ state.reidRejectedStale++; continue; }
+      if(tr.segment===state.segment&&gap<minSameSegmentGap)continue;
       const appearance=appearanceDistance(tr.feature,d.feature);
-      if(appearance<=threshold)candidates.push({i,tr,appearance});
+      if(appearance<=threshold)candidates.push({i,tr,appearance,gap});
     }
-    candidates.sort((a,b)=>a.appearance-b.appearance || b.tr.lastTime-a.tr.lastTime);
+    candidates.sort((a,b)=>a.appearance-b.appearance || a.gap-b.gap || b.tr.lastTime-a.tr.lastTime);
     if(!candidates.length)return null;
-    const best=candidates[0],tr=best.tr;
+    const best=candidates[0],second=candidates[1]||null;
+    if(second&&second.appearance-best.appearance<uniquenessMargin){
+      state.reidRejectedAmbiguous++;
+      return null;
+    }
+    const tr=best.tr;
     state.archive.splice(best.i,1);
     const p=pointFor(state,d,t);
     tr.archived=false; tr.exitReason=null; tr.segment=state.segment;
@@ -197,7 +208,7 @@
   }
   function summary(state){
     const tracks=allUniqueTracks(state).map(summarizeTrack).sort((a,b)=>a.id-b.id);
-    return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,tracks};
+    return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,tracks};
   }
   return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance};
 });
