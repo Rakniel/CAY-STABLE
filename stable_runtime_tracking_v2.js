@@ -19,7 +19,7 @@ function ensureStatsPanel(){
   panel=document.createElement('section');
   panel.id='stablePlayerStatsV2';
   panel.style.cssText='margin-top:16px;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(0,0,0,.22)';
-  panel.innerHTML='<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px"><strong>STATISTIQUES INDIVIDUELLES — TRACKING LONGUE DURÉE</strong><span id="stableStatsCoverageV2" style="opacity:.72;font-size:12px">—</span></div><div id="stableStatsCardsV2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px"></div>';
+  panel.innerHTML='<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px"><strong>STATISTIQUES INDIVIDUELLES — TRACKING LONGUE DURÉE</strong><span id="stableStatsCoverageV2" style="opacity:.72;font-size:12px">—</span></div><div id="stableTeamCoverageV2" style="margin-bottom:10px;font-size:12px;opacity:.84">—</div><div id="stableStatsCardsV2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px"></div>';
   if(anchor.parentNode)anchor.parentNode.insertBefore(panel,anchor.nextSibling);
   return panel;
 }
@@ -27,6 +27,24 @@ function qualityBadge(q){
   const text=q||'INDISPONIBLE';
   const bg=text==='FIABLE'?'#215f39':text==='PARTIEL'?'#6c511d':'#4b4b52';
   return '<span style="display:inline-block;padding:2px 7px;border-radius:999px;background:'+bg+';font-size:10px;font-weight:800">'+text+'</span>';
+}
+function stateBadge(text){
+  const label=String(text||'INCONNU').replaceAll('_',' ');
+  const bg=text==='ACTIF_TRACKING'?'#215f39':text==='IDENTITE_INCERTAINE'?'#6c511d':'#4b4b52';
+  return '<span style="display:inline-block;padding:2px 7px;border-radius:999px;background:'+bg+';font-size:10px;font-weight:800">'+label+'</span>';
+}
+function fmtTime(v){
+  const n=Number(v);if(!Number.isFinite(n))return '—';
+  const m=Math.floor(n/60),s=Math.max(0,n-m*60);
+  return m+':'+s.toFixed(1).padStart(4,'0');
+}
+function intervalsHtml(intervals){
+  if(!Array.isArray(intervals)||!intervals.length)return 'Aucun intervalle défendable';
+  return intervals.map((it,i)=>{
+    const a=Array.isArray(it)?it[0]:(it.start??it.firstTime);
+    const b=Array.isArray(it)?it[1]:(it.end??it.lastTime);
+    return '#'+(i+1)+' '+fmtTime(a)+' → '+fmtTime(b);
+  }).join(' • ');
 }
 function heatmapHtml(hm){
   if(!hm||!Array.isArray(hm.cells))return '';
@@ -40,20 +58,29 @@ function heatmapHtml(hm){
 function renderPlayerStats(report){
   if(!report)return;
   ensureStatsPanel();
-  const cards=$('stableStatsCardsV2'),coverage=$('stableStatsCoverageV2');
+  const cards=$('stableStatsCardsV2'),coverage=$('stableStatsCoverageV2'),teamCoverage=$('stableTeamCoverageV2');
   if(!cards)return;
   const players=report.players||[];
   const pct=Math.round((report.team?.avgMetricCoverage||0)*100);
   if(coverage)coverage.textContent=report.team?.playersWithMetricData?('couverture métrique moyenne '+pct+' %'):'métrique terrain indisponible — stats observables conservées';
+  if(teamCoverage){
+    const idPct=Math.round((report.teamCoverage?.identity||0)*100),metricPct=Math.round((report.teamCoverage?.metric||0)*100);
+    teamCoverage.innerHTML='Équipe par instant : <b>'+idPct+' % identité défendable</b> • <b>'+metricPct+' % couverture métrique</b> • '+(report.team?.observedInstants||0)+' instant(s) • '+(report.team?.observedPlayerSlots||0)+' présence(s) joueur observées. Remplacements confirmés : <b>INDISPONIBLE</b> sans événement validé.';
+  }
   cards.innerHTML=players.map(p=>{
-    const metric=p.metric||{};
+    const metric=p.metric||{},rs=p.rosterState||{};
     const metricText=metric.metricCoverage>0
       ? ((metric.distanceM??0)+' m • '+(metric.avgSpeedKmh??'—')+' km/h moy. • '+(metric.maxSpeedKmh??'—')+' km/h max • '+(metric.sprintCount??'—')+' sprint(s) • couverture '+Math.round(metric.metricCoverage*100)+' %')
       : 'Distance / km/h / sprints : INDISPONIBLE (projection métrique non validée)';
+    const entryText=rs.entry==='APPARU_PLUS_TARD'?'Apparu plus tard — remplacement NON confirmé':'Présent au début de l’analyse';
+    const conf=Number.isFinite(Number(p.identityConfidence))?Math.round(Number(p.identityConfidence)*100)+' %':'—';
     return '<article style="padding:10px;border-radius:10px;background:rgba(255,255,255,.045);font-size:12px;line-height:1.45">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center"><strong>'+(p.cat==='goalkeeper'?'GK':'J')+' #'+p.id+'</strong>'+qualityBadge(p.identityQuality)+'</div>'+
-      '<div>Temps observé : <b>'+(p.observedDuration||0).toFixed(1)+' s</b> • '+p.observations+' obs.</div>'+
-      '<div>Segments : '+(p.segments||[]).join(', ')+' • ré-ID : '+(p.reidentifications||0)+'</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>'+(p.cat==='goalkeeper'?'GK':'J')+' #'+p.id+'</strong>'+qualityBadge(p.identityQuality)+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">'+stateBadge(rs.visibility)+'<span style="opacity:.82">'+entryText+'</span></div>'+
+      '<div>Première / dernière apparition : <b>'+fmtTime(p.firstTime)+' → '+fmtTime(p.lastTime)+'</b></div>'+
+      '<div>Temps observé : <b>'+(p.observedDuration||0).toFixed(1)+' s</b> • '+p.observations+' obs. • identité '+conf+'</div>'+
+      '<div>Réapparitions / ré-ID : <b>'+(p.reidentifications||0)+'</b> • segments : '+(p.segments||[]).join(', ')+'</div>'+
+      '<div style="margin-top:4px;opacity:.82">Intervalles : '+intervalsHtml(p.presenceIntervals)+'</div>'+
       '<div>Déplacement normalisé : '+(p.normalizedTravel??0)+'</div>'+
       '<div style="margin-top:4px;opacity:.8">'+metricText+'</div>'+heatmapHtml(p.heatmap)+'</article>';
   }).join('');
