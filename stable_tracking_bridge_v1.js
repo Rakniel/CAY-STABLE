@@ -43,17 +43,27 @@
     let lastTime=null;
     let frames=0;
     let segmentBreaks=0;
+    const timeline=[];
+    const segmentMeta=new Map([[state.segment||1,{segment:state.segment||1,start:null,end:null,frames:0,breakReason:'analysis_start'}]]);
 
-    function startSegment(reason){
-      Core.startSegment(state,reason||'camera_cut');
+    function ensureSegmentMeta(reason){
+      const seg=state.segment;
+      if(!segmentMeta.has(seg))segmentMeta.set(seg,{segment:seg,start:null,end:null,frames:0,breakReason:reason||'camera_cut'});
+      return segmentMeta.get(seg);
+    }
+    function startSegment(reason,time){
+      const why=reason||'camera_cut';
+      Core.startSegment(state,why);
       segmentBreaks++;
+      ensureSegmentMeta(why);
+      timeline.push({type:'SEGMENT_BREAK',time:Number.isFinite(Number(time))?Number(time):lastTime,segment:state.segment,reason:why});
     }
     function processFrame(input,time,context){
       const ctx=context||{};
       const t=Number(time);
       if(!Number.isFinite(t))throw new Error('temps frame invalide');
-      if(lastTime!==null&&t<lastTime)startSegment('timeline_rewind');
-      if(ctx.segmentBreak===true)startSegment(ctx.segmentReason||'camera_cut');
+      if(lastTime!==null&&t<lastTime)startSegment('timeline_rewind',t);
+      if(ctx.segmentBreak===true)startSegment(ctx.segmentReason||'camera_cut',t);
       const width=Number(ctx.width)||0,height=Number(ctx.height)||0;
       const normalized=(input||[]).map(d=>normalizeDetection(d,width,height)).filter(Boolean);
       const assigned=Core.assignFrame(state,normalized,t,{
@@ -70,21 +80,30 @@
         ids.add(a.trackId);
       }
       if(assigned.length>11)throw new Error('invariant violé: plus de 11 CAY simultanés');
+      const meta=ensureSegmentMeta();
+      if(meta.start===null)meta.start=t;
+      meta.end=t;meta.frames++;
+      timeline.push({type:'FRAME',time:t,segment:state.segment,observedPlayers:assigned.length,trackIds:[...ids]});
       frames++;
       lastTime=t;
       return assigned;
     }
     function mergePlayers(targetId,sourceId){ return Core.mergeTracks(state,targetId,sourceId); }
     function summary(){ return Core.summary(state); }
+    function provenance(){
+      return [...segmentMeta.values()].filter(s=>s.frames>0).map(s=>({...s,duration:s.start!==null&&s.end!==null?Math.max(0,s.end-s.start):0}));
+    }
     function report(projectors){
-      const r=Stats.buildReport(state,Core,projectors||{});
-      return {...r,bridge:{frames,segmentBreaks,lastTime}};
+      const supplied=projectors||{};
+      const r=Stats.buildReport(state,Core,supplied);
+      const segments=provenance().map(s=>({...s,metricProjectionValidated:typeof supplied[s.segment]==='function'}));
+      return {...r,bridge:{frames,segmentBreaks,lastTime,timeline:[...timeline],segments}};
     }
     function snapshot(){
       const s=summary();
-      return {frames,segmentBreaks,lastTime,segments:s.segments,rosterTotal:s.rosterTotal,maxVisible:s.maxVisible};
+      return {frames,segmentBreaks,lastTime,segments:s.segments,rosterTotal:s.rosterTotal,maxVisible:s.maxVisible,timelineEvents:timeline.length,segmentProvenance:provenance()};
     }
-    return {state,processFrame,startSegment,mergePlayers,summary,report,snapshot};
+    return {state,processFrame,startSegment,mergePlayers,summary,report,snapshot,provenance};
   }
   return {create,normalizeDetection,boxAnchor};
 });
