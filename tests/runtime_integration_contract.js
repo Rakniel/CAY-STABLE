@@ -12,5 +12,12 @@ check('exports player stats in tracking report',src.includes('playerStats,unavai
 check('renders individual player cards',src.includes('renderPlayerStats(playerStats)'));
 check('labels persistent global player id',src.includes("+' #'+a.trackId"));
 check('does not draw path across segments',src.includes('filter(p=>p.segment===seg)'));
+check('shows roster visibility state',src.includes('stateBadge(rs.visibility)'));
+check('late appearance is not promoted to confirmed substitution',src.includes('Apparu plus tard — remplacement NON confirmé'));
+check('shows first and last appearance',src.includes('Première / dernière apparition'));
+check('shows presence intervals',src.includes('Intervalles : '+"'+intervalsHtml(p.presenceIntervals)+'"));
+check('shows identity confidence',src.includes('identité '+"'+conf+'"));
+check('shows team per-instant coverage',src.includes('Équipe par instant'));
+check('confirmed substitutions stay unavailable without validated event',src.includes('Remplacements confirmés : <b>INDISPONIBLE</b>'));
 console.log(`runtime integration: ${pass} PASS / ${fail} FAIL`);
 if(fail)process.exit(1);
