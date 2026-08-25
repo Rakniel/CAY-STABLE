@@ -36,6 +36,21 @@
       feature:Array.isArray(d.feature)?d.feature:null
     };
   }
+  function bindProjectorsToSegments(projectors){
+    const supplied=projectors||{},bound={};
+    for(const [key,entry] of Object.entries(supplied)){
+      const segment=Number(key);
+      if(!entry||typeof entry!=='object'){
+        bound[key]=entry;
+        continue;
+      }
+      const declared=Number(entry.segment);
+      if(entry.validated===true&&(!Number.isFinite(declared)||declared!==segment)){
+        bound[key]={...entry,validated:false,project:null,reason:Number.isFinite(declared)?`calibration liée au segment ${declared}, incompatible avec le segment ${segment}`:`calibration validée sans liaison explicite au segment ${segment}`};
+      }else bound[key]=entry;
+    }
+    return bound;
+  }
   function create(options){
     requireDeps();
     const opts={maxPlayers:11,lostAfter:8,reidentifyArchived:true,reidAppearanceThreshold:.10,...(options||{})};
@@ -94,7 +109,7 @@
       return [...segmentMeta.values()].filter(s=>s.frames>0).map(s=>({...s,duration:s.start!==null&&s.end!==null?Math.max(0,s.end-s.start):0}));
     }
     function report(projectors){
-      const supplied=projectors||{};
+      const supplied=bindProjectorsToSegments(projectors||{});
       const r=Stats.buildReport(state,Core,supplied);
       const segments=provenance().map(s=>{
         const calibration=typeof Stats.projectorInfo==='function'?Stats.projectorInfo(supplied[s.segment]):{validated:false,source:null,confidence:null,reason:'validation calibration indisponible'};
@@ -108,5 +123,5 @@
     }
     return {state,processFrame,startSegment,mergePlayers,summary,report,snapshot,provenance};
   }
-  return {create,normalizeDetection,boxAnchor};
+  return {create,normalizeDetection,boxAnchor,bindProjectorsToSegments};
 });
