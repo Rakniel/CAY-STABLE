@@ -46,4 +46,24 @@ const changed=mk(2,.2).map((d,i)=>({...d,feature:[.9-i*.1,.9,.9]}));
 const uncertainAfter=T.assignFrame(uncertain,changed,5,{reidentifyArchived:true,reidAppearanceThreshold:.08});
 assert(uncertainAfter.every(x=>x.trackId>2),'apparence incertaine: nouveaux IDs plutôt que mauvaise fusion');
 
-console.log('PASS tracking core non-regression: 14/14');
+const sameSegment=T.createState();
+const original=T.assignFrame(sameSegment,[{cat:'team',x:.20,y:.50,score:.96,feature:[.12,.34,.56]}],0,{lostAfter:1})[0];
+T.assignFrame(sameSegment,[],1,{lostAfter:1});
+T.assignFrame(sameSegment,[],2,{lostAfter:1});
+const returned=T.assignFrame(sameSegment,[{cat:'team',x:.78,y:.51,score:.95,feature:[.12,.34,.56]}],5,{lostAfter:1,reidentifyArchived:true,reidAppearanceThreshold:.05,minSameSegmentReidGap:2})[0];
+assert.strictEqual(returned.trackId,original.trackId,'longue disparition dans le même plan: ID conservé seulement avec apparence forte');
+const sameSummary=T.summary(sameSegment);
+assert.strictEqual(sameSummary.rosterTotal,1,'retour confirmé ne gonfle pas le roster');
+assert.strictEqual(sameSummary.tracks[0].presenceIntervals.length,2,'disparition longue crée deux intervalles de présence');
+
+const ambiguous=T.createState();
+T.assignFrame(ambiguous,[
+  {cat:'team',x:.20,y:.45,score:.96,feature:[.20,.20,.20]},
+  {cat:'team',x:.70,y:.45,score:.95,feature:[.205,.20,.20]}
+],0,{lostAfter:0});
+T.assignFrame(ambiguous,[],1,{lostAfter:0});
+const ambiguousReturn=T.assignFrame(ambiguous,[{cat:'team',x:.45,y:.46,score:.96,feature:[.202,.20,.20]}],5,{lostAfter:0,reidentifyArchived:true,reidAppearanceThreshold:.05,reidUniquenessMargin:.01})[0];
+assert(ambiguousReturn.trackId>2,'apparences trop proches: nouvel ID plutôt qu’une ré-identification ambiguë');
+assert.strictEqual(T.summary(ambiguous).reidRejectedAmbiguous,1,'rejet ambigu mesuré dans le diagnostic');
+
+console.log('PASS tracking core non-regression: 19/19');
