@@ -22,6 +22,7 @@ assert.strictEqual(snap.invalidFrames[0].normalizationRejected,0);
 assert.strictEqual(snap.noSilentTruncation,true);
 assert.strictEqual(snap.overflowCountsAssignableDetections,true);
 assert.strictEqual(snap.invalidFrameProvenance,'TIME_AND_SEGMENT');
+assert.strictEqual(snap.invalidFrameLookup,'INDEXED_TIME_AND_SEGMENT');
 assert.ok(snap.maxVisible<=11,'le tracker ne doit jamais exposer plus de 11 joueurs simultanés');
 
 let report=bridge.report({});
@@ -29,6 +30,7 @@ assert.strictEqual(report.bridge.invalidObservationFrames,1);
 assert.strictEqual(report.bridge.noSilentTruncation,true);
 assert.strictEqual(report.bridge.overflowCountsAssignableDetections,true);
 assert.strictEqual(report.bridge.invalidFrameProvenance,'TIME_AND_SEGMENT');
+assert.strictEqual(report.bridge.invalidFrameLookup,'INDEXED_TIME_AND_SEGMENT');
 let bad=report.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-.5)<1e-6);
 assert.ok(bad,'la frame rejetée doit rester dans la timeline globale');
 assert.strictEqual(bad.dataQuality,'INDISPONIBLE');
@@ -94,4 +96,17 @@ const configured=Bridge.create({maxPlayers:7,lostAfter:8});
 configured.processFrame(Array.from({length:8},(_,i)=>det(i)),0,{maxPlayers:7,width:1000,height:600});
 assert.strictEqual(configured.snapshot().invalidFrames[0].reason,'MORE_THAN_CONFIGURED_CAY_DETECTIONS','un plafond configuré inférieur à 11 ne doit pas être diagnostiqué comme un faux dépassement de 11');
 
-console.log('strict tracking frame guard non-regression: PASS (50 checks)');
+const scale=Bridge.create({maxPlayers:11,lostAfter:8});
+for(let i=0;i<600;i++){
+  const t=i*.5;
+  if(i%3===0)scale.processUnavailableFrame(t,{maxPlayers:11,width:1000,height:600,reason:'FIELD_POLYGON_UNAVAILABLE'});
+  else scale.processFrame([det(i%11)],t,{maxPlayers:11,width:1000,height:600});
+}
+const scaleReport=scale.report({});
+assert.strictEqual(scaleReport.bridge.attemptedObservationFrames,600,'le rapport indexé doit conserver toutes les frames sur une séquence longue');
+assert.strictEqual(scaleReport.bridge.unavailableObservationFrames,200,'le rapport indexé doit retrouver toutes les frames indisponibles sans balayage quadratique');
+assert.strictEqual(scaleReport.bridge.usableObservationFrames,400,'le rapport indexé doit conserver exactement les frames utilisables');
+assert.strictEqual(scaleReport.bridge.observationCoverage,.6667,'la couverture longue doit rester exacte après indexation');
+assert.strictEqual(scaleReport.bridge.invalidFrameLookup,'INDEXED_TIME_AND_SEGMENT','le rapport doit exposer la stratégie de recherche indexée');
+
+console.log('strict tracking frame guard non-regression: PASS (57 checks)');
