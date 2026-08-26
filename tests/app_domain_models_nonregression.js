@@ -1,0 +1,43 @@
+const assert=require('assert');
+const app=require('../app_domain_models_v1.js');
+let checks=0;
+const ok=(cond,msg)=>{assert.ok(cond,msg);checks++;};
+const eq=(a,b,msg)=>{assert.deepStrictEqual(a,b,msg);checks++;};
+const club=app.createClub({id:'cay',name:'C.A. Yenne',shortName:'CAY'});
+const roster=[];
+for(let i=1;i<=13;i++)roster.push({id:String(i),firstName:`J${i}`,number:i,primaryPosition:i===1?'GK':'CM',status:i<=11?'ACTIVE':'SUBSTITUTE'});
+const team=app.createTeam({id:'senior-a',clubId:'cay',name:'Seniors A',category:'Senior',roster,kits:[{id:'home',shirtColor:'yellow',shortsColor:'black',socksColor:'yellow'}],defaultLineup:roster.slice(0,11).map(x=>x.id),bench:roster.slice(11).map(x=>x.id)});
+ok(team.roster.length===13,'roster may exceed 11');
+ok(team.defaultLineup.length===11,'lineup has 11 players');
+ok(team.roster[0].isGoalkeeper===true,'GK inferred from position');
+eq(app.validateLineup(team).errors,[],'valid lineup has no errors');
+const overflow={...team,defaultLineup:roster.slice(0,12).map(x=>x.id)};
+ok(app.validateLineup(overflow).errors.includes('LINEUP_OVER_11'),'more than 11 blocked');
+const overlap={...team,bench:['1','12']};
+ok(app.validateLineup(overlap).errors.includes('PLAYER_IN_LINEUP_AND_BENCH'),'lineup/bench overlap blocked');
+const profile=app.createAnalysisProfile({id:'standard',teamId:team.id});
+ok(profile.settings.trackingSensitivity===0.7,'tracking default explicit');
+ok(profile.settings.reidThreshold===0.78,'reid default explicit');
+ok(profile.settings.manualReview===true,'manual review defaults on');
+const ready=app.setupReadiness({club,team,analysisProfile:profile});
+ok(ready.ready===true,'configured team is ready');
+ok(ready.targetSetupMinutes===20,'UX target retained');
+ok(ready.missing.length===0,'ready setup has no missing fields');
+const incomplete=app.setupReadiness({club:app.createClub({}),team:app.createTeam({})});
+ok(incomplete.ready===false,'empty setup not ready');
+ok(incomplete.missing.includes('CLUB_NAME'),'club name required');
+ok(incomplete.missing.includes('TEAM_NAME'),'team name required');
+ok(incomplete.missing.includes('ROSTER'),'roster required');
+ok(incomplete.missing.includes('KIT'),'kit required');
+const user=app.createUser({id:'u1',displayName:'Coach'});
+ok(user.auth.status==='BACKEND_REQUIRED','auth remains backend-dependent');
+let secretBlocked=false;
+try{app.createUser({displayName:'Coach',password:'plaintext'});}catch(e){secretBlocked=/SECRET_FIELD_FORBIDDEN/.test(e.message);}
+ok(secretBlocked,'plaintext password field rejected');
+let badPosition=false;
+try{app.createPlayer({id:'bad',primaryPosition:'TREE'});}catch(e){badPosition=e.message==='INVALID_PRIMARY_POSITION';}
+ok(badPosition,'invalid position rejected');
+let duplicate=false;
+try{app.createTeam({roster:[{id:'1'},{id:'1'}]});}catch(e){duplicate=e.message==='DUPLICATE_PLAYER_ID';}
+ok(duplicate,'duplicate roster ids rejected');
+console.log(`app_domain_models_nonregression: ${checks} checks PASS`);
