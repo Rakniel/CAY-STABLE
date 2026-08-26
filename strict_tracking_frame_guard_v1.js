@@ -26,6 +26,12 @@
     return detectionCounts(input,context).assignable;
   }
 
+  function invalidFrameKey(time,segment){
+    const t=Number(time),s=Number(segment);
+    if(!Number.isFinite(t)||!Number.isFinite(s))return null;
+    return Math.round(t*1e6)+'@'+s;
+  }
+
   function create(options){
     const bridge=Base.create(options);
     const baseProcess=bridge.processFrame.bind(bridge);
@@ -95,22 +101,27 @@
     function report(projectors){
       const r=baseReport(projectors);
       const invalid=invalidFrames.map(x=>({...x}));
+      const invalidByFrame=new Map();
+      for(const x of invalid){
+        const key=invalidFrameKey(x.time,x.segment);
+        if(key!==null&&!invalidByFrame.has(key))invalidByFrame.set(key,x);
+      }
       const timeline=(r.bridge&&Array.isArray(r.bridge.timeline)?r.bridge.timeline:[]).map(ev=>{
         if(ev.type!=='FRAME')return ev;
-        const hit=invalid.find(x=>x.time!==null&&Math.abs(Number(ev.time)-x.time)<1e-6&&Number(ev.segment)===Number(x.segment));
+        const key=invalidFrameKey(ev.time,ev.segment),hit=key===null?null:invalidByFrame.get(key);
         return hit?{...ev,dataQuality:'INDISPONIBLE',invalidReason:hit.reason,eligibleDetections:hit.eligibleDetections,assignableDetections:hit.assignableDetections,normalizationRejected:hit.normalizationRejected,policy:hit.policy}:ev;
       });
       const observationCoverage=coverageFromTimeline(timeline);
-      return {...r,bridge:{...(r.bridge||{}),timeline,invalidObservationFrames:invalid.length,invalidFrames:invalid,noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',...observationCoverage}};
+      return {...r,bridge:{...(r.bridge||{}),timeline,invalidObservationFrames:invalid.length,invalidFrames:invalid,noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT',...observationCoverage}};
     }
 
     function snapshot(){
-      const base={...baseSnapshot(),invalidObservationFrames:invalidFrames.length,invalidFrames:invalidFrames.map(x=>({...x})),noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT'};
+      const base={...baseSnapshot(),invalidObservationFrames:invalidFrames.length,invalidFrames:invalidFrames.map(x=>({...x})),noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT'};
       return base;
     }
 
     return {...bridge,processFrame,processUnavailableFrame,report,snapshot};
   }
 
-  return {...Base,create,eligibleCount,detectionCounts,strictFrameGuardVersion:'1.3.0'};
+  return {...Base,create,eligibleCount,detectionCounts,strictFrameGuardVersion:'1.4.0'};
 });
