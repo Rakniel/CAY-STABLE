@@ -56,7 +56,8 @@
     if(lastTime!==null&&Number.isFinite(t)&&t<lastTime)return {break:true,reason:'timeline_rewind',confidence:1,evidence:['timeline_rewind']};
     const gap=lastTime===null||!Number.isFinite(t)?0:Math.max(0,t-lastTime);
     const hardGap=Math.max(.5,finite(opts.longGapSeconds)??2.5);
-    if(gap>=hardGap)return {break:true,reason:'long_timeline_gap',confidence:1,evidence:[`gap:${gap.toFixed(3)}`]};
+    const continuityValidated=ctx.continuityValidated===true||ctx.sameShotContinuous===true||ctx.sameCameraContinuous===true;
+    if(gap>=hardGap&&!continuityValidated)return {break:true,reason:'long_timeline_gap',confidence:1,evidence:[`gap:${gap.toFixed(3)}`]};
     const scene=clamp01(finite(ctx.sceneCutScore)??finite(ctx.shotChangeScore)??0);
     const hist=clamp01(finite(ctx.histogramDelta)??finite(ctx.visualDiscontinuity)??0);
     const geometry=clamp01(finite(ctx.fieldGeometryDelta)??finite(ctx.cameraGeometryDelta)??0);
@@ -70,7 +71,9 @@
     if(transform>=.70&&(geometry>=.22||zoom>=.32))return {break:true,reason:'camera_reframe_geometry_change',confidence:clamp01(.55*transform+.3*geometry+.15*zoom),evidence:[`transform:${transform.toFixed(3)}`,`geometry:${geometry.toFixed(3)}`,`zoom:${zoom.toFixed(3)}`]};
     if(scene>=.55&&geometry>=.20){ evidence.push(`scene:${scene.toFixed(3)}`,`geometry:${geometry.toFixed(3)}`); return {break:true,reason:'combined_scene_geometry_change',confidence:clamp01(.65*scene+.35*geometry),evidence}; }
     if(hist>=.48&&scene>=.45&&transform>=.35){ evidence.push(`hist:${hist.toFixed(3)}`,`scene:${scene.toFixed(3)}`,`transform:${transform.toFixed(3)}`); return {break:true,reason:'combined_visual_camera_change',confidence:clamp01((hist+scene+transform)/3),evidence}; }
-    return {break:false,reason:null,confidence:clamp01(Math.max(scene*.8,geometry*.75,transform*.55,hist*.5)),evidence:motion>=.75&&geometry<.2?['pan_motion_only_ignored']:[]};
+    if(gap>=hardGap&&continuityValidated)evidence.push(`validated_continuity_gap:${gap.toFixed(3)}`);
+    if(motion>=.75&&geometry<.2)evidence.push('pan_motion_only_ignored');
+    return {break:false,reason:null,confidence:clamp01(Math.max(scene*.8,geometry*.75,transform*.55,hist*.5)),evidence};
   }
   function create(options){
     requireDeps();
