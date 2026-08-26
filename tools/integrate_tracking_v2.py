@@ -7,6 +7,7 @@ canonical_tags = [
     '<script src="./tracking_core_v1.js"></script>',
     '<script src="./player_stats_v1.js"></script>',
     '<script src="./stable_tracking_bridge_v1.js"></script>',
+    '<script src="./strict_tracking_frame_guard_v1.js"></script>',
     '<script src="./manual_identity_merge_guard_v1.js"></script>',
     '<script src="./segment_reid_guard_v1.js"></script>',
     '<script src="./observed_presence_v1.js"></script>',
