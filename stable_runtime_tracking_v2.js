@@ -159,7 +159,8 @@ async function runTrackingLongTermStable(){
       const t=times[i],c=await frame(t,900),poly=trackingPoly(t,c);if(!poly)continue;
       let raw=await detectTracking(model,c);
       const inField=[];for(const b of raw){const fs=playerFieldState(b,poly,c.width,c.height);if(fs.state==='IN'||fs.state==='EDGE')inField.push(b);}
-      const frameCls=classifyFootballFrame(c,inField),dets=[];
+      if(typeof classifyFrameDetections!=='function')throw new Error('classifieur CAY non tronqué indisponible');
+      const frameCls=classifyFrameDetections(c,inField),dets=[];
       for(let bi=0;bi<inField.length;bi++){
         const b=inField[bi],cls=frameCls[bi];if(cls.cat!=='team'&&cls.cat!=='goalkeeper')continue;
         const p=normTrackAnchor(b,c);dets.push({b,cat:cls.cat,feature:appearanceVector(cls.feature),x:clamp01(p.x),y:clamp01(p.y),source:b.source||'unknown',score:cls.score,isCAY:true});
