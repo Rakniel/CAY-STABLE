@@ -24,15 +24,32 @@ eq(reframe.break,true,'reframing fort avec dérive terrain doit segmenter');
 eq(reframe.reason,'camera_reframe_geometry_change','reframing doit avoir une raison traçable');
 
 const gap=Bridge.inferSegmentBreak({},4,7,{});
-eq(gap.break,true,'long saut temporel doit ouvrir un segment');
-eq(gap.reason,'long_timeline_gap','saut temporel doit être explicite');
+eq(gap.break,true,'long saut temporel non qualifié doit ouvrir un segment');
+eq(gap.reason,'long_timeline_gap','saut temporel non qualifié doit être explicite');
+
+const validatedGap=Bridge.inferSegmentBreak({continuityValidated:true},4,7,{});
+eq(validatedGap.break,false,'un trou temporel avec continuité visuelle explicitement validée ne doit pas fragmenter le segment');
+ok(validatedGap.evidence.some(v=>String(v).startsWith('validated_continuity_gap:')),'le trou temporel conservé doit rester traçable');
+
+const sameShotGap=Bridge.inferSegmentBreak({sameShotContinuous:true},4,7,{});
+eq(sameShotGap.break,false,'un même plan confirmé doit survivre à un échantillonnage espacé');
+
+const validatedGapButCut=Bridge.inferSegmentBreak({continuityValidated:true,sceneCutScore:.93},4,7,{});
+eq(validatedGapButCut.break,true,'une continuité déclarée ne doit jamais masquer un cut visuel fort');
+eq(validatedGapButCut.reason,'strong_scene_cut','le vrai cut visuel doit rester prioritaire');
+
+const validatedGapButGeometry=Bridge.inferSegmentBreak({sameCameraContinuous:true,fieldGeometryDelta:.71},4,7,{});
+eq(validatedGapButGeometry.break,true,'une continuité déclarée ne doit jamais masquer une forte rupture de géométrie terrain');
+eq(validatedGapButGeometry.reason,'strong_field_geometry_change','la rupture géométrique doit rester prioritaire');
 
 const b=Bridge.create({longGapSeconds:2.5});
 const p=(x,y)=>[{x,y,cat:'team',score:.9,feature:[.8,.1,.1]}];
 b.processFrame(p(.2,.4),0,{fieldGeometryDelta:0});
 b.processFrame(p(.21,.4),.04,{cameraMotionScore:.92,fieldGeometryDelta:.04});
 eq(b.snapshot().segmentBreaks,0,'pan continu ne doit pas fragmenter la timeline');
-b.processFrame(p(.62,.42),.08,{sceneCutScore:.88,fieldGeometryDelta:.55});
+b.processFrame(p(.22,.4),3.2,{continuityValidated:true,fieldGeometryDelta:.03});
+eq(b.snapshot().segmentBreaks,0,'gap validé comme continu ne doit pas créer un faux segment');
+b.processFrame(p(.62,.42),3.24,{sceneCutScore:.88,fieldGeometryDelta:.55});
 eq(b.snapshot().segmentBreaks,1,'cut automatique doit créer exactement une rupture');
 eq(b.snapshot().automaticSegmentBreaks,1,'rupture automatique comptabilisée séparément');
 const report=b.report({});
