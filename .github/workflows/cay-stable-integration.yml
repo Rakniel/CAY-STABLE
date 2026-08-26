@@ -17,6 +17,7 @@ on:
       - 'segment_reid_guard_v1.js'
       - 'validated_report_bridge_v1.js'
       - 'stable_tracking_bridge_v1.js'
+      - 'strict_tracking_frame_guard_v1.js'
       - 'stable_runtime_tracking_v2.js'
       - 'tools/integrate_tracking_v2.py'
       - 'tests/**'
@@ -52,6 +53,7 @@ jobs:
           node --check segment_reid_guard_v1.js
           node --check validated_report_bridge_v1.js
           node --check stable_tracking_bridge_v1.js
+          node --check strict_tracking_frame_guard_v1.js
           node --check stable_runtime_tracking_v2.js
       - name: Run non-regression tests
         run: |
@@ -71,6 +73,7 @@ jobs:
             './tracking_core_v1.js',
             './player_stats_v1.js',
             './stable_tracking_bridge_v1.js',
+            './strict_tracking_frame_guard_v1.js',
             './manual_identity_merge_guard_v1.js',
             './segment_reid_guard_v1.js',
             './observed_presence_v1.js',
@@ -81,7 +84,7 @@ jobs:
           missing=[x for x in required if x not in s]
           if missing: raise SystemExit('missing integration markers: '+', '.join(missing))
           if s.count('STABLE_LONG_TERM_TRACKING_V2') != 1: raise SystemExit('integration marker duplicated')
-          order=[s.index('./stable_tracking_bridge_v1.js'),s.index('./manual_identity_merge_guard_v1.js'),s.index('./segment_reid_guard_v1.js'),s.index('./observed_presence_v1.js'),s.index('./observed_presence_report_v1.js'),s.index('./observed_presence_runtime_bridge_v1.js'),s.index('./stable_runtime_tracking_v2.js')]
+          order=[s.index('./stable_tracking_bridge_v1.js'),s.index('./strict_tracking_frame_guard_v1.js'),s.index('./manual_identity_merge_guard_v1.js'),s.index('./segment_reid_guard_v1.js'),s.index('./observed_presence_v1.js'),s.index('./observed_presence_report_v1.js'),s.index('./observed_presence_runtime_bridge_v1.js'),s.index('./stable_runtime_tracking_v2.js')]
           if order != sorted(order): raise SystemExit('tracking runtime scripts loaded in unsafe order')
           print('HTML integration guards: PASS')
           PY
