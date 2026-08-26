@@ -65,6 +65,11 @@
     const motion=clamp01(finite(ctx.cameraMotionScore)??0);
     const zoom=clamp01(Math.abs(finite(ctx.zoomDelta)??0));
     const evidence=[];
+    const panOnlyStrongVisual=scene>=.82&&motion>=.75&&geometry<.12&&transform<.45&&zoom<.18;
+    if(panOnlyStrongVisual){
+      evidence.push(`scene:${scene.toFixed(3)}`,`motion:${motion.toFixed(3)}`,'strong_visual_change_pan_only_ignored');
+      return {break:false,reason:null,confidence:clamp01(Math.max(geometry*.75,transform*.55,hist*.35)),evidence};
+    }
     if(scene>=.82)return {break:true,reason:'strong_scene_cut',confidence:scene,evidence:[`scene:${scene.toFixed(3)}`]};
     if(hist>=.78&&geometry>=.18)return {break:true,reason:'visual_cut_with_geometry_change',confidence:clamp01(.6*hist+.4*geometry),evidence:[`hist:${hist.toFixed(3)}`,`geometry:${geometry.toFixed(3)}`]};
     if(geometry>=.62)return {break:true,reason:'strong_field_geometry_change',confidence:geometry,evidence:[`geometry:${geometry.toFixed(3)}`]};
