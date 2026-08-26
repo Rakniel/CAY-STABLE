@@ -24,4 +24,24 @@ ok(instant.frames[2].metricProjectionValidated===true,'plan 2 métrique validé'
 ok(instant.frames[2].metricCalibrationSource==='manual_4_points','provenance calibration conservée');
 ok(instant.metricCoverage===0.3333,'couverture métrique pondérée par joueurs réellement observés');
 ok(instant.calculation==='PAR_INSTANT_JOUEURS_OBSERVES_UNIQUEMENT','méthode explicite et défendable');
-console.log(`PASS ${pass}/11 team instant stats`);
+ok(instant.invalidObservedInstants===0,'aucune frame valide rejetée');
+ok(instant.integrityPolicy==='AUCUNE_TRONCATURE_NI_DEDUPLICATION_SILENCIEUSE','politique intégrité explicite');
+
+const overflowTracks=Array.from({length:12},(_,i)=>({globalId:i+1,archived:false,fullPath:[{x:.1+i*.01,y:.2,time:5,segment:3}]}));
+const overflowSummaries=overflowTracks.map(t=>({id:t.globalId,quality:'FIABLE',dataQuality:{identity:'FIABLE'}}));
+const overflow=stats.buildInstantTeamTimeline({active:overflowTracks,archive:[]},{tracks:overflowSummaries},{});
+ok(overflow.totalSourceInstants===1,'frame overflow conservée comme preuve source');
+ok(overflow.validObservedInstants===0,'frame >11 exclue des statistiques agrégées');
+ok(overflow.invalidObservedInstants===1,'frame >11 signalée invalide');
+ok(overflow.frames[0].invalidReason==='MORE_THAN_11_CAY_IDS','raison overflow explicite');
+ok(overflow.frames[0].presentCount===0,'aucune troncature silencieuse à 11');
+ok(overflow.frames[0].rejectedUniqueIds===12,'12 IDs rejetés conservés dans diagnostic');
+ok(overflow.observedPlayerSlots===0,'aucun slot invalide utilisé dans les stats');
+
+const duplicateTrack={globalId:21,archived:false,fullPath:[{x:.2,y:.2,time:7,segment:4},{x:.21,y:.21,time:7,segment:4}]};
+const duplicate=stats.buildInstantTeamTimeline({active:[duplicateTrack],archive:[]},{tracks:[{id:21,quality:'FIABLE',dataQuality:{identity:'FIABLE'}}]},{});
+ok(duplicate.invalidObservedInstants===1,'doublon même ID même frame rejeté');
+ok(duplicate.frames[0].invalidReason==='DUPLICATE_ID_SAME_FRAME','raison doublon explicite');
+ok(duplicate.frames[0].duplicateIds.length===1&&duplicate.frames[0].duplicateIds[0]===21,'ID dupliqué conservé pour diagnostic');
+ok(duplicate.frames[0].presentIds.length===0,'doublon non dédupliqué silencieusement');
+console.log(`PASS ${pass}/24 team instant stats`);
