@@ -55,7 +55,10 @@
     return {valid:errors.length===0,errors,maxActive:11};
   }
   function createAnalysisProfile(raw={}){
-    return {id:id('analysis',raw.id),name:clean(raw.name)||'Profil standard',teamId:clean(raw.teamId)||null,settings:{trackingSensitivity:clamp01(raw.settings&&raw.settings.trackingSensitivity==null?.7:raw.settings.trackingSensitivity),reidThreshold:clamp01(raw.settings&&raw.settings.reidThreshold==null?.78:raw.settings.reidThreshold),manualReview:raw.settings&&raw.settings.manualReview===false?false:true},source:'USER_CONFIGURED',savedAt:raw.savedAt||null};
+    const settings=raw.settings||{};
+    const trackingSensitivity=settings.trackingSensitivity==null?.7:settings.trackingSensitivity;
+    const reidThreshold=settings.reidThreshold==null?.78:settings.reidThreshold;
+    return {id:id('analysis',raw.id),name:clean(raw.name)||'Profil standard',teamId:clean(raw.teamId)||null,settings:{trackingSensitivity:clamp01(trackingSensitivity),reidThreshold:clamp01(reidThreshold),manualReview:settings.manualReview===false?false:true},source:'USER_CONFIGURED',savedAt:raw.savedAt||null};
   }
   function createPreferences(raw={}){
     return {language:clean(raw.language)||'fr',autoSave:raw.autoSave!==false,showAdvanced:raw.showAdvanced===true,lastTeamId:clean(raw.lastTeamId)||null,lastAnalysisProfileId:clean(raw.lastAnalysisProfileId)||null};
