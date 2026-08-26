@@ -4,6 +4,9 @@ let pass=0,fail=0;
 function check(name,cond){if(cond){console.log('PASS',name);pass++;}else{console.error('FAIL',name);fail++;}}
 check('uses long-term bridge',src.includes('CAYStableTrackingBridge.create'));
 check('hard cap 11 players',src.includes('maxPlayers:11'));
+check('feeds all classified CAY candidates to strict frame guard',src.includes("const frameCls=classifyFrameDetections(c,inField),dets=[]"));
+check('does not pre-truncate CAY candidates with football squad limiter',!src.includes('const frameCls=classifyFootballFrame(c,inField),dets=[]'));
+check('fails closed if unbounded classifier is unavailable',src.includes("throw new Error('classifieur CAY non tronqué indisponible')"));
 check('feeds visual segment-break evidence to bridge',src.includes('sceneCutScore')&&src.includes('visualDiscontinuity'));
 check('does not split camera segment from sparse detections alone',!src.includes('sparseFrames')&&!src.includes("segmentReason:strongCut?'visual_cut':'sparse_team'"));
 check('appearance vector for re-identification',src.includes('appearanceVector(cls.feature)'));
