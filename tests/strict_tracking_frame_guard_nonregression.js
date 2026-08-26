@@ -24,12 +24,12 @@ assert.strictEqual(snap.overflowCountsAssignableDetections,true);
 assert.strictEqual(snap.invalidFrameProvenance,'TIME_AND_SEGMENT');
 assert.ok(snap.maxVisible<=11,'le tracker ne doit jamais exposer plus de 11 joueurs simultanés');
 
-const report=bridge.report({});
+let report=bridge.report({});
 assert.strictEqual(report.bridge.invalidObservationFrames,1);
 assert.strictEqual(report.bridge.noSilentTruncation,true);
 assert.strictEqual(report.bridge.overflowCountsAssignableDetections,true);
 assert.strictEqual(report.bridge.invalidFrameProvenance,'TIME_AND_SEGMENT');
-const bad=report.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-.5)<1e-6);
+let bad=report.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-.5)<1e-6);
 assert.ok(bad,'la frame rejetée doit rester dans la timeline globale');
 assert.strictEqual(bad.dataQuality,'INDISPONIBLE');
 assert.strictEqual(bad.invalidReason,'MORE_THAN_11_CAY_DETECTIONS');
@@ -50,6 +50,26 @@ assert.strictEqual(counts.assignable,11,'le garde doit compter seulement les dé
 assert.strictEqual(counts.normalizationRejected,1,'le diagnostic doit exposer les entrées rejetées à la normalisation');
 assert.strictEqual(Bridge.eligibleCount([...Array.from({length:11},(_,i)=>det(i)),malformed],{width:1000,height:600}),11,'eligibleCount doit refléter le nombre réellement assignable');
 
+const unavailable=bridge.processUnavailableFrame(2,{maxPlayers:11,width:1000,height:600,reason:'FIELD_POLYGON_UNAVAILABLE'});
+assert.deepStrictEqual(unavailable,[],'une frame sans terrain exploitable ne doit produire aucune association joueur');
+const unavailableSnap=bridge.snapshot();
+assert.strictEqual(unavailableSnap.invalidObservationFrames,2,'la frame terrain indisponible doit être comptée explicitement');
+assert.strictEqual(unavailableSnap.invalidFrames[1].reason,'FIELD_POLYGON_UNAVAILABLE');
+assert.strictEqual(unavailableSnap.invalidFrames[1].policy,'explicit_unavailable_no_fallback');
+report=bridge.report({});
+bad=report.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-2)<1e-6);
+assert.ok(bad,'la frame terrain indisponible doit rester dans la timeline');
+assert.strictEqual(bad.dataQuality,'INDISPONIBLE');
+assert.strictEqual(bad.invalidReason,'FIELD_POLYGON_UNAVAILABLE');
+assert.strictEqual(bad.observedPlayers,0);
+assert.strictEqual(report.bridge.attemptedObservationFrames,5,'toutes les frames tentées doivent rester au dénominateur');
+assert.strictEqual(report.bridge.usableObservationFrames,3,'seules les frames non invalidées sont utilisables');
+assert.strictEqual(report.bridge.unavailableObservationFrames,2,'overflow et terrain indisponible doivent être exposés');
+assert.strictEqual(report.bridge.observationCoverage,.6,'la couverture ne doit pas masquer les frames indisponibles');
+assert.deepStrictEqual(report.bridge.unavailableReasons,{MORE_THAN_11_CAY_DETECTIONS:1,FIELD_POLYGON_UNAVAILABLE:1});
+assert.strictEqual(report.bridge.calculation,'FRAMES_UTILISABLES_SUR_FRAMES_TENTEES');
+assert.strictEqual(report.bridge.policy,'AUCUN_INSTANT_INDISPONIBLE_MASQUE');
+
 const cutBridge=Bridge.create({maxPlayers:11,lostAfter:8});
 cutBridge.processFrame([det(0)],0,{maxPlayers:11,width:1000,height:600});
 const cutOverflow=cutBridge.processFrame(Array.from({length:12},(_,i)=>det(i)),2,{maxPlayers:11,width:1000,height:600,segmentBreak:true,segmentReason:'camera_cut_test'});
@@ -62,8 +82,16 @@ assert.ok(cutFrame,'la frame rejetée après cut doit exister sur le bon segment
 assert.strictEqual(cutFrame.dataQuality,'INDISPONIBLE','seule la frame du segment correspondant reçoit le marquage invalide');
 assert.strictEqual(cutFrame.invalidReason,'MORE_THAN_11_CAY_DETECTIONS');
 
+const unavailableCut=Bridge.create({maxPlayers:11,lostAfter:8});
+unavailableCut.processFrame([det(0)],0,{maxPlayers:11,width:1000,height:600});
+unavailableCut.processUnavailableFrame(1,{maxPlayers:11,width:1000,height:600,reason:'FIELD_POLYGON_UNAVAILABLE',segmentBreak:true,segmentReason:'camera_cut_without_field'});
+const unavailableCutReport=unavailableCut.report({});
+const unavailableCutFrame=unavailableCutReport.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-1)<1e-6);
+assert.strictEqual(unavailableCutFrame.segment,2,'une frame indisponible pendant un cut doit conserver la provenance du nouveau segment');
+assert.strictEqual(unavailableCutFrame.invalidReason,'FIELD_POLYGON_UNAVAILABLE');
+
 const configured=Bridge.create({maxPlayers:7,lostAfter:8});
 configured.processFrame(Array.from({length:8},(_,i)=>det(i)),0,{maxPlayers:7,width:1000,height:600});
 assert.strictEqual(configured.snapshot().invalidFrames[0].reason,'MORE_THAN_CONFIGURED_CAY_DETECTIONS','un plafond configuré inférieur à 11 ne doit pas être diagnostiqué comme un faux dépassement de 11');
 
-console.log('strict tracking frame guard non-regression: PASS (34 checks)');
+console.log('strict tracking frame guard non-regression: PASS (50 checks)');
