@@ -102,16 +102,33 @@
       for(const p of tr.fullPath||[]){
         if(!Number.isFinite(p.time)||!Number.isFinite(p.segment))continue;
         const rounded=+p.time.toFixed(3),key=`${p.segment}:${rounded}`;
-        if(!frames.has(key))frames.set(key,{time:rounded,segment:p.segment,players:new Map()});
-        frames.get(key).players.set(tr.globalId,{id:tr.globalId,identityQuality});
+        if(!frames.has(key))frames.set(key,{time:rounded,segment:p.segment,players:new Map(),duplicateIds:new Set(),observations:0});
+        const frame=frames.get(key);
+        frame.observations++;
+        if(frame.players.has(tr.globalId))frame.duplicateIds.add(tr.globalId);
+        else frame.players.set(tr.globalId,{id:tr.globalId,identityQuality});
       }
     }
     const timeline=[...frames.values()].sort((a,b)=>a.time-b.time||a.segment-b.segment).map(frame=>{
-      const players=[...frame.players.values()].slice(0,11);
+      const players=[...frame.players.values()];
+      const overflow=players.length>11;
+      const duplicated=frame.duplicateIds.size>0;
+      const invalid=overflow||duplicated;
+      const invalidReason=overflow?'MORE_THAN_11_CAY_IDS':(duplicated?'DUPLICATE_ID_SAME_FRAME':null);
+      const calibration=projectorInfo((projectors||{})[frame.segment]);
+      if(invalid){
+        return {
+          time:frame.time,segment:frame.segment,presentIds:[],presentCount:0,
+          reliableIdentityCount:0,uncertainIdentityCount:0,identityCoverage:0,identityQuality:'INDISPONIBLE',
+          metricProjectionValidated:calibration.validated,metricCalibrationSource:calibration.source,
+          metricCalibrationConfidence:calibration.confidence,metricCalibrationReason:calibration.reason,
+          metricPlayerCoverage:0,metricQuality:'INDISPONIBLE',valid:false,invalidReason,
+          rejectedUniqueIds:players.length,rejectedObservations:frame.observations,duplicateIds:[...frame.duplicateIds].sort((a,b)=>a-b)
+        };
+      }
       const reliable=players.filter(p=>p.identityQuality==='FIABLE').length;
       const present=players.length;
       const identityCoverage=present?reliable/present:0;
-      const calibration=projectorInfo((projectors||{})[frame.segment]);
       const metricProjectionValidated=calibration.validated;
       return {
         time:frame.time,segment:frame.segment,presentIds:players.map(p=>p.id),presentCount:present,
@@ -122,17 +139,25 @@
         metricCalibrationConfidence:calibration.confidence,
         metricCalibrationReason:calibration.reason,
         metricPlayerCoverage:metricProjectionValidated&&present?1:0,
-        metricQuality:metricProjectionValidated&&present?'FIABLE':'INDISPONIBLE'
+        metricQuality:metricProjectionValidated&&present?'FIABLE':'INDISPONIBLE',valid:true,invalidReason:null,
+        rejectedUniqueIds:0,rejectedObservations:0,duplicateIds:[]
       };
     });
-    const observedPlayerSlots=timeline.reduce((s,f)=>s+f.presentCount,0);
-    const reliablePlayerSlots=timeline.reduce((s,f)=>s+f.reliableIdentityCount,0);
-    const metricPlayerSlots=timeline.reduce((s,f)=>s+(f.metricProjectionValidated?f.presentCount:0),0);
+    const validFrames=timeline.filter(f=>f.valid!==false);
+    const invalidFrames=timeline.filter(f=>f.valid===false);
+    const observedPlayerSlots=validFrames.reduce((s,f)=>s+f.presentCount,0);
+    const reliablePlayerSlots=validFrames.reduce((s,f)=>s+f.reliableIdentityCount,0);
+    const metricPlayerSlots=validFrames.reduce((s,f)=>s+(f.metricProjectionValidated?f.presentCount:0),0);
     const identityCoverage=observedPlayerSlots?reliablePlayerSlots/observedPlayerSlots:0;
     const metricCoverage=observedPlayerSlots?metricPlayerSlots/observedPlayerSlots:0;
     return {
       frames:timeline,
-      observedInstants:timeline.length,
+      observedInstants:validFrames.length,
+      totalSourceInstants:timeline.length,
+      validObservedInstants:validFrames.length,
+      invalidObservedInstants:invalidFrames.length,
+      invalidReasons:invalidFrames.reduce((acc,f)=>{acc[f.invalidReason]=(acc[f.invalidReason]||0)+1;return acc;},{}),
+      rejectedPlayerObservations:invalidFrames.reduce((s,f)=>s+f.rejectedObservations,0),
       observedPlayerSlots,
       reliablePlayerSlots,
       metricPlayerSlots,
@@ -140,7 +165,8 @@
       metricCoverage:+metricCoverage.toFixed(4),
       identityQuality:qualityFromCoverage(identityCoverage),
       metricQuality:qualityFromCoverage(metricCoverage),
-      calculation:'PAR_INSTANT_JOUEURS_OBSERVES_UNIQUEMENT'
+      calculation:'PAR_INSTANT_JOUEURS_OBSERVES_UNIQUEMENT',
+      integrityPolicy:'AUCUNE_TRONCATURE_NI_DEDUPLICATION_SILENCIEUSE'
     };
   }
   function buildReport(coreState,coreApi,projectors){
@@ -166,12 +192,13 @@
         instantaneousIdentityCoverage:instant.identityCoverage,
         instantaneousMetricCoverage:instant.metricCoverage,
         observedInstants:instant.observedInstants,
+        invalidObservedInstants:instant.invalidObservedInstants,
         observedPlayerSlots:instant.observedPlayerSlots,
         quality:instant.identityQuality,
         calculation:instant.calculation
       },
       teamTimeline:instant.frames,
-      teamCoverage:{identity:instant.identityCoverage,metric:instant.metricCoverage,identityQuality:instant.identityQuality,metricQuality:instant.metricQuality,calculation:instant.calculation},
+      teamCoverage:{identity:instant.identityCoverage,metric:instant.metricCoverage,identityQuality:instant.identityQuality,metricQuality:instant.metricQuality,calculation:instant.calculation,validObservedInstants:instant.validObservedInstants,invalidObservedInstants:instant.invalidObservedInstants,invalidReasons:instant.invalidReasons,integrityPolicy:instant.integrityPolicy},
       unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé',confirmedReplacements:'aucun détecteur de remplacement validé'}
     };
   }
