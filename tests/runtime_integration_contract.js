@@ -23,5 +23,11 @@ check('shows presence intervals',src.includes('Intervalles : '+"'+intervalsHtml(
 check('shows identity confidence',src.includes('identité '+"'+conf+'"));
 check('shows team per-instant coverage',src.includes('Équipe par instant'));
 check('confirmed substitutions stay unavailable without validated event',src.includes('Remplacements confirmés : <b>INDISPONIBLE</b>'));
+check('does not silently skip frames without a field polygon',!src.includes('poly=trackingPoly(t,c);if(!poly)continue'));
+check('marks missing-field frame explicitly unavailable',src.includes("reason:'FIELD_POLYGON_UNAVAILABLE'"));
+check('fails closed if unavailable-frame guard is missing',src.includes("throw new Error('garde couverture frames indisponibles absent')"));
+check('exports attempted usable unavailable observation coverage',src.includes('observationCoverage:{attempted:')&&src.includes('usable:playerStats.bridge?.usableObservationFrames')&&src.includes('unavailable:playerStats.bridge?.unavailableObservationFrames'));
+check('shows attempted and unavailable frames in UI',src.includes('frame(s) tentée(s)')&&src.includes('indisponible(s)'));
+check('success status exposes observation coverage',src.includes("• couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %"));
 console.log(`runtime integration: ${pass} PASS / ${fail} FAIL`);
 if(fail)process.exit(1);
