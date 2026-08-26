@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/cay-stable-integration.yml'
       - 'CAY_ANALYZER_STABLE.html'
+      - 'app_domain_models_v1.js'
       - 'tracking_core_v1.js'
       - 'player_stats_v1.js'
       - 'replacement_events_v1.js'
@@ -40,6 +41,7 @@ jobs:
         run: python3 tools/integrate_tracking_v2.py
       - name: Syntax check JavaScript modules
         run: |
+          node --check app_domain_models_v1.js
           node --check tracking_core_v1.js
           node --check player_stats_v1.js
           node --check replacement_events_v1.js
