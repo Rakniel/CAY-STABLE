@@ -74,7 +74,7 @@
   }
   function create(options){
     requireDeps();
-    const opts={maxPlayers:11,lostAfter:8,reidentifyArchived:true,reidAppearanceThreshold:.10,longGapSeconds:2.5,...(options||{})};
+    const opts={maxPlayers:11,lostAfter:8,reidentifyArchived:true,reidAppearanceThreshold:.10,reidScoreThreshold:.78,reidScoreUniquenessMargin:.035,maxReidGap:180,minSameSegmentReidGap:2,longGapSeconds:2.5,...(options||{})};
     const state=Core.createState();
     let lastTime=null,frames=0,segmentBreaks=0,rejectedDetections=0,automaticSegmentBreaks=0;
     const rejectedByReason={},timeline=[];
@@ -101,7 +101,18 @@
       }
       const meta=ensureSegmentMeta();
       for(const reason of frameRejected){ rejectedDetections++; meta.rejectedDetections++; rejectedByReason[reason]=(rejectedByReason[reason]||0)+1; }
-      const assigned=Core.assignFrame(state,accepted,t,{maxPlayers:Math.min(11,Math.max(1,Number(ctx.maxPlayers)||opts.maxPlayers)),lostAfter:Number.isFinite(ctx.lostAfter)?ctx.lostAfter:opts.lostAfter,allowNew:ctx.allowNew!==false,reidentifyArchived:ctx.reidentifyArchived!==false&&opts.reidentifyArchived!==false,reidAppearanceThreshold:Number.isFinite(ctx.reidAppearanceThreshold)?ctx.reidAppearanceThreshold:opts.reidAppearanceThreshold,baseThreshold:Number.isFinite(ctx.baseThreshold)?ctx.baseThreshold:opts.baseThreshold});
+      const assigned=Core.assignFrame(state,accepted,t,{
+        maxPlayers:Math.min(11,Math.max(1,Number(ctx.maxPlayers)||opts.maxPlayers)),
+        lostAfter:Number.isFinite(ctx.lostAfter)?ctx.lostAfter:opts.lostAfter,
+        allowNew:ctx.allowNew!==false,
+        reidentifyArchived:ctx.reidentifyArchived!==false&&opts.reidentifyArchived!==false,
+        reidAppearanceThreshold:Number.isFinite(ctx.reidAppearanceThreshold)?ctx.reidAppearanceThreshold:opts.reidAppearanceThreshold,
+        reidScoreThreshold:Number.isFinite(ctx.reidScoreThreshold)?ctx.reidScoreThreshold:opts.reidScoreThreshold,
+        reidScoreUniquenessMargin:Number.isFinite(ctx.reidScoreUniquenessMargin)?ctx.reidScoreUniquenessMargin:opts.reidScoreUniquenessMargin,
+        maxReidGap:Number.isFinite(ctx.maxReidGap)?ctx.maxReidGap:opts.maxReidGap,
+        minSameSegmentReidGap:Number.isFinite(ctx.minSameSegmentReidGap)?ctx.minSameSegmentReidGap:opts.minSameSegmentReidGap,
+        baseThreshold:Number.isFinite(ctx.baseThreshold)?ctx.baseThreshold:opts.baseThreshold
+      });
       const ids=new Set();
       for(const a of assigned){ if(ids.has(a.trackId))throw new Error('invariant violé: ID joueur dupliqué sur une frame'); ids.add(a.trackId); }
       if(assigned.length>11)throw new Error('invariant violé: plus de 11 CAY simultanés');
