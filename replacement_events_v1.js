@@ -47,9 +47,52 @@
       rule:'SEULS_LES_EVENEMENTS_EXPLICITEMENT_VALIDES_SONT_COMPTES'
     };
   }
+  function auditRosterTimeline(layer,initialActiveIds,options){
+    const maxActive=Math.max(1,Number(options&&options.maxActive)||11);
+    if(!Array.isArray(initialActiveIds)||initialActiveIds.length===0){
+      return {
+        quality:'INDISPONIBLE',reason:'INITIAL_LINEUP_NOT_VALIDATED',maxActive,
+        initialActiveIds:[],acceptedEvents:[],rejectedEvents:[],snapshots:[],finalActiveIds:[],
+        rule:'AUCUN_ETAT_DE_ROSTER_N_EST_INFERE_SANS_COMPOSITION_INITIALE_VALIDEE'
+      };
+    }
+    const initial=initialActiveIds.map(Number);
+    if(initial.some(id=>!Number.isInteger(id))||new Set(initial).size!==initial.length||initial.length>maxActive){
+      return {
+        quality:'INDISPONIBLE',reason:'INVALID_INITIAL_LINEUP',maxActive,
+        initialActiveIds:initial,acceptedEvents:[],rejectedEvents:[],snapshots:[],finalActiveIds:[],
+        rule:'COMPOSITION_INITIALE_INVALIDE_AUCUNE_TIMELINE_CALCULEE'
+      };
+    }
+    const active=new Set(initial),acceptedEvents=[],rejectedEvents=[],snapshots=[];
+    const events=(layer&&Array.isArray(layer.events)?layer.events:[]).slice().sort((a,b)=>a.time-b.time);
+    for(const event of events){
+      let reason=null;
+      if(!active.has(event.outPlayerId)) reason='OUT_PLAYER_NOT_ACTIVE';
+      else if(active.has(event.inPlayerId)) reason='IN_PLAYER_ALREADY_ACTIVE';
+      if(reason){
+        rejectedEvents.push({reason,event:{...event},activeIds:[...active].sort((a,b)=>a-b)});
+        continue;
+      }
+      const next=new Set(active); next.delete(event.outPlayerId); next.add(event.inPlayerId);
+      if(next.size>maxActive){
+        rejectedEvents.push({reason:'MAX_ACTIVE_PLAYERS_EXCEEDED',event:{...event},activeIds:[...active].sort((a,b)=>a-b)});
+        continue;
+      }
+      active.clear(); for(const id of next)active.add(id);
+      acceptedEvents.push({...event});
+      snapshots.push({time:event.time,segment:event.segment,activeIds:[...active].sort((a,b)=>a-b),count:active.size,source:event.source});
+    }
+    return {
+      quality:rejectedEvents.length?'PARTIEL':'FIABLE',reason:rejectedEvents.length?'INCONSISTENT_VALIDATED_REPLACEMENTS':null,
+      maxActive,initialActiveIds:initial.slice().sort((a,b)=>a-b),acceptedEvents,rejectedEvents,snapshots,
+      finalActiveIds:[...active].sort((a,b)=>a-b),coverage:{validatedEvents:events.length,consistentEvents:acceptedEvents.length,rejectedEvents:rejectedEvents.length},
+      rule:'TIMELINE_ROSTER_CALCULEE_UNIQUEMENT_DEPUIS_COMPOSITION_INITIALE_ET_REMPLACEMENTS_VALIDES'
+    };
+  }
   function applyToPlayerCard(card,layer){
     const events=(layer&&layer.byPlayer&&layer.byPlayer[card.id])||[];
     return {...card,replacementEvents:events.map(e=>({...e})),rosterState:{...(card.rosterState||{}),replacementConfirmed:events.length>0,replacementReason:events.length?'événement de remplacement explicitement validé':'aucun événement de remplacement validé'}};
   }
-  return {normalizeEvent,buildValidatedReplacementLayer,applyToPlayerCard};
+  return {normalizeEvent,buildValidatedReplacementLayer,auditRosterTimeline,applyToPlayerCard};
 });
