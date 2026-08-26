@@ -7,8 +7,9 @@
   else root.CAYTrackingTwoStageAdapter=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(Core,Cascade){
   'use strict';
+  const coreAssign=Core&&typeof Core.assignFrame==='function'?Core.assignFrame.bind(Core):null;
   function requireDeps(){
-    if(!Core||typeof Core.assignFrame!=='function')throw new Error('CAYTrackingCore indisponible');
+    if(!Core||!coreAssign)throw new Error('CAYTrackingCore indisponible');
     if(!Cascade||typeof Cascade.splitDetections!=='function')throw new Error('CAYTrackingConfidenceCascade indisponible');
   }
   function uniqueByTrackId(items){
@@ -23,7 +24,7 @@
     requireDeps();
     const opts=options||{};
     const split=Cascade.splitDetections(detections,opts);
-    const highAssigned=Core.assignFrame(state,split.high,time,{...opts,allowNew:opts.allowNew!==false});
+    const highAssigned=coreAssign(state,split.high,time,{...opts,allowNew:opts.allowNew!==false});
     if(!split.low.length)return {assigned:highAssigned,split,highAssigned,lowAssigned:[]};
 
     const protectedIds=new Set(highAssigned.map(a=>a.trackId));
@@ -32,7 +33,7 @@
     const missedAfterHigh=new Map(recoveryTracks.map(tr=>[tr.globalId,tr.missed]));
 
     state.active=recoveryTracks;
-    const lowAssigned=Core.assignFrame(state,split.low,time,{
+    const lowAssigned=coreAssign(state,split.low,time,{
       ...opts,
       allowNew:false,
       reidentifyArchived:false,
