@@ -10,6 +10,20 @@ const panOnly=Bridge.inferSegmentBreak({cameraMotionScore:.95,cameraTransformDel
 eq(panOnly.break,false,'pan seul ne doit pas créer un nouveau segment');
 ok(panOnly.evidence.includes('pan_motion_only_ignored'),'le pan seul ignoré doit être diagnostiqué');
 
+const strongVisualPan=Bridge.inferSegmentBreak({sceneCutScore:.90,cameraMotionScore:.95,fieldGeometryDelta:.05,cameraTransformDelta:.20,zoomDelta:.05},.5,.54,{});
+eq(strongVisualPan.break,false,'une forte variation visuelle compatible avec un pan stable ne doit pas créer un faux segment');
+ok(strongVisualPan.evidence.includes('strong_visual_change_pan_only_ignored'),'le faux cut visuel lié au pan doit rester diagnostiqué');
+
+const strongVisualPanWithGeometryBreak=Bridge.inferSegmentBreak({sceneCutScore:.90,cameraMotionScore:.95,fieldGeometryDelta:.25,cameraTransformDelta:.20,zoomDelta:.05},.6,.64,{});
+eq(strongVisualPanWithGeometryBreak.break,true,'une rupture de géométrie doit empêcher le garde pan de masquer un vrai cut');
+eq(strongVisualPanWithGeometryBreak.reason,'strong_scene_cut','le vrai cut avec géométrie incompatible reste prioritaire');
+
+const strongVisualPanWithTransformBreak=Bridge.inferSegmentBreak({sceneCutScore:.90,cameraMotionScore:.95,fieldGeometryDelta:.05,cameraTransformDelta:.60,zoomDelta:.05},.7,.74,{});
+eq(strongVisualPanWithTransformBreak.break,true,'une forte transformation caméra doit empêcher le garde pan de masquer un vrai cut');
+
+const strongVisualPanWithZoomBreak=Bridge.inferSegmentBreak({sceneCutScore:.90,cameraMotionScore:.95,fieldGeometryDelta:.05,cameraTransformDelta:.20,zoomDelta:.40},.8,.84,{});
+eq(strongVisualPanWithZoomBreak.break,true,'un zoom fort doit empêcher le garde pan de masquer un vrai changement de cadrage');
+
 const hardCut=Bridge.inferSegmentBreak({sceneCutScore:.91},1,1.04,{});
 eq(hardCut.break,true,'cut visuel fort doit créer un segment');
 eq(hardCut.reason,'strong_scene_cut','raison cut fort explicite');
