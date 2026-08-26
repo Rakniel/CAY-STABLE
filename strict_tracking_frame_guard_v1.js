@@ -38,6 +38,43 @@
     const baseReport=bridge.report.bind(bridge);
     const baseSnapshot=bridge.snapshot.bind(bridge);
     const invalidFrames=[];
+    const configuredGap=Number(options&&options.unavailableGapSegmentSeconds);
+    const configuredLongGap=Number(options&&options.longGapSeconds);
+    const unavailableGapSegmentSeconds=Math.max(.5,Number.isFinite(configuredGap)?configuredGap:(Number.isFinite(configuredLongGap)?configuredLongGap:2.5));
+    let lastUsableTime=null,lastUsableSegment=null,unavailableRunStart=null,unavailableRunLast=null,unavailableRunFrames=0,unavailableRecoverySegmentBreaks=0;
+
+    function noteUnavailable(time){
+      const t=Number(time);
+      if(!Number.isFinite(t))return;
+      if(unavailableRunFrames===0)unavailableRunStart=t;
+      unavailableRunLast=t;
+      unavailableRunFrames++;
+    }
+
+    function clearUnavailableRun(){
+      unavailableRunStart=null;
+      unavailableRunLast=null;
+      unavailableRunFrames=0;
+    }
+
+    function continuityValidated(ctx){
+      return ctx&&(
+        ctx.continuityValidated===true||
+        ctx.sameShotContinuous===true||
+        ctx.sameCameraContinuous===true
+      );
+    }
+
+    function recoveryContext(time,context){
+      const ctx=context||{},t=Number(time);
+      if(unavailableRunFrames<1||lastUsableTime===null||!Number.isFinite(t))return ctx;
+      const blindGap=Math.max(0,t-lastUsableTime);
+      const currentSegment=bridge.state&&Number(bridge.state.segment);
+      const alreadySegmented=Number.isFinite(currentSegment)&&Number.isFinite(lastUsableSegment)&&currentSegment!==lastUsableSegment;
+      if(blindGap<unavailableGapSegmentSeconds||alreadySegmented||continuityValidated(ctx)||ctx.segmentBreak===true)return ctx;
+      unavailableRecoverySegmentBreaks++;
+      return {...ctx,segmentBreak:true,segmentReason:'unavailable_observation_gap',unavailableGapSeconds:blindGap,unavailableFrames:unavailableRunFrames};
+    }
 
     function recordUnavailable(time,reason,extra){
       const t=Number(time),event={
@@ -49,6 +86,7 @@
         ...(extra||{})
       };
       invalidFrames.push(event);
+      noteUnavailable(time);
       return event;
     }
 
@@ -60,12 +98,12 @@
     }
 
     function processFrame(input,time,context){
-      const ctx=context||{};
+      const ctx=recoveryContext(time,context||{});
       const limit=Math.min(11,Math.max(1,Number(ctx.maxPlayers)||Number(options&&options.maxPlayers)||11));
       const counts=detectionCounts(input,ctx);
       if(counts.assignable>limit){
         const t=Number(time);
-        // Age existing tracks and let the base bridge apply any real segment break,
+        // Age existing tracks and let the base bridge apply any real/recovery segment break,
         // but never feed an arbitrary top-N subset to the tracker.
         baseProcess([],time,{...ctx,allowNew:false});
         recordUnavailable(t,limit===11?'MORE_THAN_11_CAY_DETECTIONS':'MORE_THAN_CONFIGURED_CAY_DETECTIONS',{
@@ -77,7 +115,14 @@
         });
         return [];
       }
-      return baseProcess(input,time,ctx);
+      const assigned=baseProcess(input,time,ctx);
+      const t=Number(time);
+      if(Number.isFinite(t)){
+        lastUsableTime=t;
+        lastUsableSegment=bridge.state&&Number(bridge.state.segment);
+      }
+      clearUnavailableRun();
+      return assigned;
     }
 
     function coverageFromTimeline(timeline){
@@ -112,16 +157,16 @@
         return hit?{...ev,dataQuality:'INDISPONIBLE',invalidReason:hit.reason,eligibleDetections:hit.eligibleDetections,assignableDetections:hit.assignableDetections,normalizationRejected:hit.normalizationRejected,policy:hit.policy}:ev;
       });
       const observationCoverage=coverageFromTimeline(timeline);
-      return {...r,bridge:{...(r.bridge||{}),timeline,invalidObservationFrames:invalid.length,invalidFrames:invalid,noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT',...observationCoverage}};
+      return {...r,bridge:{...(r.bridge||{}),timeline,invalidObservationFrames:invalid.length,invalidFrames:invalid,noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT',unavailableGapSegmentSeconds,unavailableRecoverySegmentBreaks,unavailableRecoveryPolicy:'SEGMENT_IF_LONG_BLIND_GAP_WITHOUT_VALIDATED_CONTINUITY',...observationCoverage}};
     }
 
     function snapshot(){
-      const base={...baseSnapshot(),invalidObservationFrames:invalidFrames.length,invalidFrames:invalidFrames.map(x=>({...x})),noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT'};
+      const base={...baseSnapshot(),invalidObservationFrames:invalidFrames.length,invalidFrames:invalidFrames.map(x=>({...x})),noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT',unavailableGapSegmentSeconds,unavailableRecoverySegmentBreaks,unavailableRun:{frames:unavailableRunFrames,start:unavailableRunStart,last:unavailableRunLast},unavailableRecoveryPolicy:'SEGMENT_IF_LONG_BLIND_GAP_WITHOUT_VALIDATED_CONTINUITY'};
       return base;
     }
 
     return {...bridge,processFrame,processUnavailableFrame,report,snapshot};
   }
 
-  return {...Base,create,eligibleCount,detectionCounts,strictFrameGuardVersion:'1.4.0'};
+  return {...Base,create,eligibleCount,detectionCounts,strictFrameGuardVersion:'1.5.0'};
 });
