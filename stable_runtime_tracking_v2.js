@@ -101,10 +101,12 @@ function renderPlayerStats(report){
   if(!cards)return;
   const players=report.players||[];
   const pct=Math.round((report.team?.avgMetricCoverage||0)*100);
-  if(coverage)coverage.textContent=report.team?.playersWithMetricData?('couverture métrique moyenne '+pct+' %'):'métrique terrain indisponible — stats observables conservées';
+  const obsPct=Math.round((report.bridge?.observationCoverage||0)*100);
+  const attempted=report.bridge?.attemptedObservationFrames||0,unavailable=report.bridge?.unavailableObservationFrames||0;
+  if(coverage)coverage.textContent=(report.team?.playersWithMetricData?('couverture métrique moyenne '+pct+' %'):'métrique terrain indisponible — stats observables conservées')+' • couverture analyse '+obsPct+' %';
   if(teamCoverage){
     const idPct=Math.round((report.teamCoverage?.identity||0)*100),metricPct=Math.round((report.teamCoverage?.metric||0)*100);
-    teamCoverage.innerHTML='Équipe par instant : <b>'+idPct+' % identité défendable</b> • <b>'+metricPct+' % couverture métrique</b> • '+(report.team?.observedInstants||0)+' instant(s) • '+(report.team?.observedPlayerSlots||0)+' présence(s) joueur observées. Remplacements confirmés : <b>INDISPONIBLE</b> sans événement validé.';
+    teamCoverage.innerHTML='Équipe par instant : <b>'+idPct+' % identité défendable</b> • <b>'+metricPct+' % couverture métrique</b> • '+(report.team?.observedInstants||0)+' instant(s) observé(s) • '+(report.team?.observedPlayerSlots||0)+' présence(s) joueur observées • <b>'+attempted+' frame(s) tentée(s), '+unavailable+' indisponible(s)</b>. Remplacements confirmés : <b>INDISPONIBLE</b> sans événement validé.';
   }
   cards.innerHTML=players.map(p=>{
     const metric=p.metric||{},rs=p.rosterState||{};
@@ -156,7 +158,16 @@ async function runTrackingLongTermStable(){
   try{
     const model=await getModel(),stride=Math.max(1,Math.floor(times.length/12));
     for(let i=0;i<times.length;i++){
-      const t=times[i],c=await frame(t,900),poly=trackingPoly(t,c);if(!poly)continue;
+      const t=times[i],c=await frame(t,900),poly=trackingPoly(t,c);
+      if(!poly){
+        if(typeof bridge.processUnavailableFrame!=='function')throw new Error('garde couverture frames indisponibles absent');
+        bridge.processUnavailableFrame(t,{width:c.width,height:c.height,maxPlayers:11,reason:'FIELD_POLYGON_UNAVAILABLE'});
+        frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,status:'INDISPONIBLE',reason:'FIELD_POLYGON_UNAVAILABLE',detections:[]});
+        const sum=bridge.summary(),stable=sum.tracks.filter(s=>s.observations>=5).length,longest=sum.tracks.reduce((m,s)=>Math.max(m,s.observations||0),0);
+        $('tFrames').textContent=i+1;$('tIds').textContent=sum.rosterTotal;$('tStable').textContent=stable;$('tLongest').textContent=longest+' img';$('tMatches').textContent=sum.totalAssociations;$('tSegments').textContent=sum.segments;$('trackingBar').style.width=Math.round((i+1)/times.length*100)+'%';
+        status($('trackingStatus'),'Tracking longue durée '+(i+1)+'/'+times.length+' • '+tf(t)+' • terrain indisponible, frame exclue des stats');await new Promise(r=>setTimeout(r,0));
+        continue;
+      }
       let raw=await detectTracking(model,c);
       const inField=[];for(const b of raw){const fs=playerFieldState(b,poly,c.width,c.height);if(fs.state==='IN'||fs.state==='EDGE')inField.push(b);}
       if(typeof classifyFrameDetections!=='function')throw new Error('classifieur CAY non tronqué indisponible');
@@ -171,7 +182,7 @@ async function runTrackingLongTermStable(){
       const cameraSignals=fieldPolygonCameraSignals(prevPoly,poly,c.width,c.height);
       const assigned=bridge.processFrame(dets,t,{width:c.width,height:c.height,maxPlayers:11,allowNew:dets.length>=2||bridge.state.active.length>0,sceneCutScore,visualDiscontinuity:clamp01(visualDiff),cameraMotionScore:cameraSignals.cameraMotionScore,cameraTransformDelta:cameraSignals.cameraTransformDelta,fieldGeometryDelta:cameraSignals.fieldGeometryDelta,zoomDelta:cameraSignals.zoomDelta,reidentifyArchived:true});
       drawLongTrackFrame(c,assigned);prevSig=sig;prevDetCount=dets.length;prevPoly=poly;
-      frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,detections:assigned.map(a=>({id:a.trackId,cat:a.cat,x:+a.x.toFixed(4),y:+a.y.toFixed(4),source:a.source,score:+Number(a.score||0).toFixed(4)}))});
+      frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,status:'OBSERVE',detections:assigned.map(a=>({id:a.trackId,cat:a.cat,x:+a.x.toFixed(4),y:+a.y.toFixed(4),source:a.source,score:+Number(a.score||0).toFixed(4)}))});
       if(i%stride===0||i===times.length-1){const card=document.createElement('div');card.className='trackcard';const copy=document.createElement('canvas');copy.width=c.width;copy.height=c.height;copy.getContext('2d').drawImage(c,0,0);const info=document.createElement('div');info.className='trackinfo';info.innerHTML='<span>'+tf(t)+'</span><strong>'+assigned.length+' joueur(s)</strong>';card.append(copy,info);$('trackingGallery').append(card);}
       const sum=bridge.summary(),stable=sum.tracks.filter(s=>s.observations>=5).length,longest=sum.tracks.reduce((m,s)=>Math.max(m,s.observations||0),0);
       $('tFrames').textContent=i+1;$('tIds').textContent=sum.rosterTotal;$('tStable').textContent=stable;$('tLongest').textContent=longest+' img';$('tMatches').textContent=sum.totalAssociations;$('tSegments').textContent=sum.segments;$('trackingBar').style.width=Math.round((i+1)/times.length*100)+'%';
@@ -180,9 +191,9 @@ async function runTrackingLongTermStable(){
     const sum=bridge.summary(),playerStats=bridge.report({});
     const tracks=sum.tracks.map(s=>({...s,seen:s.observations,lastTime:s.lastTime,normalizedTravel:s.normalizedTravel}));
     const stable=tracks.filter(t=>t.seen>=5).length;
-    lastTrackingReport={version:'STABLE_LONG_TERM_V2',video:currentFile.name,team:($('analysisTeamName')?.value||'').trim(),start:+start.toFixed(2),end:+end.toFixed(2),step,createdIds:sum.rosterTotal,totalAssociations:sum.totalAssociations,segments:sum.segments,maxVisible:sum.maxVisible,reidentified:sum.reidentified,manualMerges:sum.manualMerges,tracks,frames,playerStats,unavailable:playerStats.unavailable};
+    lastTrackingReport={version:'STABLE_LONG_TERM_V2',video:currentFile.name,team:($('analysisTeamName')?.value||'').trim(),start:+start.toFixed(2),end:+end.toFixed(2),step,createdIds:sum.rosterTotal,totalAssociations:sum.totalAssociations,segments:sum.segments,maxVisible:sum.maxVisible,reidentified:sum.reidentified,manualMerges:sum.manualMerges,tracks,frames,observationCoverage:{attempted:playerStats.bridge?.attemptedObservationFrames||0,usable:playerStats.bridge?.usableObservationFrames||0,unavailable:playerStats.bridge?.unavailableObservationFrames||0,coverage:playerStats.bridge?.observationCoverage||0,reasons:playerStats.bridge?.unavailableReasons||{}},playerStats,unavailable:playerStats.unavailable};
     renderPlayerStats(playerStats);$('exportTracking').disabled=false;
-    status($('trackingStatus'),'Tracking longue durée terminé ✓ • '+sum.segments+' segment(s) • max '+sum.maxVisible+'/11 • roster '+sum.rosterTotal+' • '+stable+' track(s) stables','success');
+    status($('trackingStatus'),'Tracking longue durée terminé ✓ • '+sum.segments+' segment(s) • max '+sum.maxVisible+'/11 • roster '+sum.rosterTotal+' • '+stable+' track(s) stables • couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %','success');
     return lastTrackingReport;
   }catch(err){status($('trackingStatus'),'Erreur tracking longue durée : '+err.message,'warning');throw err;}
   finally{$('runTracking').disabled=false;}
