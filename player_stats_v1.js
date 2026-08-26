@@ -30,20 +30,22 @@
     const path=track.fullPath||[];
     let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0;
     const speeds=[]; let inSprint=false;
+    const breakSprintContinuity=()=>{inSprint=false;};
     for(let i=1;i<path.length;i++){
       const a=path[i-1],b=path[i];
-      if(a.segment!==b.segment)continue;
+      if(a.segment!==b.segment){breakSprintContinuity();continue;}
       const dt=b.time-a.time;
-      if(!(dt>0&&dt<=3))continue;
+      if(!(dt>0&&dt<=3)){breakSprintContinuity();continue;}
       eligibleDt+=dt;
       const info=projectorInfo(projectors&&projectors[a.segment]);
-      if(!info.validated)continue;
-      const pa=info.project(a),pb=info.project(b);
-      if(!pa||!pb||![pa.x,pa.y,pb.x,pb.y].every(Number.isFinite))continue;
+      if(!info.validated){breakSprintContinuity();continue;}
+      let pa=null,pb=null;
+      try{pa=info.project(a);pb=info.project(b);}catch(e){breakSprintContinuity();continue;}
+      if(!pa||!pb||![pa.x,pa.y,pb.x,pb.y].every(Number.isFinite)){breakSprintContinuity();continue;}
       const d=hypot(pa,pb);
-      if(!Number.isFinite(d)||d<0)continue;
+      if(!Number.isFinite(d)||d<0){breakSprintContinuity();continue;}
       const speedKmh=(d/dt)*3.6;
-      if(speedKmh>45)continue;
+      if(!Number.isFinite(speedKmh)||speedKmh>45){breakSprintContinuity();continue;}
       metricDt+=dt; distanceM+=d; speeds.push({time:b.time,segment:b.segment,kmh:speedKmh});
       maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);
       const sprint=speedKmh>=25;
@@ -58,7 +60,8 @@
       avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),
       maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,
       sprintCount:metricDt>0?sprintCount:null,
-      quality:qualityFromCoverage(coverage),speedSamples:speeds
+      quality:qualityFromCoverage(coverage),speedSamples:speeds,
+      sprintContinuityPolicy:'RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_OU_PAIRE_METRIQUE_REJETEE'
     };
   }
   function rosterState(trackSummary,trackRaw,analysisStart){
