@@ -11,6 +11,45 @@ function appearanceVector(f){
   const a=h*Math.PI/180;
   return [Math.cos(a),Math.sin(a),s,v,r/255,g/255,b/255];
 }
+function polygonPoints(poly,width,height){
+  const src=Array.isArray(poly)?poly:(Array.isArray(poly?.points)?poly.points:[]);
+  const w=Math.max(1,Number(width)||1),h=Math.max(1,Number(height)||1),out=[];
+  for(const p of src){
+    let x=Array.isArray(p)?Number(p[0]):Number(p?.x),y=Array.isArray(p)?Number(p[1]):Number(p?.y);
+    if(!Number.isFinite(x)||!Number.isFinite(y))continue;
+    if(Math.abs(x)>1.5)x/=w;if(Math.abs(y)>1.5)y/=h;
+    out.push({x:clamp01(x),y:clamp01(y)});
+  }
+  return out;
+}
+function polygonDescriptor(poly,width,height){
+  const pts=polygonPoints(poly,width,height);if(pts.length<3)return null;
+  let cx=0,cy=0,minX=1,minY=1,maxX=0,maxY=0,area2=0;
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i],q=pts[(i+1)%pts.length];cx+=p.x;cy+=p.y;minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);area2+=p.x*q.y-q.x*p.y;
+  }
+  cx/=pts.length;cy/=pts.length;
+  return {pts,cx,cy,width:Math.max(.0001,maxX-minX),height:Math.max(.0001,maxY-minY),area:Math.max(.000001,Math.abs(area2)*.5)};
+}
+function fieldPolygonCameraSignals(prevPoly,poly,width,height){
+  const a=polygonDescriptor(prevPoly,width,height),b=polygonDescriptor(poly,width,height);
+  if(!a||!b)return {cameraMotionScore:0,cameraTransformDelta:0,fieldGeometryDelta:0,zoomDelta:0,geometrySignalAvailable:false};
+  const centerMove=Math.hypot(b.cx-a.cx,b.cy-a.cy);
+  const widthLog=Math.abs(Math.log(b.width/a.width)),heightLog=Math.abs(Math.log(b.height/a.height)),areaLog=Math.abs(Math.log(b.area/a.area));
+  const zoomDelta=clamp01(Math.max(widthLog,heightLog,areaLog*.5)/.55);
+  let shapeDelta=0,shapeN=0;
+  if(a.pts.length===b.pts.length){
+    for(let i=0;i<a.pts.length;i++){
+      const ap=a.pts[i],bp=b.pts[i];shapeDelta+=Math.hypot((bp.x-b.cx)-(ap.x-a.cx),(bp.y-b.cy)-(ap.y-a.cy));shapeN++;
+    }
+  }
+  const meanShape=shapeN?shapeDelta/shapeN:Math.max(widthLog,heightLog)*.12;
+  const fieldGeometryDelta=clamp01(meanShape/.10+Math.max(0,areaLog-.10)/1.1);
+  const cameraMotionScore=clamp01(centerMove/.075);
+  const cameraTransformDelta=clamp01(centerMove/.28*.55+zoomDelta*.45+fieldGeometryDelta*.20);
+  return {cameraMotionScore, cameraTransformDelta, fieldGeometryDelta, zoomDelta, geometrySignalAvailable:true};
+}
+root.CAYStableRuntimeCameraSignals=fieldPolygonCameraSignals;
 function ensureStatsPanel(){
   let panel=$('stablePlayerStatsV2');
   if(panel)return panel;
@@ -113,7 +152,7 @@ async function runTrackingLongTermStable(){
   ['tFrames','tIds','tStable','tMatches'].forEach(id=>$(id).textContent='0');$('tLongest').textContent='0';$('tSegments').textContent='1';
   ensureStatsPanel();if($('stableStatsCardsV2'))$('stableStatsCardsV2').innerHTML='';
   const bridge=root.CAYStableTrackingBridge.create({maxPlayers:11,lostAfter:8,reidentifyArchived:true,reidAppearanceThreshold:.16});
-  const frames=[];let prevSig=null,prevDetCount=0;
+  const frames=[];let prevSig=null,prevDetCount=0,prevPoly=null;
   try{
     const model=await getModel(),stride=Math.max(1,Math.floor(times.length/12));
     for(let i=0;i<times.length;i++){
@@ -128,8 +167,9 @@ async function runTrackingLongTermStable(){
       const sig=trackingImageSignature(c),visualDiff=prevSig?hd(prevSig,sig):0;
       const countShock=prevDetCount>=5&&dets.length<=Math.max(1,prevDetCount*.34);
       const sceneCutScore=clamp01(visualDiff+(countShock?.12:0));
-      const assigned=bridge.processFrame(dets,t,{width:c.width,height:c.height,maxPlayers:11,allowNew:dets.length>=2||bridge.state.active.length>0,sceneCutScore,visualDiscontinuity:clamp01(visualDiff),reidentifyArchived:true});
-      drawLongTrackFrame(c,assigned);prevSig=sig;prevDetCount=dets.length;
+      const cameraSignals=fieldPolygonCameraSignals(prevPoly,poly,c.width,c.height);
+      const assigned=bridge.processFrame(dets,t,{width:c.width,height:c.height,maxPlayers:11,allowNew:dets.length>=2||bridge.state.active.length>0,sceneCutScore,visualDiscontinuity:clamp01(visualDiff),cameraMotionScore:cameraSignals.cameraMotionScore,cameraTransformDelta:cameraSignals.cameraTransformDelta,fieldGeometryDelta:cameraSignals.fieldGeometryDelta,zoomDelta:cameraSignals.zoomDelta,reidentifyArchived:true});
+      drawLongTrackFrame(c,assigned);prevSig=sig;prevDetCount=dets.length;prevPoly=poly;
       frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,detections:assigned.map(a=>({id:a.trackId,cat:a.cat,x:+a.x.toFixed(4),y:+a.y.toFixed(4),source:a.source,score:+Number(a.score||0).toFixed(4)}))});
       if(i%stride===0||i===times.length-1){const card=document.createElement('div');card.className='trackcard';const copy=document.createElement('canvas');copy.width=c.width;copy.height=c.height;copy.getContext('2d').drawImage(c,0,0);const info=document.createElement('div');info.className='trackinfo';info.innerHTML='<span>'+tf(t)+'</span><strong>'+assigned.length+' joueur(s)</strong>';card.append(copy,info);$('trackingGallery').append(card);}
       const sum=bridge.summary(),stable=sum.tracks.filter(s=>s.observations>=5).length,longest=sum.tracks.reduce((m,s)=>Math.max(m,s.observations||0),0);
@@ -154,5 +194,5 @@ function install(){
   root.runTrackingLongTermStable=runTrackingLongTermStable;
   root.renderCAYPlayerStats=renderPlayerStats;
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
+if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();}
 })(typeof globalThis!=='undefined'?globalThis:window);
