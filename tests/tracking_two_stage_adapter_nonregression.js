@@ -1,0 +1,25 @@
+'use strict';
+const assert=require('assert');
+const Core=require('../tracking_core_v1.js');
+const TwoStage=require('../tracking_two_stage_adapter_v1.js');
+function det(x,score,feature=[.2,.3,.4]){return {x,y:.5,cat:'team',score,feature};}
+const state=Core.createState();
+let r=TwoStage.assignFrame(state,[det(.20,.92)],0,{highScoreThreshold:.55,lowScoreThreshold:.20,baseThreshold:.50,lostAfter:8});
+assert.strictEqual(r.assigned.length,1);
+const id=r.assigned[0].trackId;
+assert.strictEqual(state.created,1);
+r=TwoStage.assignFrame(state,[det(.205,.32)],.5,{highScoreThreshold:.55,lowScoreThreshold:.20,baseThreshold:.50,lostAfter:8});
+assert.strictEqual(r.highAssigned.length,0);
+assert.strictEqual(r.lowAssigned.length,1,'une détection faible proche doit récupérer un track existant');
+assert.strictEqual(r.assigned[0].trackId,id,'la récupération faible doit conserver le même ID');
+assert.strictEqual(state.created,1,'une détection faible ne doit jamais créer un nouvel ID');
+const empty=Core.createState();
+r=TwoStage.assignFrame(empty,[det(.70,.30)],0,{highScoreThreshold:.55,lowScoreThreshold:.20,baseThreshold:.50,lostAfter:8});
+assert.strictEqual(r.assigned.length,0,'une détection faible isolée ne doit pas créer de joueur');
+assert.strictEqual(empty.created,0);
+const mixed=Core.createState();
+TwoStage.assignFrame(mixed,[det(.20,.90),det(.80,.88,[.8,.7,.6])],0,{highScoreThreshold:.55,lowScoreThreshold:.20});
+r=TwoStage.assignFrame(mixed,[det(.205,.31),det(.805,.89,[.8,.7,.6])],.5,{highScoreThreshold:.55,lowScoreThreshold:.20});
+assert.strictEqual(new Set(r.assigned.map(a=>a.trackId)).size,r.assigned.length,'aucun ID ne doit être assigné deux fois sur la même frame');
+assert.strictEqual(r.assigned.length,2);
+console.log('tracking_two_stage_adapter_nonregression: OK');
