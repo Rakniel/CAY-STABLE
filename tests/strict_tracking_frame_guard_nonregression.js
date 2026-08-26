@@ -21,12 +21,14 @@ assert.strictEqual(snap.invalidFrames[0].assignableDetections,12);
 assert.strictEqual(snap.invalidFrames[0].normalizationRejected,0);
 assert.strictEqual(snap.noSilentTruncation,true);
 assert.strictEqual(snap.overflowCountsAssignableDetections,true);
+assert.strictEqual(snap.invalidFrameProvenance,'TIME_AND_SEGMENT');
 assert.ok(snap.maxVisible<=11,'le tracker ne doit jamais exposer plus de 11 joueurs simultanés');
 
 const report=bridge.report({});
 assert.strictEqual(report.bridge.invalidObservationFrames,1);
 assert.strictEqual(report.bridge.noSilentTruncation,true);
 assert.strictEqual(report.bridge.overflowCountsAssignableDetections,true);
+assert.strictEqual(report.bridge.invalidFrameProvenance,'TIME_AND_SEGMENT');
 const bad=report.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-.5)<1e-6);
 assert.ok(bad,'la frame rejetée doit rester dans la timeline globale');
 assert.strictEqual(bad.dataQuality,'INDISPONIBLE');
@@ -48,4 +50,20 @@ assert.strictEqual(counts.assignable,11,'le garde doit compter seulement les dé
 assert.strictEqual(counts.normalizationRejected,1,'le diagnostic doit exposer les entrées rejetées à la normalisation');
 assert.strictEqual(Bridge.eligibleCount([...Array.from({length:11},(_,i)=>det(i)),malformed],{width:1000,height:600}),11,'eligibleCount doit refléter le nombre réellement assignable');
 
-console.log('strict tracking frame guard non-regression: PASS (25 checks)');
+const cutBridge=Bridge.create({maxPlayers:11,lostAfter:8});
+cutBridge.processFrame([det(0)],0,{maxPlayers:11,width:1000,height:600});
+const cutOverflow=cutBridge.processFrame(Array.from({length:12},(_,i)=>det(i)),2,{maxPlayers:11,width:1000,height:600,segmentBreak:true,segmentReason:'camera_cut_test'});
+assert.strictEqual(cutOverflow.length,0,'un overflow sur une vraie coupure reste indisponible');
+const cutSnap=cutBridge.snapshot();
+assert.strictEqual(cutSnap.invalidFrames[0].segment,2,'la provenance de la frame invalide doit pointer vers le nouveau segment après la coupure');
+const cutReport=cutBridge.report({});
+const cutFrame=cutReport.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-2)<1e-6&&e.segment===2);
+assert.ok(cutFrame,'la frame rejetée après cut doit exister sur le bon segment');
+assert.strictEqual(cutFrame.dataQuality,'INDISPONIBLE','seule la frame du segment correspondant reçoit le marquage invalide');
+assert.strictEqual(cutFrame.invalidReason,'MORE_THAN_11_CAY_DETECTIONS');
+
+const configured=Bridge.create({maxPlayers:7,lostAfter:8});
+configured.processFrame(Array.from({length:8},(_,i)=>det(i)),0,{maxPlayers:7,width:1000,height:600});
+assert.strictEqual(configured.snapshot().invalidFrames[0].reason,'MORE_THAN_CONFIGURED_CAY_DETECTIONS','un plafond configuré inférieur à 11 ne doit pas être diagnostiqué comme un faux dépassement de 11');
+
+console.log('strict tracking frame guard non-regression: PASS (34 checks)');
