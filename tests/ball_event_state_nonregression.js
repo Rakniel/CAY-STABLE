@@ -32,8 +32,9 @@ function sample(time,ballX,ownerVisible=true){
 {
   const samples=[
     sample(0,10.2),sample(.2,10.3),sample(.4,10.3),sample(.6,10.2),
-    sample(.8,20.2),sample(1.0,20.2),sample(1.2,20.1),sample(1.4,20.1),
-    sample(1.6,30.1),sample(1.8,30.2),sample(2.0,30.2),sample(2.2,30.1)
+    sample(.8,14),sample(1.0,16),
+    sample(1.2,20.2),sample(1.4,20.2),sample(1.6,20.1),sample(1.8,20.1),
+    sample(2.0,30.1),sample(2.2,30.2),sample(2.4,30.2),sample(2.6,30.1)
   ];
   const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.5});
   assert.equal(r.quality,'FIABLE');
@@ -43,8 +44,22 @@ function sample(time,ballX,ownerVisible=true){
   assert.equal(r.events[0].type,'PASS');
   assert.equal(r.events[0].fromPlayerId,'cay-9');
   assert.equal(r.events[0].toPlayerId,'cay-10');
+  assert.equal(r.events[0].detachedBallObserved,true);
+  assert(r.events[0].travelM>=9);
   assert.equal(r.events[1].type,'TURNOVER');
   assert.equal(r.events[1].toPlayerId,'opp-4');
+}
+
+{
+  const samples=[
+    sample(0,10.2),sample(.2,10.2),sample(.4,10.2),sample(.6,10.2),
+    sample(.8,20.2),sample(1.0,20.2),sample(1.2,20.1),sample(1.4,20.1)
+  ];
+  const r=analyzeBallEvents(samples,{minCoverage:.5});
+  assert.equal(r.quality,'FIABLE');
+  assert.equal(r.passes,0);
+  assert.equal(r.rejectedPassTransitions,1);
+  assert.deepEqual(r.events,[]);
 }
 
 {
