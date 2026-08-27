@@ -38,4 +38,11 @@ assert.equal(diag.tracks.find(x=>x.trackId==='A').effectiveSamples,3);
 // When two samples are too close, retain the highest-quality representative.
 const diverse=R.temporalDiverseSamples([{time:0,quality:.4},{time:.1,quality:.9},{time:.5,quality:.8}],.35);
 assert.deepEqual(diverse.map(x=>x.time),[.1,.5]);
+
+// Missing timestamps must remain unknown; null must never silently become t=0.
+const untimed=R.create({minSamples:3});
+for(let i=0;i<3;i++){untimed.add('A',a,{time:null});untimed.add('B',b,{time:null});}
+r=untimed.suggest('A',['B']);
+assert.equal(r.status,'A_VERIFIER');
+assert.equal(untimed.diagnostics().tracks.find(x=>x.trackId==='A').effectiveSamples,3);
 console.log('reid_evidence_fusion_nonregression: OK');
