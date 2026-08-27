@@ -97,11 +97,11 @@ function sample(time,ballX,ownerVisible=true){
 // Une transition directe vers un autre propriétaire ne doit pas attribuer
 // l'intervalle entier au propriétaire précédent.
 {
-  const samples=[sample(0,10.2),sample(.4,10.2),sample(.8,20.2),sample(1.2,20.2)];
+  const samples=[sample(0,10.2),sample(.4,10.2),sample(.8,10.2),sample(1.2,20.2),sample(1.6,20.2)];
   const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.5,maxObservationGapSec:1});
   assert.equal(r.quality,'FIABLE');
-  assert(r.ownedSeconds<=.4);
-  assert.equal(r.possession.CAY.seconds,r.ownedSeconds);
+  assert.equal(r.ownedSeconds,.4);
+  assert.equal(r.possession.CAY.seconds,.4);
 }
 
 console.log('ball event state non-regression: PASS');
