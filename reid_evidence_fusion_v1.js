@@ -15,13 +15,14 @@
     if(na<=0||nb<=0)return null;
     return dot/(Math.sqrt(na)*Math.sqrt(nb));
   }
+  function validTime(value){return value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));}
   function temporalDiverseSamples(samples,minTemporalSeparation){
     if(!Array.isArray(samples)||!samples.length)return [];
     const gap=Math.max(0,Number(minTemporalSeparation)||0);
     if(gap<=0)return samples.slice();
-    const timed=samples.filter(x=>Number.isFinite(Number(x&&x.time)));
+    const timed=samples.filter(x=>validTime(x&&x.time));
     if(timed.length<2)return samples.slice();
-    const untimed=samples.filter(x=>!Number.isFinite(Number(x&&x.time)));
+    const untimed=samples.filter(x=>!validTime(x&&x.time));
     const ordered=timed.slice().sort((a,b)=>(b.quality-a.quality)||(a.time-b.time));
     const kept=[];
     for(const row of ordered){
@@ -43,7 +44,7 @@
       if(!Array.isArray(embedding)||!embedding.length)throw new Error('embedding requis');
       const quality=Number(meta.quality);
       if(Number.isFinite(quality)&&quality<0.35)return false;
-      const row={embedding:[...embedding],quality:Number.isFinite(quality)?Math.max(0,Math.min(1,quality)):1,team:meta.team??null,time:Number.isFinite(Number(meta.time))?Number(meta.time):null};
+      const row={embedding:[...embedding],quality:Number.isFinite(quality)?Math.max(0,Math.min(1,quality)):1,team:meta.team??null,time:validTime(meta.time)?Number(meta.time):null};
       const arr=tracks.get(id)||[]; arr.push(row); if(arr.length>maxSamples)arr.splice(0,arr.length-maxSamples); tracks.set(id,arr); return true;
     }
     function evidence(id){
