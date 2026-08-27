@@ -32,6 +32,7 @@
     const split=Cascade.splitDetections(detections,opts);
     const high=split.high.map((d,i)=>marker(d,i,'H'));
     const low=split.low.map((d,i)=>marker(d,i,'L'));
+    const missedBeforeHigh=new Map((state.active||[]).map(tr=>[tr.globalId,Number(tr.missed)||0]));
 
     // Stage 1: strong detections update existing tracks first; no new identity is created yet.
     const highAssigned=coreAssign(state,high,time,{...opts,maxPlayers,allowNew:false,reidentifyArchived:false,lostAfter:999999});
@@ -39,22 +40,27 @@
     const usedHighKeys=new Set(highAssigned.map(a=>a._cayCascadeKey).filter(Boolean));
     const protectedTracks=state.active.filter(tr=>highIds.has(tr.globalId));
     const recoveryTracks=state.active.filter(tr=>!highIds.has(tr.globalId));
-    const missedAfterHigh=new Map(recoveryTracks.map(tr=>[tr.globalId,tr.missed]));
+
+    // The first-stage miss happens in the same video frame. Reset it before the low-confidence
+    // recovery pass so it does not both increase match cost and age the track twice.
+    for(const tr of recoveryTracks)tr.missed=missedBeforeHigh.get(tr.globalId)||0;
 
     // Stage 2: weak detections can recover only an existing unmatched track.
     const recoverySlots=Math.max(0,maxPlayers-highAssigned.length);
     state.active=recoveryTracks;
-    const lowAssigned=recoverySlots>0&&low.length?coreAssign(state,low,time,{
-      ...opts,
-      maxPlayers:recoverySlots,
-      allowNew:false,
-      reidentifyArchived:false,
-      lostAfter:999999,
-      baseThreshold:Cascade.recoveryThreshold(Number.isFinite(Number(opts.baseThreshold))?Number(opts.baseThreshold):.50,opts)
-    }):[];
-    const lowMatchedIds=new Set(lowAssigned.map(a=>a.trackId));
-    for(const tr of state.active){
-      if(!lowMatchedIds.has(tr.globalId)&&missedAfterHigh.has(tr.globalId))tr.missed=missedAfterHigh.get(tr.globalId);
+    let lowAssigned=[];
+    if(recoverySlots>0&&low.length){
+      lowAssigned=coreAssign(state,low,time,{
+        ...opts,
+        maxPlayers:recoverySlots,
+        allowNew:false,
+        reidentifyArchived:false,
+        lostAfter:999999,
+        baseThreshold:Cascade.recoveryThreshold(Number.isFinite(Number(opts.baseThreshold))?Number(opts.baseThreshold):.50,opts)
+      });
+    }else{
+      // No second pass occurred, therefore apply exactly one miss for this frame.
+      for(const tr of state.active)tr.missed=(missedBeforeHigh.get(tr.globalId)||0)+1;
     }
     let survivors=uniqueByTrackId([...state.active,...protectedTracks].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
 
