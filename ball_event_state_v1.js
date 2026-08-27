@@ -52,7 +52,7 @@
     };
     const rows=(samples||[]).filter(s=>finite(s&&s.time)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
     if(rows.length<2)return {quality:'INDISPONIBLE',reason:'INSUFFICIENT_TIMELINE',events:[],passes:0,turnovers:0,coverage:0};
-    let total=0,observable=0,owned=0,stable=null,candidate=null,candidateSince=null,lastTime=null,lastObservableTime=null,lastStableBall=null,transition=null,rejectedPassTransitions=0;
+    let total=0,observable=0,owned=0,stable=null,candidate=null,candidateSince=null,lastTime=null,lastFrameObservable=false,lastStableBall=null,transition=null,rejectedPassTransitions=0;
     const possessionSec={},playerPossessionSec={},events=[];
     function beginTransition(now,ball,detached){
       if(!stable)return;
@@ -83,22 +83,22 @@
     }
     for(const row of rows){
       const t=Number(row.time);
+      const rowBall=normalizeBall(row.ball);
+      const owner=inferOwner(row,cfg);
+      const frameObservable=(owner.status==='OWNED'||owner.status==='FREE'||owner.status==='AMBIGUOUS')&&!!rowBall&&rowBall.confidence>=cfg.minBallConfidence;
       if(lastTime!==null){
         const dt=Math.max(0,t-lastTime);
         if(dt<=cfg.maxObservationGapSec){
           total+=dt;
-          if(lastObservableTime===lastTime)observable+=dt;
-          if(stable&&lastObservableTime===lastTime){
+          if(lastFrameObservable&&frameObservable)observable+=dt;
+          if(stable&&lastFrameObservable&&frameObservable&&owner.status==='OWNED'&&owner.playerId===stable.playerId){
             owned+=dt;
             possessionSec[stable.team]=(possessionSec[stable.team]||0)+dt;
             playerPossessionSec[stable.playerId]=(playerPossessionSec[stable.playerId]||0)+dt;
           }
         }
       }
-      const rowBall=normalizeBall(row.ball);
-      const owner=inferOwner(row,cfg);
       if(owner.status==='OWNED'){
-        lastObservableTime=t;
         if(stable&&owner.playerId===stable.playerId){
           lastStableBall=rowBall?{x:rowBall.x,y:rowBall.y}:lastStableBall;
           transition=null;
@@ -108,11 +108,12 @@
         if(!candidate||candidate.playerId!==owner.playerId){candidate=owner;candidateSince=t;}
         commitCandidate(t,rowBall);
       }else if(owner.status==='FREE'||owner.status==='AMBIGUOUS'){
-        if(rowBall&&rowBall.confidence>=cfg.minBallConfidence){lastObservableTime=t;beginTransition(t,rowBall,true);}
+        if(frameObservable)beginTransition(t,rowBall,true);
         candidate=null; candidateSince=null;
       }else{
         candidate=null; candidateSince=null;
       }
+      lastFrameObservable=frameObservable;
       lastTime=t;
     }
     const coverage=total>0?observable/total:0;
@@ -130,6 +131,8 @@
       playerPossession:quality==='FIABLE'?Object.fromEntries(Object.entries(playerPossessionSec).map(([id,sec])=>[id,round(sec)])):'INDISPONIBLE',
       events:quality==='FIABLE'?events:[],
       thresholds:{minBallConfidence:cfg.minBallConfidence,minStableOwnershipSec:cfg.minStableOwnershipSec,minCoverage:cfg.minCoverage,ownerRadiusM:cfg.ownerRadiusM,ambiguityMarginM:cfg.ambiguityMarginM,minPassTravelM:cfg.minPassTravelM,maxPassTransitionSec:cfg.maxPassTransitionSec},
+      coveragePolicy:'INTERVALLE_CREDITE_SEULEMENT_SI_LES_DEUX_EXTREMITES_SONT_OBSERVABLES',
+      possessionPolicy:'TEMPS_CREDITE_SEULEMENT_SI_LE_MEME_PROPRIETAIRE_STABLE_EST_OBSERVE_AUX_DEUX_EXTREMITES',
       rule:'UNE_PASSE_N_EST_PUBLIEE_QUE_SI_UN_VOL_DE_BALL_DETACHE_ET_UN_DEPLACEMENT_METRIQUE_SUFFISANT_RELient_DEUX_POSSESSIONS_STABLES_DU_MEME_CAMP'
     };
   }
