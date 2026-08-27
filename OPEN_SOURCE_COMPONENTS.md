@@ -43,10 +43,13 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 ## Tryolabs soccer-video-analytics
 - Source: https://github.com/tryolabs/soccer-video-analytics
 - License: MIT.
-- Status: evaluated; not integrated yet.
+- Status: event-state-machine design adapted; upstream source code and toy ball model are not copied.
 - Useful ideas: possession and pass counting built on explicit ball detections/ownership association.
-- Important limitation: upstream explicitly describes its provided ball model as a toy model that overfits a few videos. CAY-STABLE must not reuse that model as a production detector.
-- Candidate CAY use: event-state-machine design once ball detection has measurable coverage/confidence. Possession/passes remain `INDISPONIBLE` until ball observations satisfy CAY validation thresholds.
+- Important limitation: upstream explicitly describes its provided ball model as a toy model that overfits a few videos. CAY-STABLE does not reuse that model as a production detector.
+- Local implementation: `ball_event_state_v1.js` separates ball observation/ownership from the detector itself. It works only in validated pitch-metre coordinates, requires ball/player confidence, rejects ambiguous ownership, requires stable ownership before transitions, and computes passes/turnovers only from stable owner changes.
+- Safety policy: if valid ball coverage is below the configured threshold, possession, passes, turnovers and event lists are returned as `INDISPONIBLE`/empty rather than extrapolated.
+- Test: `tests/ball_event_state_nonregression.js` covers low-confidence ball rejection, ambiguous ownership, same-team pass, opponent turnover and low-coverage suppression.
+- Expected benefit: the entire possession/pass event contract can be developed and tested independently from the final ball detector, avoiding duplicated event logic when detector technology changes.
 
 ## TrackLab
 - Source: https://github.com/TrackingLaboratory/tracklab
