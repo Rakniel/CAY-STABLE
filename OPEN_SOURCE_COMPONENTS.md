@@ -40,6 +40,18 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Runtime integration: both `metric_homography_projector_v1.js` and `metric_segment_registry_v1.js` are now part of the canonical STABLE HTML dependency order and CI syntax/integration guards.
 - Expected benefit: safer multi-plan physical metrics and less bespoke architecture work before distance/speed/sprint can be enabled across independently calibrated shots.
 
+## mplsoccer / pitch-coordinate heatmaps
+- Source: https://github.com/andrewRowlinson/mplsoccer
+- License: MIT.
+- Status in CAY-STABLE: football-analytics binning/coordinate principle adapted; no upstream source code copied.
+- Supporting calibration reference: SoccerNet camera calibration models the known football pitch and image-to-pitch mapping through homography.
+- Problem avoided: a heatmap built directly from normalized image coordinates moves when the camera pans/zooms, so it can misrepresent where the player actually operated on the pitch.
+- Local implementation: `metric_pitch_heatmap_v1.js` bins only positions projected into validated pitch-metre coordinates and records metric coverage. It has no silent image-coordinate fallback.
+- Safety policy: unvalidated segments, failed projections and out-of-pitch coordinates are rejected; if metric coverage is below the configured threshold the pitch heatmap is `INDISPONIBLE`.
+- Test: `tests/metric_pitch_heatmap_nonregression.js` checks calibrated partial coverage, strict coverage rejection, absence of calibration, out-of-pitch rejection and normalized cell totals.
+- Runtime integration: module is inserted after metric calibration/segment registry in the canonical STABLE HTML dependency order and is included in CI syntax + test guards.
+- Expected benefit: heatmaps become comparable across camera pans and cuts and can later be rendered directly on the C.A. Yenne pitch UI without inventing position data.
+
 ## Tryolabs soccer-video-analytics
 - Source: https://github.com/tryolabs/soccer-video-analytics
 - License: MIT.
@@ -67,6 +79,7 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 
 ## Rejected / reference-only examples
 - `Tony-Luna/soccer-video-analytics`: AGPL-3.0. Useful as a conceptual reference for possession/homography/heatmaps, but not copied or incorporated into the current CAY-STABLE runtime because its copyleft obligations are intentionally avoided at this stage.
+- `mikel-brostrom/boxmot`: AGPL-3.0 in its current public repository. Useful for benchmarking tracker/ReID options and hardware trade-offs, but no BoxMOT source code is incorporated into the current CAY-STABLE runtime.
 
 ## Integration rules
 1. Keep CAY-STABLE branding, data contracts and UX independent from external projects.
