@@ -35,8 +35,8 @@
     return Math.abs(s)/2;
   }
 
-  function buildHomography(correspondences){
-    if(!Array.isArray(correspondences)||correspondences.length!==4)return {ok:false,reason:'4 correspondances image-terrain requises'};
+  function fitFour(correspondences){
+    if(!Array.isArray(correspondences)||correspondences.length!==4)return {ok:false,reason:'4 correspondances image-terrain requises pour un ajustement minimal'};
     const rows=[],rhs=[];
     for(const c of correspondences){
       if(!c||!finitePoint(c.image)||!finitePoint(c.pitch))return {ok:false,reason:'correspondance invalide'};
@@ -61,22 +61,60 @@
     return Number.isFinite(X)&&Number.isFinite(Y)?{x:X,y:Y}:null;
   }
 
+  function pointErrorM(H,c){
+    if(!c||!finitePoint(c.image)||!finitePoint(c.pitch))return null;
+    const q=project(H,c.image);if(!q)return null;
+    const e=Math.hypot(q.x-Number(c.pitch.x),q.y-Number(c.pitch.y));
+    return Number.isFinite(e)?e:null;
+  }
+
+  function combinations4(n,max=70){
+    const out=[];
+    for(let a=0;a<n-3&&out.length<max;a++)for(let b=a+1;b<n-2&&out.length<max;b++)for(let c=b+1;c<n-1&&out.length<max;c++)for(let d=c+1;d<n&&out.length<max;d++)out.push([a,b,c,d]);
+    return out;
+  }
+
+  function buildHomography(correspondences,options={}){
+    if(!Array.isArray(correspondences)||correspondences.length<4)return {ok:false,reason:'au moins 4 correspondances image-terrain requises'};
+    if(correspondences.some(c=>!c||!finitePoint(c.image)||!finitePoint(c.pitch)))return {ok:false,reason:'correspondance invalide'};
+    if(correspondences.length===4){
+      const fit=fitFour(correspondences);
+      return fit.ok?{...fit,method:'DLT_4_POINTS',inlierCount:4,totalCount:4,inlierRatio:1,rejectedIndices:[]}:fit;
+    }
+    const threshold=Number.isFinite(Number(options.consensusThresholdM))?Math.max(.25,Number(options.consensusThresholdM)):2;
+    const minRatio=Number.isFinite(Number(options.minInlierRatio))?clamp(Number(options.minInlierRatio),.5,1):.7;
+    const subsets=combinations4(correspondences.length,Number.isFinite(Number(options.maxHypotheses))?Math.max(1,Math.floor(Number(options.maxHypotheses))):70);
+    let best=null;
+    for(const idx of subsets){
+      const fit=fitFour(idx.map(i=>correspondences[i]));if(!fit.ok)continue;
+      const errors=correspondences.map(c=>pointErrorM(fit.H,c));
+      const inliers=errors.map((e,i)=>e!==null&&e<=threshold?i:null).filter(i=>i!==null);
+      if(inliers.length<4)continue;
+      const mean=inliers.reduce((s,i)=>s+errors[i],0)/inliers.length;
+      const peak=Math.max(...inliers.map(i=>errors[i]));
+      const score={fit,idx,errors,inliers,mean,peak};
+      if(!best||inliers.length>best.inliers.length||(inliers.length===best.inliers.length&&mean<best.mean)||(inliers.length===best.inliers.length&&Math.abs(mean-best.mean)<1e-9&&peak<best.peak))best=score;
+    }
+    if(!best)return {ok:false,reason:'aucune homographie robuste non dégénérée'};
+    const ratio=best.inliers.length/correspondences.length;
+    if(ratio<minRatio)return {ok:false,reason:`consensus insuffisant (${best.inliers.length}/${correspondences.length})`,inlierCount:best.inliers.length,totalCount:correspondences.length,inlierRatio:+ratio.toFixed(4)};
+    const rejectedIndices=correspondences.map((_,i)=>i).filter(i=>!best.inliers.includes(i));
+    return {ok:true,H:best.fit.H,method:'ROBUST_4_POINT_CONSENSUS',inlierCount:best.inliers.length,totalCount:correspondences.length,inlierRatio:+ratio.toFixed(4),consensusThresholdM:threshold,meanInlierErrorM:+best.mean.toFixed(4),maxInlierErrorM:+best.peak.toFixed(4),rejectedIndices,hypothesesTested:subsets.length};
+  }
+
   function reprojectionError(H,validationPoints){
     if(!Array.isArray(validationPoints)||validationPoints.length===0)return null;
     let sum=0,n=0,max=0;
     for(const c of validationPoints){
-      if(!c||!finitePoint(c.image)||!finitePoint(c.pitch))continue;
-      const q=project(H,c.image); if(!q)continue;
-      const e=Math.hypot(q.x-Number(c.pitch.x),q.y-Number(c.pitch.y));
-      if(!Number.isFinite(e))continue;
+      const e=pointErrorM(H,c);if(e===null)continue;
       sum+=e;n++;max=Math.max(max,e);
     }
     return n?{count:n,meanM:sum/n,maxM:max}:null;
   }
 
   function createProjector(options={}){
-    const fit=buildHomography(options.correspondences);
-    if(!fit.ok)return {validated:false,source:'manual_4_point_homography',confidence:0,reason:fit.reason,project:null};
+    const fit=buildHomography(options.correspondences,options);
+    if(!fit.ok)return {validated:false,source:'manual_homography',confidence:0,reason:fit.reason,project:null,fit};
     const pitchLength=Number(options.pitchLengthM)||105,pitchWidth=Number(options.pitchWidthM)||68;
     const validation=reprojectionError(fit.H,options.validationPoints);
     const maxMean=Number.isFinite(Number(options.maxMeanErrorM))?Number(options.maxMeanErrorM):2.5;
@@ -84,11 +122,10 @@
     let validated=false,reason=null,confidence=.6;
     if(validation&&validation.count>=2){
       validated=validation.meanM<=maxMean&&validation.maxM<=maxPeak;
-      confidence=validated?clamp(1-(validation.meanM/maxMean)*.35-(validation.maxM/maxPeak)*.25,.5,1):0;
+      const consensusBonus=fit.inlierRatio>=.9?.08:fit.inlierRatio>=.75?.04:0;
+      confidence=validated?clamp(1-(validation.meanM/maxMean)*.35-(validation.maxM/maxPeak)*.25+consensusBonus,.5,1):0;
       if(!validated)reason=`erreur reprojection trop élevée (${validation.meanM.toFixed(2)} m moyenne, ${validation.maxM.toFixed(2)} m max)`;
-    }else{
-      reason='validation indépendante insuffisante (au moins 2 points requis)';
-    }
+    }else reason='validation indépendante insuffisante (au moins 2 points requis)';
     const safeProject=p=>{
       const q=project(fit.H,p); if(!q)return null;
       const margin=3;
@@ -97,16 +134,13 @@
     };
     return {
       validated,
-      source:'manual_4_point_homography_cay_v1',
-      confidence:+confidence.toFixed(3),
-      reason:validated?null:reason,
-      project:validated?safeProject:null,
-      homography:fit.H.slice(),
-      validation,
+      source:fit.method==='ROBUST_4_POINT_CONSENSUS'?'manual_multi_point_homography_cay_v2':'manual_4_point_homography_cay_v1',
+      confidence:+confidence.toFixed(3),reason:validated?null:reason,project:validated?safeProject:null,
+      homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1},
       pitch:{lengthM:pitchLength,widthM:pitchWidth},
-      provenance:{designReferences:['SoccerNet camera calibration','TVCalib'],codeCopied:false,licenseDependency:'none'}
+      provenance:{designReferences:['SoccerNet camera calibration','TVCalib','OpenCV findHomography RANSAC principle'],codeCopied:false,licenseDependency:'none',openCvReferenceLicense:'Apache-2.0 (OpenCV >= 4.5.0)'}
     };
   }
 
-  return {buildHomography,project,reprojectionError,createProjector,solveLinear};
+  return {buildHomography,project,reprojectionError,createProjector,solveLinear,combinations4};
 });
