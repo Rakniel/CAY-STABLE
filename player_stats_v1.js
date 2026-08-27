@@ -5,6 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const MetricHeatmap=(typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_pitch_heatmap_v1.js'):((typeof globalThis!=='undefined'&&globalThis.CAYMetricPitchHeatmap)||null);
   function qualityFromCoverage(c){ return c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE'; }
   function projectorInfo(entry){
     if(!entry)return {validated:false,project:null,source:null,confidence:null,reason:'aucune projection terrain fournie'};
@@ -24,7 +25,13 @@
       const x=clamp(Number(p.x)||0,0,.999999),y=clamp(Number(p.y)||0,0,.999999);
       cells[Math.floor(y*rows)][Math.floor(x*cols)]++;
     }
-    return {cols,rows,cells,max:cells.reduce((m,r)=>Math.max(m,...r),0),observations:(points||[]).length};
+    return {cols,rows,cells,max:cells.reduce((m,r)=>Math.max(m,...r),0),observations:(points||[]).length,coordinateSystem:'IMAGE_NORMALIZED',status:(points||[]).length?'OBSERVABLE':'INDISPONIBLE'};
+  }
+  function metricPitchHeatmap(track,projectors){
+    if(!MetricHeatmap||typeof MetricHeatmap.build!=='function'){
+      return {status:'INDISPONIBLE',reason:'module heatmap terrain métrique indisponible',coordinateSystem:'PITCH_METERS',cols:6,rows:4,cells:Array.from({length:4},()=>Array(6).fill(0)),max:0,observations:0,eligibleObservations:Array.isArray(track?.fullPath)?track.fullPath.length:0,rejectedObservations:0,metricCoverage:0,quality:'INDISPONIBLE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN'};
+    }
+    return MetricHeatmap.build(track,projectors||{},{cols:6,rows:4,minMetricCoverage:.35});
   }
   function metricForTrack(track,projectors){
     const path=track.fullPath||[];
@@ -78,7 +85,8 @@
   }
   function buildPlayerCard(trackSummary,trackRaw,projectors,analysisStart){
     const metric=metricForTrack(trackRaw,projectors||{});
-    const hm=heatmap(trackRaw.fullPath||[]);
+    const observedImageHeatmap=heatmap(trackRaw.fullPath||[]);
+    const hm=metricPitchHeatmap(trackRaw,projectors||{});
     return {
       id:trackSummary.id,cat:trackSummary.cat,segments:trackSummary.segments,
       firstTime:trackSummary.firstTime,lastTime:trackSummary.lastTime,
@@ -86,12 +94,12 @@
       presenceIntervals:trackSummary.presenceIntervals||[],
       reidentifications:trackSummary.reidentifications||0,mergedFrom:trackSummary.mergedFrom||[],
       identityConfidence:trackSummary.identityConfidence,identityQuality:trackSummary.dataQuality?.identity||trackSummary.quality,
-      normalizedTravel:trackSummary.normalizedTravel,heatmap:hm,
+      normalizedTravel:trackSummary.normalizedTravel,heatmap:hm,observedImageHeatmap,
       rosterState:rosterState(trackSummary,trackRaw,analysisStart),
       metric:{...metric,reason:metric.metricCoverage>0?null:'aucun segment avec projection terrain métrique explicitement validée'},
       quality:{
         identity:trackSummary.dataQuality?.identity||trackSummary.quality,
-        heatmap:hm.observations>=2?(hm.observations>=10?'FIABLE':'PARTIEL'):'INDISPONIBLE',
+        heatmap:hm.quality||'INDISPONIBLE',
         metricDistance:metric.quality,metricSpeed:metric.quality,sprints:metric.quality
       }
     };
@@ -205,5 +213,5 @@
       unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé',confirmedReplacements:'aucun détecteur de remplacement validé'}
     };
   }
-  return {heatmap,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage,projectorInfo};
+  return {heatmap,metricPitchHeatmap,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage,projectorInfo};
 });
