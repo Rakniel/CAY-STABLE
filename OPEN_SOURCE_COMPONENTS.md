@@ -30,6 +30,24 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Dependency impact: zero mandatory Python/OpenCV/PyTorch dependency; implementation is browser/Node compatible.
 - Expected benefit: unlock defensible distance, speed and sprint metrics segment-by-segment as soon as a field calibration is independently validated.
 
+## soccer-tactical-vision
+- Source: https://github.com/rafaelsouza-tech/soccer-tactical-vision
+- License: MIT. Upstream explicitly isolates optional GPL/PnLCalib evaluation code from the MIT runtime.
+- Status in CAY-STABLE: architecture/design reference adapted; no upstream source code copied.
+- Useful upstream pattern: strict separation between calibration, validation, temporal/shot handling and image-to-pitch projection.
+- Local adaptation: `metric_segment_registry_v1.js` manages one independently validated projector per CAY tracking segment/shot. A calibration from one camera plan is never silently reused for another plan. Invalidated or rejected segments export no projector, so player statistics return `INDISPONIBLE` for those intervals instead of guessed metres.
+- Tests: `tests/metric_segment_registry_nonregression.js` verifies exact per-plan isolation, independent validation rejection, explicit invalidation and export of validated projectors only.
+- Runtime integration: both `metric_homography_projector_v1.js` and `metric_segment_registry_v1.js` are now part of the canonical STABLE HTML dependency order and CI syntax/integration guards.
+- Expected benefit: safer multi-plan physical metrics and less bespoke architecture work before distance/speed/sprint can be enabled across independently calibrated shots.
+
+## Tryolabs soccer-video-analytics
+- Source: https://github.com/tryolabs/soccer-video-analytics
+- License: MIT.
+- Status: evaluated; not integrated yet.
+- Useful ideas: possession and pass counting built on explicit ball detections/ownership association.
+- Important limitation: upstream explicitly describes its provided ball model as a toy model that overfits a few videos. CAY-STABLE must not reuse that model as a production detector.
+- Candidate CAY use: event-state-machine design once ball detection has measurable coverage/confidence. Possession/passes remain `INDISPONIBLE` until ball observations satisfy CAY validation thresholds.
+
 ## TrackLab
 - Source: https://github.com/TrackingLaboratory/tracklab
 - License: MIT
@@ -43,6 +61,9 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Status: architecture/benchmark reference only for now.
 - Useful ideas: end-to-end athlete tracking, ReID, calibration and game-state reconstruction.
 - License rule: do not copy GPL-3.0 implementation code into CAY-STABLE unless the project deliberately adopts compatible distribution obligations.
+
+## Rejected / reference-only examples
+- `Tony-Luna/soccer-video-analytics`: AGPL-3.0. Useful as a conceptual reference for possession/homography/heatmaps, but not copied or incorporated into the current CAY-STABLE runtime because its copyleft obligations are intentionally avoided at this stage.
 
 ## Integration rules
 1. Keep CAY-STABLE branding, data contracts and UX independent from external projects.
