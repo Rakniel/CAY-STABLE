@@ -7,15 +7,18 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - License: MIT
 - Status in CAY-STABLE: design pattern adapted, no source code copied.
 - CAY use: confidence cascade for tracking. High-confidence detections may initialize tracks; lower-confidence detections are reserved for recovering an already-existing track and must not create new player IDs.
-- Local implementation: `tracking_confidence_cascade_v1.js`.
+- Local implementation: `tracking_confidence_cascade_v1.js` + `tracking_two_stage_adapter_v1.js`.
 - Expected benefit: fewer ID breaks when a player is briefly blurred, partly hidden or poorly detected, without increasing false CAY IDs from weak detections.
 
 ## BoT-SORT
 - Source: https://github.com/NirAharon/BoT-SORT
 - License: MIT
-- Status: evaluated / candidate.
-- Candidate use: camera-motion compensation and stronger multi-cue association for difficult pans/zooms.
-- Constraint: only integrate pieces that materially outperform the lighter CAY runtime on amateur-club footage.
+- Upstream concept used: compensate global camera motion before associating tracks and detections. BoT-SORT supports GMC methods such as ORB/ECC/OpenCV VideoStab.
+- Status in CAY-STABLE: design principle adapted; no BoT-SORT source code copied.
+- Local adaptation: `tracking_two_stage_runtime_patch_v1.js` contains a lightweight browser-first consensus translation estimator. When at least three active players agree on a coherent global displacement and the existing field-geometry signals indicate a pan rather than a zoom/warp, only the track motion state used for association is moved into the current camera coordinate frame. Historical `fullPath` evidence is left untouched.
+- Why adapted instead of importing upstream GMC: avoids making Python/OpenCV/PyTorch mandatory for amateur-club use while preserving the useful MOT principle.
+- Safety guards: requires >=3-player consensus; rejects strong zoom/geometry changes; caps candidate displacement; records compensation provenance; never creates a new ID by itself.
+- Expected benefit: fewer ID switches/breaks during camera pans and lower false player motion caused by camera movement at association time.
 
 ## TrackLab
 - Source: https://github.com/TrackingLaboratory/tracklab
