@@ -20,34 +20,77 @@
     }
     return out;
   }
+  function marker(item,index,prefix){ return {...item,_cayCascadeKey:prefix+index}; }
+  function stripMarker(item){
+    if(!item||typeof item!=='object')return item;
+    const {_cayCascadeKey,...clean}=item;
+    return clean;
+  }
   function assignFrame(state,detections,time,options){
     requireDeps();
-    const opts=options||{};
+    const opts=options||{},maxPlayers=Math.max(1,Math.min(11,Number(opts.maxPlayers)||11));
     const split=Cascade.splitDetections(detections,opts);
-    const highAssigned=coreAssign(state,split.high,time,{...opts,allowNew:opts.allowNew!==false});
-    if(!split.low.length)return {assigned:highAssigned,split,highAssigned,lowAssigned:[]};
+    const high=split.high.map((d,i)=>marker(d,i,'H'));
+    const low=split.low.map((d,i)=>marker(d,i,'L'));
+    const originalActive=[...(state.active||[])];
 
-    const protectedIds=new Set(highAssigned.map(a=>a.trackId));
-    const protectedTracks=state.active.filter(tr=>protectedIds.has(tr.globalId));
-    const recoveryTracks=state.active.filter(tr=>!protectedIds.has(tr.globalId));
+    // Stage 1: strong detections may update existing tracks, but do not create IDs yet.
+    // A very large lostAfter prevents a track from being archived before low-score recovery gets a chance.
+    const highAssigned=coreAssign(state,high,time,{...opts,maxPlayers,allowNew:false,reidentifyArchived:false,lostAfter:999999});
+    const highIds=new Set(highAssigned.map(a=>a.trackId));
+    const usedHighKeys=new Set(highAssigned.map(a=>a._cayCascadeKey).filter(Boolean));
+    const protectedTracks=state.active.filter(tr=>highIds.has(tr.globalId));
+    const recoveryTracks=state.active.filter(tr=>!highIds.has(tr.globalId));
     const missedAfterHigh=new Map(recoveryTracks.map(tr=>[tr.globalId,tr.missed]));
 
+    // Stage 2: weaker detections can only recover an existing unmatched track.
+    const recoverySlots=Math.max(0,maxPlayers-highAssigned.length);
     state.active=recoveryTracks;
-    const lowAssigned=coreAssign(state,split.low,time,{
+    const lowAssigned=recoverySlots>0&&low.length?coreAssign(state,low,time,{
       ...opts,
+      maxPlayers:recoverySlots,
       allowNew:false,
       reidentifyArchived:false,
-      lostAfter:Math.max(9999,Number(opts.lostAfter)||8),
+      lostAfter:999999,
       baseThreshold:Cascade.recoveryThreshold(Number.isFinite(Number(opts.baseThreshold))?Number(opts.baseThreshold):.50,opts)
-    });
+    }):[];
     const lowMatchedIds=new Set(lowAssigned.map(a=>a.trackId));
     for(const tr of state.active){
       if(!lowMatchedIds.has(tr.globalId)&&missedAfterHigh.has(tr.globalId))tr.missed=missedAfterHigh.get(tr.globalId);
     }
-    state.active=uniqueByTrackId([...state.active,...protectedTracks].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
-    const assigned=uniqueByTrackId([...highAssigned,...lowAssigned]);
+    let survivors=uniqueByTrackId([...state.active,...protectedTracks].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
+
+    // New/reidentified IDs are considered only after recovery, and only from unused HIGH detections.
+    // This preserves ByteTrack's useful rule: weak detections never initialize a player identity.
+    const remainingSlots=Math.max(0,maxPlayers-highAssigned.length-lowAssigned.length);
+    const remainingHigh=high.filter(d=>!usedHighKeys.has(d._cayCascadeKey));
+    let newAssigned=[];
+    if(remainingSlots>0&&remainingHigh.length&&opts.allowNew!==false){
+      state.active=[];
+      newAssigned=coreAssign(state,remainingHigh,time,{
+        ...opts,
+        maxPlayers:remainingSlots,
+        allowNew:true,
+        lostAfter:999999
+      });
+      const createdOrReidentified=[...state.active];
+      survivors=uniqueByTrackId([...survivors,...createdOrReidentified].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
+    }
+
+    const lostAfter=Number.isFinite(Number(opts.lostAfter))?Number(opts.lostAfter):8,keep=[];
+    for(const tr of survivors){
+      if((tr.missed||0)>lostAfter){
+        if(!tr.archived){tr.archived=true;tr.exitReason='lost';state.archive.push(tr);}
+      }else keep.push(tr);
+    }
+    state.active=keep;
+
+    const assigned=uniqueByTrackId([...highAssigned,...lowAssigned,...newAssigned]).slice(0,maxPlayers).map(stripMarker);
     state.maxVisible=Math.max(state.maxVisible||0,assigned.length);
-    return {assigned,split,highAssigned,lowAssigned};
+    state.byteTrackLowScoreRecoveries=(state.byteTrackLowScoreRecoveries||0)+lowAssigned.length;
+    state.byteTrackWeakDiscarded=(state.byteTrackWeakDiscarded||0)+(split.discarded||[]).length;
+    if(assigned.length>maxPlayers)throw new Error('invariant violé: capacité CAY simultanée dépassée');
+    return {assigned,split,highAssigned:highAssigned.map(stripMarker),lowAssigned:lowAssigned.map(stripMarker),newAssigned:newAssigned.map(stripMarker)};
   }
   return {assignFrame,uniqueByTrackId};
 });
