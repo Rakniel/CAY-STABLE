@@ -32,10 +32,8 @@
     const split=Cascade.splitDetections(detections,opts);
     const high=split.high.map((d,i)=>marker(d,i,'H'));
     const low=split.low.map((d,i)=>marker(d,i,'L'));
-    const originalActive=[...(state.active||[])];
 
-    // Stage 1: strong detections may update existing tracks, but do not create IDs yet.
-    // A very large lostAfter prevents a track from being archived before low-score recovery gets a chance.
+    // Stage 1: strong detections update existing tracks first; no new identity is created yet.
     const highAssigned=coreAssign(state,high,time,{...opts,maxPlayers,allowNew:false,reidentifyArchived:false,lostAfter:999999});
     const highIds=new Set(highAssigned.map(a=>a.trackId));
     const usedHighKeys=new Set(highAssigned.map(a=>a._cayCascadeKey).filter(Boolean));
@@ -43,7 +41,7 @@
     const recoveryTracks=state.active.filter(tr=>!highIds.has(tr.globalId));
     const missedAfterHigh=new Map(recoveryTracks.map(tr=>[tr.globalId,tr.missed]));
 
-    // Stage 2: weaker detections can only recover an existing unmatched track.
+    // Stage 2: weak detections can recover only an existing unmatched track.
     const recoverySlots=Math.max(0,maxPlayers-highAssigned.length);
     state.active=recoveryTracks;
     const lowAssigned=recoverySlots>0&&low.length?coreAssign(state,low,time,{
@@ -60,9 +58,10 @@
     }
     let survivors=uniqueByTrackId([...state.active,...protectedTracks].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
 
-    // New/reidentified IDs are considered only after recovery, and only from unused HIGH detections.
-    // This preserves ByteTrack's useful rule: weak detections never initialize a player identity.
-    const remainingSlots=Math.max(0,maxPlayers-highAssigned.length-lowAssigned.length);
+    // New/reidentified IDs are considered only from unused HIGH detections and only if the
+    // still-alive roster leaves a real on-field slot. This avoids replacing a briefly missed
+    // player with a false high-confidence detection while preserving the 11-player invariant.
+    const remainingSlots=Math.max(0,maxPlayers-survivors.length);
     const remainingHigh=high.filter(d=>!usedHighKeys.has(d._cayCascadeKey));
     let newAssigned=[];
     if(remainingSlots>0&&remainingHigh.length&&opts.allowNew!==false){
