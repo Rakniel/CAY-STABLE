@@ -1,0 +1,16 @@
+const assert=require('assert');
+const S=require('../tracker_state_v1');
+const state=S.createSnapshot({analysisId:'a1',teamId:'cay-senior',videoFingerprint:'vid-abc',savedAt:'2026-08-27T09:00:00Z',tracks:[{trackId:7,playerId:'p7',team:'CAY',observations:18,identityConfidence:.91,segments:['s1','s1','s2'],appearance:[.1,.2,.3]}],calibrationSegments:[{id:'s1',valid:true}],coverage:{identity:.88,metric:.74}});
+assert.equal(state.schema,'CAY_TRACKER_STATE');
+assert.equal(state.tracks.length,1);
+assert.deepEqual(state.tracks[0].segments,['s1','s2']);
+assert.equal(S.validateSnapshot(state).valid,true);
+assert.equal(S.canResume(state,{teamId:'cay-senior',videoFingerprint:'vid-abc'}).allowed,true);
+assert.equal(S.canResume(state,{teamId:'other',videoFingerprint:'vid-abc'}).reason,'TEAM_MISMATCH');
+assert.equal(S.canResume(state,{teamId:'cay-senior',videoFingerprint:'vid-other'}).reason,'VIDEO_MISMATCH');
+const round=S.importJson(S.exportJson(state));
+assert.equal(round.tracks[0].playerId,'p7');
+assert.throws(()=>S.createSnapshot({password:'clair'}),/SECRET_FIELD_FORBIDDEN/);
+assert.throws(()=>S.createSnapshot({runtime:{token:'x'}}),/SECRET_FIELD_FORBIDDEN/);
+assert.throws(()=>S.createSnapshot({tracks:[{trackId:'1'},{trackId:'1'}]}),/DUPLICATE_TRACK_ID/);
+console.log('tracker state non-regression: PASS');
