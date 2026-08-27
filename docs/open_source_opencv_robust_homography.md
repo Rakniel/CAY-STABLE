@@ -3,7 +3,8 @@
 ## Provenance
 - Upstream project: OpenCV
 - Source: https://github.com/opencv/opencv
-- License reference: OpenCV 4.5.0 and higher are Apache-2.0.
+- Upstream release inspected for this design reference: OpenCV 4.14.0 (released 2026-07-19).
+- License: Apache-2.0 for OpenCV 4.5.0 and higher.
 - Upstream concept used: robust homography estimation with RANSAC-style minimal hypotheses + inlier consensus, analogous to `findHomography(..., RANSAC)`.
 - CAY-STABLE files: `metric_homography_projector_v1.js`, `tests/robust_homography_consensus_nonregression.js`.
 
