@@ -10,6 +10,7 @@ canonical_tags = [
     '<script src="./tracking_two_stage_runtime_patch_v1.js"></script>',
     '<script src="./metric_homography_projector_v1.js"></script>',
     '<script src="./metric_segment_registry_v1.js"></script>',
+    '<script src="./metric_pitch_heatmap_v1.js"></script>',
     '<script src="./ball_event_state_v1.js"></script>',
     '<script src="./player_stats_v1.js"></script>',
     '<script src="./stable_tracking_bridge_v1.js"></script>',
@@ -22,8 +23,6 @@ canonical_tags = [
     '<script src="./stable_runtime_tracking_v2.js"></script>',
 ]
 
-# Always rebuild the integration block in one canonical order. This makes upgrades
-# safe when a new dependency is inserted between modules that were already present.
 for tag in canonical_tags:
     text = text.replace(tag, '')
 text = text.replace(marker, '')
@@ -34,7 +33,6 @@ if needle not in text:
     raise SystemExit('ERROR: </body> not found')
 text = text.replace(needle, payload + needle, 1)
 
-# Fail fast if integration is not unique or dependency order is not canonical.
 if text.count(marker) != 1:
     raise SystemExit('ERROR: integration marker is not unique')
 positions = [text.index(tag) for tag in canonical_tags]
