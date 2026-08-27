@@ -8,6 +8,8 @@
   const finite=v=>Number.isFinite(Number(v));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const median3=(a,b,c)=>a+b+c-Math.min(a,b,c)-Math.max(a,b,c);
+  const SPRINT_THRESHOLD_KMH=25;
+  const MIN_SPRINT_SECONDS=1;
   const qualityFromEvidenceScore=score=>score>=.8?'FIABLE':score>0?'PARTIEL':'INDISPONIBLE';
   function smoothRun(run){
     if(!Array.isArray(run)||run.length<3)return (run||[]).map(p=>({...p}));
@@ -27,7 +29,9 @@
   function robustMetricForTrack(track,projectors){
     const path=track?.fullPath||[];
     let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0,rejectedSpeedPairs=0,confidenceDt=0;
+    let sprintQualifiedSeconds=0,sprintCandidateSeconds=0,sprintEpisodeCounted=false;
     const speeds=[],runs=[];let current=[];
+    const resetSprint=()=>{sprintCandidateSeconds=0;sprintEpisodeCounted=false;};
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<path.length;i++){
       const p=path[i];
@@ -43,21 +47,26 @@
     }
     flush();
     for(const rawRun of runs){
-      const run=smoothRun(rawRun);let inSprint=false;
+      const run=smoothRun(rawRun);resetSprint();
       for(let i=1;i<run.length;i++){
         const a=run[i-1],b=run[i],dt=b.time-a.time;
         const d=hypot(a,b),speedKmh=(d/dt)*3.6;
-        if(!finite(d)||d<0||!finite(speedKmh)||speedKmh>45){inSprint=false;rejectedSpeedPairs++;continue;}
+        if(!finite(d)||d<0||!finite(speedKmh)||speedKmh>45){resetSprint();rejectedSpeedPairs++;continue;}
         const pairConfidence=Math.min(finite(a.calibrationConfidence)?a.calibrationConfidence:1,finite(b.calibrationConfidence)?b.calibrationConfidence:1);
         metricDt+=dt;confidenceDt+=dt*clamp(pairConfidence,0,1);distanceM+=d;maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);speeds.push({time:b.time,segment:b.segment,kmh:speedKmh,calibrationConfidence:+clamp(pairConfidence,0,1).toFixed(3)});
-        const sprint=speedKmh>=25;if(sprint&&!inSprint)sprintCount++;inSprint=sprint;
+        if(speedKmh>=SPRINT_THRESHOLD_KMH){
+          sprintCandidateSeconds+=dt;
+          if(!sprintEpisodeCounted&&sprintCandidateSeconds>=MIN_SPRINT_SECONDS){sprintCount++;sprintEpisodeCounted=true;}
+          if(sprintEpisodeCounted)sprintQualifiedSeconds+=dt;
+        }else resetSprint();
       }
+      resetSprint();
     }
     const coverage=eligibleDt>0?metricDt/eligibleDt:0,avgSpeedKmh=metricDt>0?(distanceM/metricDt)*3.6:null;
     const avgCalibrationConfidence=metricDt>0?confidenceDt/metricDt:0;
     const defendableScore=coverage*avgCalibrationConfidence;
     const quality=qualityFromEvidenceScore(defendableScore);
-    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',sprintContinuityPolicy:'RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_REJETEE_OU_RUN_METRIQUE'};
+    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintDurationSeconds:MIN_SPRINT_SECONDS,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',sprintContinuityPolicy:'EPISODE >= 1S A >=25KMH; RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_REJETEE_OU_RUN_METRIQUE'};
   }
   function patchTeamCalibrationEvidence(report){
     const frames=Array.isArray(report?.teamTimeline)?report.teamTimeline:[];
@@ -101,11 +110,11 @@
       const measured=(report.players||[]).filter(p=>p.metric?.metricCoverage>0),all=report.players||[];
       if(report.team){report.team.playersWithMetricData=measured.length;report.team.measuredDistanceM=+measured.reduce((s,p)=>s+(p.metric.distanceM||0),0).toFixed(2);report.team.avgMetricCoverage=+(all.length?all.reduce((s,p)=>s+(p.metric?.metricCoverage||0),0)/all.length:0).toFixed(4);}
       patchTeamCalibrationEvidence(report);
-      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',principle:'filtre médian local avant calcul distance/vitesse et combinaison explicite couverture × confiance calibration pour éviter de classer FIABLE une métrique issue d’une calibration seulement marginale'};
+      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',principle:'filtre médian local avant calcul distance/vitesse, combinaison explicite couverture × confiance calibration et durée minimale avant de compter un sprint'};
       return report;
     };
     Stats.__cayMetricQualityGuardPatched=true;return true;
   }
   patch();
-  return {smoothRun,robustMetricForTrack,patch,patchTeamCalibrationEvidence,qualityFromEvidenceScore};
+  return {smoothRun,robustMetricForTrack,patch,patchTeamCalibrationEvidence,qualityFromEvidenceScore,SPRINT_THRESHOLD_KMH,MIN_SPRINT_SECONDS};
 });
