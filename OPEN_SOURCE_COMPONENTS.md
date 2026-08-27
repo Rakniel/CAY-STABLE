@@ -20,6 +20,18 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Safety guards: requires >=3-player consensus; rejects strong zoom/geometry changes; caps candidate displacement; records compensation provenance; never creates a new ID by itself.
 - Expected benefit: fewer ID switches/breaks during camera pans and lower false player motion caused by camera movement at association time.
 
+## Torchreid / OSNet ReID evidence
+- Source: https://github.com/KaiyangZhou/deep-person-reid
+- License: MIT (declared by upstream package metadata).
+- Status in CAY-STABLE: ReID evidence-fusion pattern adapted; no Torchreid/OSNet source code or model weights copied into the browser runtime.
+- Useful upstream pattern: represent appearance as embeddings, compare candidates with cosine similarity, and use multiple observations rather than trusting a single crop.
+- Local implementation: `reid_evidence_fusion_v1.js` stores quality-filtered appearance evidence per track, rejects cross-team comparisons, requires multiple samples and a similarity margin, and returns only `A_VERIFIER` suggestions.
+- Safety policy: `NEVER_AUTO_MERGE`; ReID evidence cannot silently merge two player identities. Low-quality evidence is dropped and ambiguous candidates remain manual-review only.
+- Test: `tests/reid_evidence_fusion_nonregression.js` covers insufficient evidence, team mismatch, ambiguous matches, low-quality rejection and conservative suggestion behavior.
+- Runtime integration: module is now in the canonical STABLE HTML dependency order and CI syntax/integration guards.
+- Dependency impact: zero mandatory PyTorch/GPU dependency today. A future OSNet/ONNX extractor may feed this contract only if representative football footage demonstrates a measurable gain.
+- Expected benefit: preserve player identity across longer occlusions or shot changes without weakening the current manual/segment identity guards.
+
 ## TVCalib / SoccerNet camera calibration
 - Sources: https://github.com/mm4spa/tvcalib and https://github.com/SoccerNet/sn-calibration
 - Licenses: TVCalib MIT; SoccerNet calibration used here as a public research/design reference only.
