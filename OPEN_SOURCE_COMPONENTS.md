@@ -38,9 +38,21 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Status in CAY-STABLE: calibration architecture/principle adapted; no upstream source code copied.
 - CAY use: isolate image-to-pitch homography behind the same validated projector contract already consumed by player statistics.
 - Local implementation: `metric_homography_projector_v1.js`.
-- Validation policy: exactly four fit correspondences define the homography, while at least two independent validation points are required before the projector becomes consumable by physical metrics. Mean and peak reprojection-error thresholds are explicit. Degenerate geometry, out-of-field projections and unvalidated calibration return `INDISPONIBLE` rather than guessed metres/km/h.
+- Validation policy: four points remain the minimal exact fit. When more than four manual correspondences are available, CAY-STABLE now uses a deterministic robust consensus path to reject isolated bad clicks. At least two independent validation points are still required before the projector becomes consumable by physical metrics. Mean and peak reprojection-error thresholds remain explicit. Degenerate geometry, insufficient consensus, out-of-field projections and unvalidated calibration return `INDISPONIBLE` rather than guessed metres/km/h.
 - Dependency impact: zero mandatory Python/OpenCV/PyTorch dependency; implementation is browser/Node compatible.
 - Expected benefit: unlock defensible distance, speed and sprint metrics segment-by-segment as soon as a field calibration is independently validated.
+
+## OpenCV robust homography consensus
+- Source: https://github.com/opencv/opencv
+- Upstream release inspected: OpenCV 4.14.0 (2026-07-19).
+- License: Apache-2.0.
+- Status in CAY-STABLE: RANSAC-style minimal-hypothesis + inlier-consensus principle adapted; no OpenCV source code copied and OpenCV is not a runtime dependency.
+- Local implementation: `metric_homography_projector_v1.js`; provenance detail in `docs/open_source_opencv_robust_homography.md`.
+- Replaced behavior: calibration was limited to exactly four fit correspondences, so one inaccurate click could poison the whole plan and redundant landmarks could not be exploited.
+- CAY adaptation: for >4 correspondences, test bounded 4-point hypotheses, score all points in pitch metres, require a default 70% inlier consensus within 2 m, expose rejected indices/inlier ratio, and preserve mandatory independent validation before any metric becomes available.
+- Test: `tests/robust_homography_consensus_nonregression.js` covers isolated-outlier recovery, 4-point backwards compatibility, majority-bad rejection and degenerate geometry.
+- Dependency impact: zero new native/Python dependency.
+- Expected benefit: faster and more robust manual multi-plan calibration on club footage without weakening the `INDISPONIBLE` policy.
 
 ## soccer-tactical-vision
 - Source: https://github.com/rafaelsouza-tech/soccer-tactical-vision
