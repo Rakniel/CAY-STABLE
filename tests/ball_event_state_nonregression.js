@@ -83,4 +83,25 @@ function sample(time,ballX,ownerVisible=true){
   assert.equal(r.passes,1);
 }
 
+// Une frame visible suivie d'une frame absente ne doit plus créditer l'intervalle
+// comme observable. Avant le garde v1, ce scénario donnait 50 % de couverture.
+{
+  const samples=[sample(0,10.2),sample(1,10.2,false),sample(2,10.2)];
+  const r=analyzeBallEvents(samples,{maxObservationGapSec:2,minCoverage:.01});
+  assert.equal(r.coverage,0);
+  assert.equal(r.observableSeconds,0);
+  assert.equal(r.ownedSeconds,0);
+  assert.equal(r.quality,'INDISPONIBLE');
+}
+
+// Une transition directe vers un autre propriétaire ne doit pas attribuer
+// l'intervalle entier au propriétaire précédent.
+{
+  const samples=[sample(0,10.2),sample(.4,10.2),sample(.8,20.2),sample(1.2,20.2)];
+  const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.5,maxObservationGapSec:1});
+  assert.equal(r.quality,'FIABLE');
+  assert(r.ownedSeconds<=.4);
+  assert.equal(r.possession.CAY.seconds,r.ownedSeconds);
+}
+
 console.log('ball event state non-regression: PASS');
