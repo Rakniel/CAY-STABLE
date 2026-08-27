@@ -20,6 +20,16 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Safety guards: requires >=3-player consensus; rejects strong zoom/geometry changes; caps candidate displacement; records compensation provenance; never creates a new ID by itself.
 - Expected benefit: fewer ID switches/breaks during camera pans and lower false player motion caused by camera movement at association time.
 
+## TVCalib / SoccerNet camera calibration
+- Sources: https://github.com/mm4spa/tvcalib and https://github.com/SoccerNet/sn-calibration
+- Licenses: TVCalib MIT; SoccerNet calibration used here as a public research/design reference only.
+- Status in CAY-STABLE: calibration architecture/principle adapted; no upstream source code copied.
+- CAY use: isolate image-to-pitch homography behind the same validated projector contract already consumed by player statistics.
+- Local implementation: `metric_homography_projector_v1.js`.
+- Validation policy: exactly four fit correspondences define the homography, while at least two independent validation points are required before the projector becomes consumable by physical metrics. Mean and peak reprojection-error thresholds are explicit. Degenerate geometry, out-of-field projections and unvalidated calibration return `INDISPONIBLE` rather than guessed metres/km/h.
+- Dependency impact: zero mandatory Python/OpenCV/PyTorch dependency; implementation is browser/Node compatible.
+- Expected benefit: unlock defensible distance, speed and sprint metrics segment-by-segment as soon as a field calibration is independently validated.
+
 ## TrackLab
 - Source: https://github.com/TrackingLaboratory/tracklab
 - License: MIT
