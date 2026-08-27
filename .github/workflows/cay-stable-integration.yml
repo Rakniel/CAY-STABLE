@@ -11,6 +11,8 @@ on:
       - 'tracking_confidence_cascade_v1.js'
       - 'tracking_two_stage_adapter_v1.js'
       - 'tracking_two_stage_runtime_patch_v1.js'
+      - 'metric_homography_projector_v1.js'
+      - 'metric_segment_registry_v1.js'
       - 'player_stats_v1.js'
       - 'replacement_events_v1.js'
       - 'observed_presence_v1.js'
@@ -50,6 +52,8 @@ jobs:
           node --check tracking_confidence_cascade_v1.js
           node --check tracking_two_stage_adapter_v1.js
           node --check tracking_two_stage_runtime_patch_v1.js
+          node --check metric_homography_projector_v1.js
+          node --check metric_segment_registry_v1.js
           node --check player_stats_v1.js
           node --check replacement_events_v1.js
           node --check observed_presence_v1.js
@@ -80,6 +84,8 @@ jobs:
             './tracking_confidence_cascade_v1.js',
             './tracking_two_stage_adapter_v1.js',
             './tracking_two_stage_runtime_patch_v1.js',
+            './metric_homography_projector_v1.js',
+            './metric_segment_registry_v1.js',
             './player_stats_v1.js',
             './stable_tracking_bridge_v1.js',
             './strict_tracking_frame_guard_v1.js',
@@ -93,7 +99,7 @@ jobs:
           missing=[x for x in required if x not in s]
           if missing: raise SystemExit('missing integration markers: '+', '.join(missing))
           if s.count('STABLE_LONG_TERM_TRACKING_V2') != 1: raise SystemExit('integration marker duplicated')
-          order=[s.index('./tracking_core_v1.js'),s.index('./tracking_confidence_cascade_v1.js'),s.index('./tracking_two_stage_adapter_v1.js'),s.index('./tracking_two_stage_runtime_patch_v1.js'),s.index('./player_stats_v1.js'),s.index('./stable_tracking_bridge_v1.js'),s.index('./strict_tracking_frame_guard_v1.js'),s.index('./manual_identity_merge_guard_v1.js'),s.index('./segment_reid_guard_v1.js'),s.index('./observed_presence_v1.js'),s.index('./observed_presence_report_v1.js'),s.index('./observed_presence_runtime_bridge_v1.js'),s.index('./stable_runtime_tracking_v2.js')]
+          order=[s.index('./tracking_core_v1.js'),s.index('./tracking_confidence_cascade_v1.js'),s.index('./tracking_two_stage_adapter_v1.js'),s.index('./tracking_two_stage_runtime_patch_v1.js'),s.index('./metric_homography_projector_v1.js'),s.index('./metric_segment_registry_v1.js'),s.index('./player_stats_v1.js'),s.index('./stable_tracking_bridge_v1.js'),s.index('./strict_tracking_frame_guard_v1.js'),s.index('./manual_identity_merge_guard_v1.js'),s.index('./segment_reid_guard_v1.js'),s.index('./observed_presence_v1.js'),s.index('./observed_presence_report_v1.js'),s.index('./observed_presence_runtime_bridge_v1.js'),s.index('./stable_runtime_tracking_v2.js')]
           if order != sorted(order): raise SystemExit('tracking runtime scripts loaded in unsafe order')
           print('HTML integration guards: PASS')
           PY
