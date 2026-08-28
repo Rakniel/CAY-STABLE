@@ -49,6 +49,7 @@
       }
       const item=strongById.get(tr.globalId);
       if(!item){tr.cayStrongStreak=0;continue;}
+      if(tr.cayIdentityConfirmed==null)tr.cayIdentityConfirmed=false;
       const reappeared=item.reidentified===true;
       const consecutive=!reappeared&&Number(tr.cayLastStrongFrame)===frameIndex-1;
       tr.cayStrongStreak=consecutive?Math.max(1,Number(tr.cayStrongStreak)||0)+1:1;
