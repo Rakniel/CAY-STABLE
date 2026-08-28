@@ -36,8 +36,11 @@
   function metricForTrack(track,projectors){
     const path=track.fullPath||[];
     let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0;
-    const speeds=[]; let inSprint=false;
-    const breakSprintContinuity=()=>{inSprint=false;};
+    const speeds=[];
+    const SPRINT_THRESHOLD_KMH=25;
+    const MIN_SPRINT_SECONDS=1;
+    let sprintDuration=0,sprintCounted=false;
+    const breakSprintContinuity=()=>{sprintDuration=0;sprintCounted=false;};
     for(let i=1;i<path.length;i++){
       const a=path[i-1],b=path[i];
       if(a.segment!==b.segment){breakSprintContinuity();continue;}
@@ -55,9 +58,12 @@
       if(!Number.isFinite(speedKmh)||speedKmh>45){breakSprintContinuity();continue;}
       metricDt+=dt; distanceM+=d; speeds.push({time:b.time,segment:b.segment,kmh:speedKmh});
       maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);
-      const sprint=speedKmh>=25;
-      if(sprint&&!inSprint)sprintCount++;
-      inSprint=sprint;
+      if(speedKmh>=SPRINT_THRESHOLD_KMH){
+        sprintDuration+=dt;
+        if(!sprintCounted&&sprintDuration>=MIN_SPRINT_SECONDS){sprintCount++;sprintCounted=true;}
+      }else{
+        breakSprintContinuity();
+      }
     }
     const coverage=eligibleDt>0?metricDt/eligibleDt:0;
     const avgSpeedKmh=metricDt>0?(distanceM/metricDt)*3.6:null;
@@ -68,7 +74,8 @@
       maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,
       sprintCount:metricDt>0?sprintCount:null,
       quality:qualityFromCoverage(coverage),speedSamples:speeds,
-      sprintContinuityPolicy:'RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_OU_PAIRE_METRIQUE_REJETEE'
+      sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintSeconds:MIN_SPRINT_SECONDS,
+      sprintContinuityPolicy:'COMPTE_APRES_1S_CONTINUE_GE_25_KMH_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL'
     };
   }
   function rosterState(trackSummary,trackRaw,analysisStart){
