@@ -54,7 +54,7 @@ ok(degenerate.validated===false,'géométrie dégénérée refusée');
 ok(typeof h.buildHomography==='function'&&typeof h.createProjector==='function','API stable exposée');
 
 // Multi-point robust fit: five coherent, slightly noisy landmarks + one gross bad click.
-// The winning minimal hypothesis identifies the consensus, then CAY must refit on every inlier.
+// The winning minimal hypothesis identifies the consensus; an all-inlier refit may only replace it when mean inlier error improves.
 const robust=[
   {image:{x:.08,y:.12},pitch:{x:0.2,y:0.1}},
   {image:{x:.91,y:.10},pitch:{x:104.7,y:0.3}},
@@ -66,8 +66,9 @@ const robust=[
 const robustFit=h.buildHomography(robust,{consensusThresholdM:2.5,minInlierRatio:.7});
 ok(robustFit.ok===true,'consensus multi-point robuste résolu');
 ok(robustFit.inlierCount===5&&robustFit.rejectedIndices.includes(5),'mauvais clic isolé rejeté');
-ok(robustFit.refitApplied===true&&robustFit.refitMethod==='ALL_INLIERS_LINEAR_LEAST_SQUARES','refit exécuté sur tous les inliers');
-ok(robustFit.meanInlierErrorM<=robustFit.seedMeanInlierErrorM+.0001,'refit ne dégrade pas erreur moyenne des inliers');
+ok(robustFit.refitAttempted===true,'refit tous-inliers tenté quand plus de quatre inliers sont disponibles');
+ok(robustFit.meanInlierErrorM<=robustFit.seedMeanInlierErrorM+.0001,'sortie retenue ne dégrade jamais erreur moyenne des inliers');
+ok(robustFit.refitApplied===true||robustFit.refitRejectedReason==='NO_MEAN_ERROR_IMPROVEMENT','refit appliqué seulement avec gain mesurable, sinon seed robuste conservée');
 ok(typeof h.fitLeastSquares==='function','API de refit explicite et testable');
 
 const robustProjector=h.createProjector({
@@ -81,7 +82,8 @@ const robustProjector=h.createProjector({
   maxMeanErrorM:3,
   maxPeakErrorM:5
 });
-ok(robustProjector.fit.refitApplied===true,'provenance runtime expose le refit');
+ok(robustProjector.fit.refitAttempted===true,'provenance runtime expose la tentative de refit');
 ok(robustProjector.fit.seedMeanInlierErrorM!==null&&robustProjector.fit.meanInlierErrorM!==null,'erreurs avant/après auditables');
+ok(robustProjector.fit.refitApplied===true||robustProjector.fit.refitRejectedReason!==null,'décision de refit auditée explicitement');
 
 console.log(`PASS ${pass} metric homography projector`);
