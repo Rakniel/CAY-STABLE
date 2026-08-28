@@ -16,6 +16,7 @@ canonical_tags = [
     '<script src="./ball_event_state_v1.js"></script>',
     '<script src="./player_stats_v1.js"></script>',
     '<script src="./metric_quality_guard_v1.js"></script>',
+    '<script src="./metric_publication_guard_v1.js"></script>',
     '<script src="./tracker_state_v1.js"></script>',
     '<script src="./stable_tracking_bridge_v1.js"></script>',
     '<script src="./strict_tracking_frame_guard_v1.js"></script>',
