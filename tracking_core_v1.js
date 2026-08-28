@@ -235,7 +235,8 @@
     };
   }
   function summary(state){
-    const tracks=allUniqueTracks(state).map(summarizeTrack).sort((a,b)=>a.id-b.id);
+    // Tentative IDs remain internal association state only. Pre-policy tracks (undefined) stay compatible.
+    const tracks=allUniqueTracks(state).filter(tr=>tr.cayIdentityConfirmed!==false).map(summarizeTrack).sort((a,b)=>a.id-b.id);
     return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,reidRejectedLowScore:state.reidRejectedLowScore||0,tracks};
   }
   return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,reidCandidateScore};

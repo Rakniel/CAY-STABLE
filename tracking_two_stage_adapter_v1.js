@@ -26,6 +26,43 @@
     const {_cayCascadeKey,...clean}=item;
     return clean;
   }
+  function confirmationThreshold(opts){
+    const raw=Number(opts&&opts.minimumConsecutiveFrames);
+    return Math.max(1,Math.min(5,Number.isFinite(raw)?Math.round(raw):2));
+  }
+  function applyConfirmation(state,highAssigned,newAssigned,survivors,time,opts){
+    const minFrames=confirmationThreshold(opts),frameIndex=(state.cayConfirmationFrameIndex||0)+1;
+    state.cayConfirmationFrameIndex=frameIndex;
+    if(minFrames<=1){
+      for(const tr of survivors||[])if(tr)tr.cayIdentityConfirmed=true;
+      state.cayTentativeSuppressed=state.cayTentativeSuppressed||0;
+      return {minFrames,confirmedIds:new Set((survivors||[]).filter(Boolean).map(tr=>tr.globalId)),suppressed:0};
+    }
+    const strongItems=[...(highAssigned||[]),...(newAssigned||[])];
+    const strongById=new Map(strongItems.filter(x=>x&&x.track).map(x=>[x.track.globalId,x]));
+    const confirmedIds=new Set();
+    for(const tr of survivors||[]){
+      if(!tr)continue;
+      if(tr.cayIdentityConfirmed===true){confirmedIds.add(tr.globalId);continue;}
+      if(tr.cayIdentityConfirmed==null&&Number(tr.seen)>=minFrames&&tr.cayLastStrongFrame==null){
+        tr.cayIdentityConfirmed=true;tr.cayConfirmedAt=Number(time);confirmedIds.add(tr.globalId);continue;
+      }
+      const item=strongById.get(tr.globalId);
+      if(!item){tr.cayStrongStreak=0;continue;}
+      if(tr.cayIdentityConfirmed==null)tr.cayIdentityConfirmed=false;
+      const reappeared=item.reidentified===true;
+      const consecutive=!reappeared&&Number(tr.cayLastStrongFrame)===frameIndex-1;
+      tr.cayStrongStreak=consecutive?Math.max(1,Number(tr.cayStrongStreak)||0)+1:1;
+      tr.cayLastStrongFrame=frameIndex;
+      if(tr.cayStrongStreak>=minFrames){
+        tr.cayIdentityConfirmed=true;tr.cayConfirmedAt=Number(time);confirmedIds.add(tr.globalId);
+      }
+    }
+    const suppressed=strongItems.filter(x=>x&&x.track&&!confirmedIds.has(x.track.globalId)).length;
+    state.cayTentativeSuppressed=(state.cayTentativeSuppressed||0)+suppressed;
+    state.cayMinimumConsecutiveFrames=minFrames;
+    return {minFrames,confirmedIds,suppressed};
+  }
   function assignFrame(state,detections,time,options){
     requireDeps();
     const opts=options||{},maxPlayers=Math.max(1,Math.min(11,Number(opts.maxPlayers)||11));
@@ -33,55 +70,33 @@
     const high=split.high.map((d,i)=>marker(d,i,'H'));
     const low=split.low.map((d,i)=>marker(d,i,'L'));
     const missedBeforeHigh=new Map((state.active||[]).map(tr=>[tr.globalId,Number(tr.missed)||0]));
-
-    // Stage 1: strong detections update existing tracks first; no new identity is created yet.
     const highAssigned=coreAssign(state,high,time,{...opts,maxPlayers,allowNew:false,reidentifyArchived:false,lostAfter:999999});
     const highIds=new Set(highAssigned.map(a=>a.trackId));
     const usedHighKeys=new Set(highAssigned.map(a=>a._cayCascadeKey).filter(Boolean));
     const protectedTracks=state.active.filter(tr=>highIds.has(tr.globalId));
     const recoveryTracks=state.active.filter(tr=>!highIds.has(tr.globalId));
-
-    // The first-stage miss happens in the same video frame. Reset it before the low-confidence
-    // recovery pass so it does not both increase match cost and age the track twice.
     for(const tr of recoveryTracks)tr.missed=missedBeforeHigh.get(tr.globalId)||0;
-
-    // Stage 2: weak detections can recover only an existing unmatched track.
     const recoverySlots=Math.max(0,maxPlayers-highAssigned.length);
     state.active=recoveryTracks;
     let lowAssigned=[];
     if(recoverySlots>0&&low.length){
       lowAssigned=coreAssign(state,low,time,{
-        ...opts,
-        maxPlayers:recoverySlots,
-        allowNew:false,
-        reidentifyArchived:false,
-        lostAfter:999999,
+        ...opts,maxPlayers:recoverySlots,allowNew:false,reidentifyArchived:false,lostAfter:999999,
         baseThreshold:Cascade.recoveryThreshold(Number.isFinite(Number(opts.baseThreshold))?Number(opts.baseThreshold):.50,opts)
       });
     }else{
-      // No second pass occurred, therefore apply exactly one miss for this frame.
       for(const tr of state.active)tr.missed=(missedBeforeHigh.get(tr.globalId)||0)+1;
     }
     let survivors=uniqueByTrackId([...state.active,...protectedTracks].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
-
-    // New/reidentified IDs are considered only from unused HIGH detections and only if the
-    // still-alive roster leaves a real on-field slot. This avoids replacing a briefly missed
-    // player with a false high-confidence detection while preserving the 11-player invariant.
     const remainingSlots=Math.max(0,maxPlayers-survivors.length);
     const remainingHigh=high.filter(d=>!usedHighKeys.has(d._cayCascadeKey));
     let newAssigned=[];
     if(remainingSlots>0&&remainingHigh.length&&opts.allowNew!==false){
       state.active=[];
-      newAssigned=coreAssign(state,remainingHigh,time,{
-        ...opts,
-        maxPlayers:remainingSlots,
-        allowNew:true,
-        lostAfter:999999
-      });
+      newAssigned=coreAssign(state,remainingHigh,time,{...opts,maxPlayers:remainingSlots,allowNew:true,lostAfter:999999});
       const createdOrReidentified=[...state.active];
       survivors=uniqueByTrackId([...survivors,...createdOrReidentified].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
     }
-
     const lostAfter=Number.isFinite(Number(opts.lostAfter))?Number(opts.lostAfter):8,keep=[];
     for(const tr of survivors){
       if((tr.missed||0)>lostAfter){
@@ -89,13 +104,14 @@
       }else keep.push(tr);
     }
     state.active=keep;
-
-    const assigned=uniqueByTrackId([...highAssigned,...lowAssigned,...newAssigned]).slice(0,maxPlayers).map(stripMarker);
+    const confirmation=applyConfirmation(state,highAssigned,newAssigned,state.active,time,opts);
+    const assignedRaw=uniqueByTrackId([...highAssigned,...lowAssigned,...newAssigned]).slice(0,maxPlayers);
+    const assigned=assignedRaw.filter(item=>confirmation.minFrames<=1||item?.track?.cayIdentityConfirmed===true).map(stripMarker);
     state.maxVisible=Math.max(state.maxVisible||0,assigned.length);
     state.byteTrackLowScoreRecoveries=(state.byteTrackLowScoreRecoveries||0)+lowAssigned.length;
     state.byteTrackWeakDiscarded=(state.byteTrackWeakDiscarded||0)+(split.discarded||[]).length;
     if(assigned.length>maxPlayers)throw new Error('invariant violé: capacité CAY simultanée dépassée');
-    return {assigned,split,highAssigned:highAssigned.map(stripMarker),lowAssigned:lowAssigned.map(stripMarker),newAssigned:newAssigned.map(stripMarker)};
+    return {assigned,split,highAssigned:highAssigned.map(stripMarker),lowAssigned:lowAssigned.map(stripMarker),newAssigned:newAssigned.map(stripMarker),confirmation:{minimumConsecutiveFrames:confirmation.minFrames,tentativeSuppressed:confirmation.suppressed}};
   }
-  return {assignFrame,uniqueByTrackId};
+  return {assignFrame,uniqueByTrackId,confirmationThreshold};
 });
