@@ -35,20 +35,43 @@
     return Math.abs(s)/2;
   }
 
-  function fitFour(correspondences){
-    if(!Array.isArray(correspondences)||correspondences.length!==4)return {ok:false,reason:'4 correspondances image-terrain requises pour un ajustement minimal'};
+  function designRows(correspondences){
     const rows=[],rhs=[];
     for(const c of correspondences){
-      if(!c||!finitePoint(c.image)||!finitePoint(c.pitch))return {ok:false,reason:'correspondance invalide'};
+      if(!c||!finitePoint(c.image)||!finitePoint(c.pitch))return null;
       const x=Number(c.image.x),y=Number(c.image.y),X=Number(c.pitch.x),Y=Number(c.pitch.y);
       rows.push([x,y,1,0,0,0,-X*x,-X*y]); rhs.push(X);
       rows.push([0,0,0,x,y,1,-Y*x,-Y*y]); rhs.push(Y);
     }
+    return {rows,rhs};
+  }
+
+  function fitFour(correspondences){
+    if(!Array.isArray(correspondences)||correspondences.length!==4)return {ok:false,reason:'4 correspondances image-terrain requises pour un ajustement minimal'};
+    const design=designRows(correspondences);
+    if(!design)return {ok:false,reason:'correspondance invalide'};
     const imageArea=polygonArea(correspondences.map(c=>c.image));
     const pitchArea=polygonArea(correspondences.map(c=>c.pitch));
     if(imageArea<1e-4||pitchArea<1)return {ok:false,reason:'géométrie dégénérée ou points trop alignés'};
-    const h=solveLinear(rows,rhs);
+    const h=solveLinear(design.rows,design.rhs);
     if(!h||!h.every(Number.isFinite))return {ok:false,reason:'homographie non résoluble'};
+    return {ok:true,H:[h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1]};
+  }
+
+  function fitLeastSquares(correspondences){
+    if(!Array.isArray(correspondences)||correspondences.length<4)return {ok:false,reason:'au moins 4 correspondances requises pour le refit'};
+    const design=designRows(correspondences);
+    if(!design)return {ok:false,reason:'correspondance invalide'};
+    const cols=8,ata=Array.from({length:cols},()=>Array(cols).fill(0)),atb=Array(cols).fill(0);
+    for(let r=0;r<design.rows.length;r++){
+      const row=design.rows[r],target=design.rhs[r];
+      for(let i=0;i<cols;i++){
+        atb[i]+=row[i]*target;
+        for(let j=0;j<cols;j++)ata[i][j]+=row[i]*row[j];
+      }
+    }
+    const h=solveLinear(ata,atb);
+    if(!h||!h.every(Number.isFinite))return {ok:false,reason:'refit moindres carrés non résoluble'};
     return {ok:true,H:[h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1]};
   }
 
@@ -74,12 +97,18 @@
     return out;
   }
 
+  function summarizeErrors(H,correspondences,indices){
+    const errors=indices.map(i=>pointErrorM(H,correspondences[i])).filter(e=>e!==null);
+    if(!errors.length)return null;
+    return {mean:errors.reduce((s,e)=>s+e,0)/errors.length,peak:Math.max(...errors)};
+  }
+
   function buildHomography(correspondences,options={}){
     if(!Array.isArray(correspondences)||correspondences.length<4)return {ok:false,reason:'au moins 4 correspondances image-terrain requises'};
     if(correspondences.some(c=>!c||!finitePoint(c.image)||!finitePoint(c.pitch)))return {ok:false,reason:'correspondance invalide'};
     if(correspondences.length===4){
       const fit=fitFour(correspondences);
-      return fit.ok?{...fit,method:'DLT_4_POINTS',inlierCount:4,totalCount:4,inlierRatio:1,rejectedIndices:[]}:fit;
+      return fit.ok?{...fit,method:'DLT_4_POINTS',inlierCount:4,totalCount:4,inlierRatio:1,rejectedIndices:[],refitAttempted:false,refitApplied:false}:fit;
     }
     const threshold=Number.isFinite(Number(options.consensusThresholdM))?Math.max(.25,Number(options.consensusThresholdM)):2;
     const minRatio=Number.isFinite(Number(options.minInlierRatio))?clamp(Number(options.minInlierRatio),.5,1):.7;
@@ -98,8 +127,25 @@
     if(!best)return {ok:false,reason:'aucune homographie robuste non dégénérée'};
     const ratio=best.inliers.length/correspondences.length;
     if(ratio<minRatio)return {ok:false,reason:`consensus insuffisant (${best.inliers.length}/${correspondences.length})`,inlierCount:best.inliers.length,totalCount:correspondences.length,inlierRatio:+ratio.toFixed(4)};
+
+    const seedSummary=summarizeErrors(best.fit.H,correspondences,best.inliers);
+    const refitAttempted=best.inliers.length>4;
+    const refit=refitAttempted?fitLeastSquares(best.inliers.map(i=>correspondences[i])):{ok:false,reason:'refit non nécessaire'};
+    const refitSummary=refit.ok?summarizeErrors(refit.H,correspondences,best.inliers):null;
+    const refitApplied=!!(refit.ok&&refitSummary&&seedSummary&&refitSummary.mean<=seedSummary.mean+1e-9);
+    const refinedH=refitApplied?refit.H:best.fit.H;
+    const refinedSummary=refitApplied?refitSummary:seedSummary;
     const rejectedIndices=correspondences.map((_,i)=>i).filter(i=>!best.inliers.includes(i));
-    return {ok:true,H:best.fit.H,method:'ROBUST_4_POINT_CONSENSUS',inlierCount:best.inliers.length,totalCount:correspondences.length,inlierRatio:+ratio.toFixed(4),consensusThresholdM:threshold,meanInlierErrorM:+best.mean.toFixed(4),maxInlierErrorM:+best.peak.toFixed(4),rejectedIndices,hypothesesTested:subsets.length};
+    return {
+      ok:true,H:refinedH,method:'ROBUST_4_POINT_CONSENSUS',inlierCount:best.inliers.length,totalCount:correspondences.length,
+      inlierRatio:+ratio.toFixed(4),consensusThresholdM:threshold,
+      meanInlierErrorM:+refinedSummary.mean.toFixed(4),maxInlierErrorM:+refinedSummary.peak.toFixed(4),
+      seedMeanInlierErrorM:+seedSummary.mean.toFixed(4),seedMaxInlierErrorM:+seedSummary.peak.toFixed(4),
+      refitAttempted,refitApplied,refitMethod:refitApplied?'ALL_INLIERS_LINEAR_LEAST_SQUARES':null,
+      refitCandidateMeanInlierErrorM:refitSummary?+refitSummary.mean.toFixed(4):null,
+      refitRejectedReason:refitAttempted&&!refitApplied?(refit.ok?'NO_MEAN_ERROR_IMPROVEMENT':(refit.reason||'REFIT_FAILED')):null,
+      rejectedIndices,hypothesesTested:subsets.length
+    };
   }
 
   function reprojectionError(H,validationPoints){
@@ -136,11 +182,11 @@
       validated,
       source:fit.method==='ROBUST_4_POINT_CONSENSUS'?'manual_multi_point_homography_cay_v2':'manual_4_point_homography_cay_v1',
       confidence:+confidence.toFixed(3),reason:validated?null:reason,project:validated?safeProject:null,
-      homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1},
+      homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1,refitAttempted:!!fit.refitAttempted,refitApplied:!!fit.refitApplied,refitMethod:fit.refitMethod||null,refitRejectedReason:fit.refitRejectedReason||null,refitCandidateMeanInlierErrorM:fit.refitCandidateMeanInlierErrorM??null,meanInlierErrorM:fit.meanInlierErrorM??null,seedMeanInlierErrorM:fit.seedMeanInlierErrorM??null},
       pitch:{lengthM:pitchLength,widthM:pitchWidth},
-      provenance:{designReferences:['SoccerNet camera calibration','TVCalib','OpenCV findHomography RANSAC principle'],codeCopied:false,licenseDependency:'none',openCvReferenceLicense:'Apache-2.0 (OpenCV >= 4.5.0)'}
+      provenance:{designReferences:['SoccerNet camera calibration','TVCalib','OpenCV findHomography RANSAC principle + inlier-only refinement'],codeCopied:false,licenseDependency:'none',openCvReferenceLicense:'Apache-2.0 (OpenCV >= 4.5.0)'}
     };
   }
 
-  return {buildHomography,project,reprojectionError,createProjector,solveLinear,combinations4};
+  return {buildHomography,project,reprojectionError,createProjector,solveLinear,combinations4,fitLeastSquares};
 });
