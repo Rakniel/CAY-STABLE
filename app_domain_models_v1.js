@@ -47,12 +47,13 @@
     const rosterIds=new Set((team.roster||[]).map(p=>String(p.id)));
     const lineup=(team.defaultLineup||[]).map(String),bench=(team.bench||[]).map(String);
     const errors=[];
+    if(lineup.length<1)errors.push('LINEUP_EMPTY');
     if(lineup.length>11)errors.push('LINEUP_OVER_11');
     if(new Set(lineup).size!==lineup.length)errors.push('DUPLICATE_LINEUP_ID');
     if(new Set(bench).size!==bench.length)errors.push('DUPLICATE_BENCH_ID');
     if(lineup.some(x=>!rosterIds.has(x))||bench.some(x=>!rosterIds.has(x)))errors.push('UNKNOWN_ROSTER_ID');
     if(lineup.some(x=>bench.includes(x)))errors.push('PLAYER_IN_LINEUP_AND_BENCH');
-    return {valid:errors.length===0,errors,maxActive:11};
+    return {valid:errors.length===0,errors,maxActive:11,minActive:1};
   }
   function createAnalysisProfile(raw={}){
     const settings=raw.settings||{};
