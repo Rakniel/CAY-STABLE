@@ -108,7 +108,7 @@
     if(correspondences.some(c=>!c||!finitePoint(c.image)||!finitePoint(c.pitch)))return {ok:false,reason:'correspondance invalide'};
     if(correspondences.length===4){
       const fit=fitFour(correspondences);
-      return fit.ok?{...fit,method:'DLT_4_POINTS',inlierCount:4,totalCount:4,inlierRatio:1,rejectedIndices:[],refitApplied:false}:fit;
+      return fit.ok?{...fit,method:'DLT_4_POINTS',inlierCount:4,totalCount:4,inlierRatio:1,rejectedIndices:[],refitAttempted:false,refitApplied:false}:fit;
     }
     const threshold=Number.isFinite(Number(options.consensusThresholdM))?Math.max(.25,Number(options.consensusThresholdM)):2;
     const minRatio=Number.isFinite(Number(options.minInlierRatio))?clamp(Number(options.minInlierRatio),.5,1):.7;
@@ -129,16 +129,21 @@
     if(ratio<minRatio)return {ok:false,reason:`consensus insuffisant (${best.inliers.length}/${correspondences.length})`,inlierCount:best.inliers.length,totalCount:correspondences.length,inlierRatio:+ratio.toFixed(4)};
 
     const seedSummary=summarizeErrors(best.fit.H,correspondences,best.inliers);
-    const refit=best.inliers.length>4?fitLeastSquares(best.inliers.map(i=>correspondences[i])):{ok:false,reason:'refit non nécessaire'};
-    const refinedH=refit.ok?refit.H:best.fit.H;
-    const refinedSummary=summarizeErrors(refinedH,correspondences,best.inliers)||seedSummary;
+    const refitAttempted=best.inliers.length>4;
+    const refit=refitAttempted?fitLeastSquares(best.inliers.map(i=>correspondences[i])):{ok:false,reason:'refit non nécessaire'};
+    const refitSummary=refit.ok?summarizeErrors(refit.H,correspondences,best.inliers):null;
+    const refitApplied=!!(refit.ok&&refitSummary&&seedSummary&&refitSummary.mean<=seedSummary.mean+1e-9);
+    const refinedH=refitApplied?refit.H:best.fit.H;
+    const refinedSummary=refitApplied?refitSummary:seedSummary;
     const rejectedIndices=correspondences.map((_,i)=>i).filter(i=>!best.inliers.includes(i));
     return {
       ok:true,H:refinedH,method:'ROBUST_4_POINT_CONSENSUS',inlierCount:best.inliers.length,totalCount:correspondences.length,
       inlierRatio:+ratio.toFixed(4),consensusThresholdM:threshold,
       meanInlierErrorM:+refinedSummary.mean.toFixed(4),maxInlierErrorM:+refinedSummary.peak.toFixed(4),
       seedMeanInlierErrorM:+seedSummary.mean.toFixed(4),seedMaxInlierErrorM:+seedSummary.peak.toFixed(4),
-      refitApplied:!!refit.ok,refitMethod:refit.ok?'ALL_INLIERS_LINEAR_LEAST_SQUARES':null,
+      refitAttempted,refitApplied,refitMethod:refitApplied?'ALL_INLIERS_LINEAR_LEAST_SQUARES':null,
+      refitCandidateMeanInlierErrorM:refitSummary?+refitSummary.mean.toFixed(4):null,
+      refitRejectedReason:refitAttempted&&!refitApplied?(refit.ok?'NO_MEAN_ERROR_IMPROVEMENT':(refit.reason||'REFIT_FAILED')):null,
       rejectedIndices,hypothesesTested:subsets.length
     };
   }
@@ -177,7 +182,7 @@
       validated,
       source:fit.method==='ROBUST_4_POINT_CONSENSUS'?'manual_multi_point_homography_cay_v2':'manual_4_point_homography_cay_v1',
       confidence:+confidence.toFixed(3),reason:validated?null:reason,project:validated?safeProject:null,
-      homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1,refitApplied:!!fit.refitApplied,refitMethod:fit.refitMethod||null,meanInlierErrorM:fit.meanInlierErrorM??null,seedMeanInlierErrorM:fit.seedMeanInlierErrorM??null},
+      homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1,refitAttempted:!!fit.refitAttempted,refitApplied:!!fit.refitApplied,refitMethod:fit.refitMethod||null,refitRejectedReason:fit.refitRejectedReason||null,refitCandidateMeanInlierErrorM:fit.refitCandidateMeanInlierErrorM??null,meanInlierErrorM:fit.meanInlierErrorM??null,seedMeanInlierErrorM:fit.seedMeanInlierErrorM??null},
       pitch:{lengthM:pitchLength,widthM:pitchWidth},
       provenance:{designReferences:['SoccerNet camera calibration','TVCalib','OpenCV findHomography RANSAC principle + inlier-only refinement'],codeCopied:false,licenseDependency:'none',openCvReferenceLicense:'Apache-2.0 (OpenCV >= 4.5.0)'}
     };
