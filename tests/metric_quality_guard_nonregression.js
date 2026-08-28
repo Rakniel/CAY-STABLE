@@ -18,6 +18,28 @@ assert.strictEqual(linear.sprintCount,0,'18 km/h must not create a sprint');
 
 const sprint=Guard.robustMetricForTrack(track([[0,0],[8,0],[16,0],[24,0],[32,0]]),projector);
 assert.strictEqual(sprint.sprintCount,1,'continuous 28.8 km/h run must count as one sprint episode');
+assert.strictEqual(sprint.sprintThresholdKmh,25,'sprint threshold must stay explicit');
+assert.strictEqual(sprint.minSprintDurationSeconds,1,'sprint duration guard must stay explicit');
+
+const shortSpike={fullPath:[
+  {x:0,y:0,time:0,segment:1},
+  {x:2,y:0,time:1,segment:1},
+  {x:6,y:0,time:1.5,segment:1},
+  {x:8,y:0,time:2.5,segment:1}
+]};
+const spike=Guard.robustMetricForTrack(shortSpike,projector);
+assert.strictEqual(spike.sprintCount,0,'sub-second high-speed spike must not count as a sprint');
+
+const twoSprints={fullPath:[
+  {x:0,y:0,time:0,segment:1},
+  {x:8,y:0,time:1,segment:1},
+  {x:16,y:0,time:2,segment:1},
+  {x:18,y:0,time:3,segment:1},
+  {x:26,y:0,time:4,segment:1},
+  {x:34,y:0,time:5,segment:1}
+]};
+const doubleSprint=Guard.robustMetricForTrack(twoSprints,projector);
+assert.strictEqual(doubleSprint.sprintCount,2,'two sustained sprint runs separated by low speed must count as two episodes');
 
 const segmented={fullPath:[{x:0,y:0,time:0,segment:1},{x:5,y:0,time:1,segment:1},{x:50,y:0,time:2,segment:2},{x:55,y:0,time:3,segment:2}]};
 const projectors={1:projector[1],2:{validated:true,project:p=>({x:p.x,y:p.y})}};
