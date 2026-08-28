@@ -14,7 +14,7 @@ const cutMetric=stats.metricForTrack(acrossCut,{1:projector,2:projector});
 ok(cutMetric.sprintCount===2,'un sprint après cut caméra doit être compté comme un nouvel épisode');
 ok(cutMetric.metricCoveredSeconds===2,'aucune durée inter-segment ajoutée aux métriques');
 ok(cutMetric.distanceM===16,'distance agrégée uniquement dans chaque segment métrique');
-ok(cutMetric.sprintContinuityPolicy==='RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_OU_PAIRE_METRIQUE_REJETEE','politique de continuité sprint exposée');
+ok(cutMetric.sprintContinuityPolicy==='COMPTE_APRES_1S_CONTINUE_GE_25_KMH_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL','politique de continuité sprint exposée');
 
 const afterGap={fullPath:[
   {time:0,segment:3,x:.10,y:.2},
