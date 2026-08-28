@@ -52,4 +52,36 @@ const degenerate=h.createProjector({correspondences:[
 ],validationPoints});
 ok(degenerate.validated===false,'géométrie dégénérée refusée');
 ok(typeof h.buildHomography==='function'&&typeof h.createProjector==='function','API stable exposée');
-console.log(`PASS ${pass}/15 metric homography projector`);
+
+// Multi-point robust fit: five coherent, slightly noisy landmarks + one gross bad click.
+// The winning minimal hypothesis identifies the consensus, then CAY must refit on every inlier.
+const robust=[
+  {image:{x:.08,y:.12},pitch:{x:0.2,y:0.1}},
+  {image:{x:.91,y:.10},pitch:{x:104.7,y:0.3}},
+  {image:{x:.89,y:.91},pitch:{x:104.8,y:67.7}},
+  {image:{x:.11,y:.88},pitch:{x:0.3,y:67.8}},
+  {image:{x:.50,y:.51},pitch:{x:52.7,y:34.1}},
+  {image:{x:.35,y:.30},pitch:{x:95,y:61}}
+];
+const robustFit=h.buildHomography(robust,{consensusThresholdM:2.5,minInlierRatio:.7});
+ok(robustFit.ok===true,'consensus multi-point robuste résolu');
+ok(robustFit.inlierCount===5&&robustFit.rejectedIndices.includes(5),'mauvais clic isolé rejeté');
+ok(robustFit.refitApplied===true&&robustFit.refitMethod==='ALL_INLIERS_LINEAR_LEAST_SQUARES','refit exécuté sur tous les inliers');
+ok(robustFit.meanInlierErrorM<=robustFit.seedMeanInlierErrorM+.0001,'refit ne dégrade pas erreur moyenne des inliers');
+ok(typeof h.fitLeastSquares==='function','API de refit explicite et testable');
+
+const robustProjector=h.createProjector({
+  correspondences:robust,
+  consensusThresholdM:2.5,
+  minInlierRatio:.7,
+  validationPoints:[
+    {image:{x:.50,y:.50},pitch:{x:52.5,y:34}},
+    {image:{x:.30,y:.65},pitch:{x:27.8,y:46.0}}
+  ],
+  maxMeanErrorM:3,
+  maxPeakErrorM:5
+});
+ok(robustProjector.fit.refitApplied===true,'provenance runtime expose le refit');
+ok(robustProjector.fit.seedMeanInlierErrorM!==null&&robustProjector.fit.meanInlierErrorM!==null,'erreurs avant/après auditables');
+
+console.log(`PASS ${pass} metric homography projector`);
