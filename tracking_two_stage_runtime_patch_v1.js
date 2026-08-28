@@ -62,6 +62,35 @@
     residual/=sw;
     return {a,b,tx,ty,scale,rotation,residual,residuals};
   }
+  function fitSimilarityFromPair(c1,c2){
+    const sx=c2.tr.x-c1.tr.x,sy=c2.tr.y-c1.tr.y,dx=c2.p.x-c1.p.x,dy=c2.p.y-c1.p.y;
+    const den=sx*sx+sy*sy;if(den<.0025)return null;
+    const a=(sx*dx+sy*dy)/den,b=(sx*dy-sy*dx)/den;
+    const scale=Math.hypot(a,b),rotation=Math.atan2(b,a);
+    const tx=c1.p.x-a*c1.tr.x+b*c1.tr.y,ty=c1.p.y-b*c1.tr.x-a*c1.tr.y;
+    return {a,b,tx,ty,scale,rotation};
+  }
+  function robustSimilarityConsensus(pairs,threshold=.055){
+    if(!pairs||pairs.length<3)return null;
+    let best=null;
+    for(let i=0;i<pairs.length-1;i++)for(let j=i+1;j<pairs.length;j++){
+      const h=fitSimilarityFromPair(pairs[i],pairs[j]);if(!h)continue;
+      if(h.scale<.88||h.scale>1.14||Math.abs(h.rotation)>.12)continue;
+      const inliers=[];let weight=0,residual=0;
+      for(const c of pairs){
+        const px=h.a*c.tr.x-h.b*c.tr.y+h.tx,py=h.b*c.tr.x+h.a*c.tr.y+h.ty,r=Math.hypot(px-c.p.x,py-c.p.y);
+        if(r<=threshold){inliers.push(c);const w=Math.max(.001,c.weight||1);weight+=w;residual+=r*w;}
+      }
+      if(inliers.length<3)continue;
+      const mean=weight>0?residual/weight:Infinity;
+      if(!best||inliers.length>best.inliers.length||(inliers.length===best.inliers.length&&(weight>best.weight+.0001||(Math.abs(weight-best.weight)<=.0001&&mean<best.mean))))best={inliers,weight,mean};
+    }
+    if(!best)return null;
+    let fit=fitSimilarity(best.inliers);if(!fit)return null;
+    const refined=best.inliers.filter((_,i)=>fit.residuals[i]<=threshold);
+    if(refined.length>=3&&refined.length<best.inliers.length){const r=fitSimilarity(refined);if(r){fit=r;best.inliers=refined;}}
+    return {fit,inliers:best.inliers};
+  }
   function estimateGlobalMotion(state,detections,ctx){
     const {active,dets,candidates}=candidatePairs(state,detections,ctx);
     if(active.length<3||dets.length<3)return {available:false,reason:'insufficient_players',model:'none',support:0,confidence:0};
@@ -72,10 +101,9 @@
 
     const initial=uniqueAppearancePairs(candidates);
     if(initial.length<3)return {available:false,reason:'insufficient_unique_pairs',model:'none',support:initial.length,confidence:0};
-    let fit=fitSimilarity(initial);if(!fit)return {available:false,reason:'degenerate_similarity',model:'none',support:0,confidence:0};
-    const inliers=initial.filter((_,i)=>fit.residuals[i]<=.055);
-    if(inliers.length>=3&&inliers.length<initial.length){const refined=fitSimilarity(inliers);if(refined)fit=refined;}
-    const used=inliers.length>=3?inliers:initial;
+    const consensus=robustSimilarityConsensus(initial,.055);
+    if(!consensus)return {available:false,reason:'insufficient_similarity_consensus',model:'none',support:0,confidence:0};
+    const fit=consensus.fit,used=consensus.inliers;
     const scaleDelta=Math.abs(fit.scale-1),rotationAbs=Math.abs(fit.rotation);
     if(fit.scale<.88||fit.scale>1.14||rotationAbs>.12)return {available:false,reason:'unsupported_similarity',model:'similarity',support:used.length,confidence:0,scale:fit.scale,rotation:fit.rotation};
     if(fit.residual>.045)return {available:false,reason:'high_similarity_residual',model:'similarity',support:used.length,confidence:0,residual:fit.residual};
@@ -85,7 +113,7 @@
     const confidence=clamp01(.48*supportRatio+.27*motion+.17*residualStrength+.08*shapeStrength);
     if(confidence<.60)return {available:false,reason:'low_consensus_confidence',model:'similarity',support:used.length,confidence,residual:fit.residual};
     const model=(scaleDelta<.008&&rotationAbs<.012)?'translation':'similarity';
-    return {available:true,reason:null,model,a:fit.a,b:fit.b,tx:fit.tx,ty:fit.ty,dx:fit.tx,dy:fit.ty,scale:fit.scale,rotation:fit.rotation,support:used.length,confidence,residual:fit.residual};
+    return {available:true,reason:null,model,a:fit.a,b:fit.b,tx:fit.tx,ty:fit.ty,dx:fit.tx,dy:fit.ty,scale:fit.scale,rotation:fit.rotation,support:used.length,confidence,residual:fit.residual,candidates:initial.length,rejectedPairs:Math.max(0,initial.length-used.length)};
   }
   function estimateGlobalTranslation(state,detections,ctx){
     const e=estimateGlobalMotion(state,detections,ctx);
@@ -109,7 +137,7 @@
       changed++;
     }
     state.cameraCompensations=(state.cameraCompensations||0)+1;
-    state.lastCameraCompensation={model:estimate.model||'translation',dx:+(Number(estimate.tx??estimate.dx)||0).toFixed(6),dy:+(Number(estimate.ty??estimate.dy)||0).toFixed(6),scale:+(Number(estimate.scale)||1).toFixed(6),rotation:+(Number(estimate.rotation)||0).toFixed(6),support:estimate.support||0,confidence:+(estimate.confidence||0).toFixed(4),residual:+(estimate.residual||0).toFixed(6)};
+    state.lastCameraCompensation={model:estimate.model||'translation',dx:+(Number(estimate.tx??estimate.dx)||0).toFixed(6),dy:+(Number(estimate.ty??estimate.dy)||0).toFixed(6),scale:+(Number(estimate.scale)||1).toFixed(6),rotation:+(Number(estimate.rotation)||0).toFixed(6),support:estimate.support||0,confidence:+(estimate.confidence||0).toFixed(4),residual:+(estimate.residual||0).toFixed(6),candidates:estimate.candidates||estimate.support||0,rejectedPairs:estimate.rejectedPairs||0};
     return changed;
   }
   function applyTranslationToState(state,estimate){return applyMotionToState(state,{...estimate,model:'translation',a:1,b:0,tx:Number(estimate?.dx)||0,ty:Number(estimate?.dy)||0,scale:1,rotation:0});}
