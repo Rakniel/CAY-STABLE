@@ -104,4 +104,37 @@ function sample(time,ballX,ownerVisible=true){
   assert.equal(r.possession.CAY.seconds,.4);
 }
 
+// Un long trou dans la timeline doit rester dans le dénominateur de couverture.
+// L'ancien calcul supprimait entièrement ces secondes et pouvait transformer
+// artificiellement une vidéo très lacunaire en séquence FIABLE.
+{
+  const samples=[
+    sample(0,10.2),sample(.2,10.2),sample(.4,10.2),
+    sample(5.4,10.2),sample(5.6,10.2),sample(5.8,10.2)
+  ];
+  const r=analyzeBallEvents(samples,{maxObservationGapSec:.75,minCoverage:.5});
+  assert.equal(r.timelineSeconds,5.8);
+  assert.equal(r.observableSeconds,.8);
+  assert.equal(r.unobservedGapSeconds,5);
+  assert.equal(r.gapBreaks,1);
+  assert.equal(r.largestGapSec,5);
+  assert(r.coverage<.14);
+  assert.equal(r.quality,'INDISPONIBLE');
+  assert.equal(r.passes,'INDISPONIBLE');
+}
+
+// Une possession ne doit jamais traverser un long trou : après le gap il faut
+// reconstruire une possession stable avant toute passe/turnover publiable.
+{
+  const samples=[
+    sample(0,10.2),sample(.2,10.2),sample(.4,10.2),sample(.6,10.2),
+    sample(3.0,20.2),sample(3.2,20.2),sample(3.4,20.2),sample(3.6,20.2)
+  ];
+  const r=analyzeBallEvents(samples,{maxObservationGapSec:.75,minStableOwnershipSec:.3,minCoverage:.1});
+  assert.equal(r.gapBreaks,1);
+  assert.equal(r.passes,0);
+  assert.equal(r.turnovers,0);
+  assert.deepEqual(r.events,[]);
+}
+
 console.log('ball event state non-regression: PASS');
