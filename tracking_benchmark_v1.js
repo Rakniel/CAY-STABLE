@@ -19,11 +19,53 @@
     })).filter(r=>r.frame!=null&&r.gtId!=null&&r.visible);
   }
 
+  function incrementNested(map,outer,inner){
+    if(!map.has(outer)) map.set(outer,new Map());
+    const counts=map.get(outer);
+    counts.set(inner,(counts.get(inner)||0)+1);
+  }
+
+  function dominantCount(counts){
+    let best=0;
+    for(const value of counts.values()) if(value>best) best=value;
+    return best;
+  }
+
+  function associationMetrics(gtToTrack,trackToGt,matched){
+    if(!matched) return {
+      gtAssociationPurity:0,
+      trackAssociationPurity:0,
+      associationIntegrity:0,
+      mergedTrackIds:0,
+      splitGroundTruthIds:0
+    };
+
+    let gtDominant=0,trackDominant=0,mergedTrackIds=0,splitGroundTruthIds=0;
+    for(const counts of gtToTrack.values()){
+      gtDominant+=dominantCount(counts);
+      if(counts.size>1) splitGroundTruthIds++;
+    }
+    for(const counts of trackToGt.values()){
+      trackDominant+=dominantCount(counts);
+      if(counts.size>1) mergedTrackIds++;
+    }
+    const gtAssociationPurity=gtDominant/matched;
+    const trackAssociationPurity=trackDominant/matched;
+    return {
+      gtAssociationPurity,
+      trackAssociationPurity,
+      associationIntegrity:Math.sqrt(gtAssociationPurity*trackAssociationPurity),
+      mergedTrackIds,
+      splitGroundTruthIds
+    };
+  }
+
   function evaluate(rows){
     const data=normalize(rows).sort((a,b)=>a.frame-b.frame||a.index-b.index);
     const gtObs=data.length;
     let matched=0,idSwitches=0,fragmentations=0;
     const lastTrack=new Map(),lastMatched=new Map(),uniqueGt=new Set(),uniqueTracks=new Set();
+    const gtToTrack=new Map(),trackToGt=new Map();
     const seenFrameGt=new Set();
 
     for(const r of data){
@@ -35,6 +77,8 @@
       if(isMatched){
         matched++;
         uniqueTracks.add(r.trackId);
+        incrementNested(gtToTrack,r.gtId,r.trackId);
+        incrementNested(trackToGt,r.trackId,r.gtId);
         if(lastTrack.has(r.gtId)&&lastTrack.get(r.gtId)!==r.trackId) idSwitches++;
         if(lastMatched.has(r.gtId)&&lastMatched.get(r.gtId)===false) fragmentations++;
         lastTrack.set(r.gtId,r.trackId);
@@ -44,6 +88,7 @@
 
     const coverage=gtObs?matched/gtObs:0;
     const identityContinuity=matched?Math.max(0,1-idSwitches/matched):0;
+    const association=associationMetrics(gtToTrack,trackToGt,matched);
     return {
       groundTruthObservations:gtObs,
       matchedObservations:matched,
@@ -53,7 +98,8 @@
       fragmentations,
       identityContinuity,
       groundTruthPlayers:uniqueGt.size,
-      producedTrackIds:uniqueTracks.size
+      producedTrackIds:uniqueTracks.size,
+      ...association
     };
   }
 
@@ -64,8 +110,13 @@
       delta:{
         observedCoverage:after.observedCoverage-before.observedCoverage,
         identityContinuity:after.identityContinuity-before.identityContinuity,
+        gtAssociationPurity:after.gtAssociationPurity-before.gtAssociationPurity,
+        trackAssociationPurity:after.trackAssociationPurity-before.trackAssociationPurity,
+        associationIntegrity:after.associationIntegrity-before.associationIntegrity,
         idSwitches:after.idSwitches-before.idSwitches,
-        fragmentations:after.fragmentations-before.fragmentations
+        fragmentations:after.fragmentations-before.fragmentations,
+        mergedTrackIds:after.mergedTrackIds-before.mergedTrackIds,
+        splitGroundTruthIds:after.splitGroundTruthIds-before.splitGroundTruthIds
       }
     };
   }
