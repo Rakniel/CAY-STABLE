@@ -29,6 +29,39 @@
     const cy=Math.min(rows-1,Math.floor(clamp(y/pitchWidthM,0,.999999)*rows));
     return {x,y,cx,cy,confidence:info.confidence};
   }
+  function buildTrajectory(prepared,eligible,projected,confidenceSum,maxGapSec){
+    const runs=[];let current=[];
+    const flush=()=>{if(current.length)runs.push(current);current=[];};
+    for(let i=0;i<prepared.length;i++){
+      const row=prepared[i],p=row?.p,q=row?.projected;
+      if(!p||!q||!Number.isFinite(Number(p.time))){flush();continue;}
+      const point={time:+Number(p.time).toFixed(3),segment:Number(p.segment),x:+q.x.toFixed(3),y:+q.y.toFixed(3),calibrationConfidence:+q.confidence.toFixed(3)};
+      if(current.length){
+        const prev=current[current.length-1],dt=point.time-prev.time;
+        if(point.segment!==prev.segment||!(dt>0)||(maxGapSec>0&&dt>maxGapSec))flush();
+      }
+      current.push(point);
+    }
+    flush();
+    const coverage=eligible>0?projected/eligible:0;
+    const avgConfidence=projected>0?confidenceSum/projected:0;
+    const score=coverage*avgConfidence;
+    return {
+      status:projected>0?'DISPONIBLE':'INDISPONIBLE',
+      reason:projected>0?null:'aucun point terrain métrique validé',
+      coordinateSystem:'PITCH_METERS',
+      runs,
+      points:runs.flat(),
+      observations:projected,
+      eligibleObservations:eligible,
+      metricCoverage:+coverage.toFixed(4),
+      avgCalibrationConfidence:+avgConfidence.toFixed(4),
+      defendableScore:+score.toFixed(4),
+      quality:projected>0?qualityFromEvidenceScore(score):'INDISPONIBLE',
+      interpolation:'NONE',
+      continuityPolicy:'COUPE_SUR_POINT_NON_PROJETE_CHANGEMENT_SEGMENT_TIMESTAMP_INVALIDE_OU_GAP_EXCESSIF'
+    };
+  }
   function build(track,projectors,options){
     const opts={pitchLengthM:105,pitchWidthM:68,cols:6,rows:4,minMetricCoverage:.35,minCalibrationConfidence:.5,maxDwellGapSec:1,...(options||{})};
     const path=Array.isArray(track?.fullPath)?track.fullPath:[];
@@ -38,71 +71,42 @@
     const pitchWidthM=Math.max(1,Number(opts.pitchWidthM)||68);
     const minCalibrationConfidence=clamp(Number(opts.minCalibrationConfidence)||0,0,1);
     const maxDwellGapSec=Math.max(0,Number(opts.maxDwellGapSec)||0);
-    const cells=createGrid(cols,rows);
-    const timeCells=createGrid(cols,rows);
-    let eligible=0,projected=0,rejected=0,confidenceSum=0;
-    let eligibleIntervalSeconds=0,projectedIntervalSeconds=0;
-    const projectedPoints=[];
-    const prepared=[];
+    const cells=createGrid(cols,rows),timeCells=createGrid(cols,rows);
+    let eligible=0,projected=0,rejected=0,confidenceSum=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0;
+    const projectedPoints=[],prepared=[];
     for(const p of path){
       const structurallyEligible=!!p&&Number.isFinite(Number(p.x))&&Number.isFinite(Number(p.y))&&Number.isFinite(Number(p.segment));
       if(!structurallyEligible){prepared.push({p,projected:null});continue;}
       eligible++;
       const projectedPoint=projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows);
       if(!projectedPoint){rejected++;prepared.push({p,projected:null});continue;}
-      cells[projectedPoint.cy][projectedPoint.cx]++;
-      projected++;confidenceSum+=projectedPoint.confidence;
+      cells[projectedPoint.cy][projectedPoint.cx]++;projected++;confidenceSum+=projectedPoint.confidence;
       projectedPoints.push({time:Number.isFinite(Number(p.time))?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:+projectedPoint.confidence.toFixed(3)});
       prepared.push({p,projected:projectedPoint});
     }
     for(let i=0;i+1<prepared.length;i++){
-      const a=prepared[i],b=prepared[i+1];
-      if(!a?.p||!b?.p)continue;
-      const ta=Number(a.p.time),tb=Number(b.p.time);
-      if(!Number.isFinite(ta)||!Number.isFinite(tb)||tb<=ta)continue;
+      const a=prepared[i],b=prepared[i+1];if(!a?.p||!b?.p)continue;
+      const ta=Number(a.p.time),tb=Number(b.p.time);if(!Number.isFinite(ta)||!Number.isFinite(tb)||tb<=ta)continue;
       if(Number(a.p.segment)!==Number(b.p.segment))continue;
-      const dt=tb-ta;
-      if(maxDwellGapSec>0&&dt>maxDwellGapSec)continue;
-      eligibleIntervalSeconds+=dt;
-      if(!a.projected||!b.projected)continue;
-      timeCells[a.projected.cy][a.projected.cx]+=dt;
-      projectedIntervalSeconds+=dt;
+      const dt=tb-ta;if(maxDwellGapSec>0&&dt>maxDwellGapSec)continue;
+      eligibleIntervalSeconds+=dt;if(!a.projected||!b.projected)continue;
+      timeCells[a.projected.cy][a.projected.cx]+=dt;projectedIntervalSeconds+=dt;
     }
-    const coverage=eligible>0?projected/eligible:0;
-    const avgCalibrationConfidence=projected>0?confidenceSum/projected:0;
-    const defendableScore=coverage*avgCalibrationConfidence;
-    const coverageOk=coverage>=clamp(Number(opts.minMetricCoverage)||0,0,1);
-    const confidenceOk=avgCalibrationConfidence>=minCalibrationConfidence;
-    const available=projected>0&&coverageOk&&confidenceOk;
-    const max=cells.reduce((m,r)=>Math.max(m,...r),0);
-    const maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0);
-    const useTimeWeighting=projectedIntervalSeconds>0;
-    const normalizedObservationCells=normalizeGrid(cells,projected);
-    const normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
-    let reason=null;
-    if(!available){
-      reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':'confiance calibration insuffisante pour une heatmap terrain défendable';
-    }
+    const coverage=eligible>0?projected/eligible:0,avgCalibrationConfidence=projected>0?confidenceSum/projected:0,defendableScore=coverage*avgCalibrationConfidence;
+    const coverageOk=coverage>=clamp(Number(opts.minMetricCoverage)||0,0,1),confidenceOk=avgCalibrationConfidence>=minCalibrationConfidence,available=projected>0&&coverageOk&&confidenceOk;
+    const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0),useTimeWeighting=projectedIntervalSeconds>0;
+    const normalizedObservationCells=normalizeGrid(cells,projected),normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
+    let reason=null;if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':'confiance calibration insuffisante pour une heatmap terrain défendable';
+    const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,maxDwellGapSec);
     return {
-      status:available?'DISPONIBLE':'INDISPONIBLE',
-      reason,
-      coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
-      timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),
-      normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,
-      normalizedObservationCells,normalizedTimeCells,
-      heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',
-      max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,
-      eligibleObservations:eligible,rejectedObservations:rejected,metricCoverage:+coverage.toFixed(4),
-      eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),
-      temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,
-      maxDwellGapSec,
-      avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),
-      projectedPoints:available?projectedPoints:[],
-      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',
-      qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',
-      policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
+      status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
+      timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
+      heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,metricCoverage:+coverage.toFixed(4),
+      eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,maxDwellGapSec,
+      avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
+      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
       temporalPolicy:'PONDERATION_TEMPS_SEULEMENT_ENTRE_POINTS_CONSECUTIFS_MEME_SEGMENT_CALIBRE_SANS_GAP_EXCESSIF'
     };
   }
-  return {build,projectorInfo,qualityFromEvidenceScore};
+  return {build,buildTrajectory,projectorInfo,qualityFromEvidenceScore};
 });
