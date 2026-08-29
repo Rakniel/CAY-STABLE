@@ -9,9 +9,24 @@
   const clean=v=>String(v==null?'':v).trim();
   const id=(prefix,v)=>clean(v)||`${prefix}_${Math.random().toString(36).slice(2,10)}`;
   function rejectSecrets(raw){
-    const forbidden=['password','passwordHash','token','accessToken','refreshToken','secret','apiKey'];
-    const hit=forbidden.find(k=>raw&&Object.prototype.hasOwnProperty.call(raw,k));
-    if(hit)throw new Error(`SECRET_FIELD_FORBIDDEN:${hit}`);
+    const forbidden=new Set(['password','passwordhash','token','accesstoken','refreshtoken','secret','apikey']);
+    const seen=new Set();
+    const visit=(value,path)=>{
+      if(!value||typeof value!=='object')return;
+      if(seen.has(value))return;
+      seen.add(value);
+      if(Array.isArray(value)){
+        value.forEach((item,index)=>visit(item,`${path}[${index}]`));
+        return;
+      }
+      for(const [key,next] of Object.entries(value)){
+        const normalized=String(key).replace(/[^a-z0-9]/gi,'').toLowerCase();
+        const nextPath=path?`${path}.${key}`:key;
+        if(forbidden.has(normalized))throw new Error(`SECRET_FIELD_FORBIDDEN:${nextPath}`);
+        visit(next,nextPath);
+      }
+    };
+    visit(raw,'');
   }
   function createUser(raw={}){
     rejectSecrets(raw);
