@@ -20,8 +20,12 @@
     if(!finite(metric.defendableScore)||Number(metric.defendableScore)<MIN_PUBLISHABLE_EVIDENCE_SCORE||metric.quality!=='FIABLE'){
       return {publishable:false,status:'INDISPONIBLE',reason:`preuve métrique insuffisante (score < ${MIN_PUBLISHABLE_EVIDENCE_SCORE.toFixed(2)})`};
     }
-    if(metric.distanceM===null||metric.avgSpeedKmh===null||metric.maxSpeedKmh===null||metric.sprintCount===null){
-      return {publishable:false,status:'INDISPONIBLE',reason:'métriques physiques incomplètes'};
+    const invalidPhysicalField=PHYSICAL_FIELDS.find(field=>!finite(metric[field])||Number(metric[field])<0);
+    if(invalidPhysicalField){
+      return {publishable:false,status:'INDISPONIBLE',reason:`métrique physique invalide ou absente (${invalidPhysicalField})`};
+    }
+    if(!Number.isInteger(Number(metric.sprintCount))){
+      return {publishable:false,status:'INDISPONIBLE',reason:'compteur de sprints invalide'};
     }
     return {publishable:true,status:'FIABLE',reason:null};
   }
