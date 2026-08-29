@@ -72,7 +72,7 @@
     const minCalibrationConfidence=clamp(Number(opts.minCalibrationConfidence)||0,0,1);
     const maxDwellGapSec=Math.max(0,Number(opts.maxDwellGapSec)||0);
     const cells=createGrid(cols,rows),timeCells=createGrid(cols,rows);
-    let eligible=0,projected=0,rejected=0,confidenceSum=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0;
+    let eligible=0,projected=0,rejected=0,confidenceSum=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0;
     const projectedPoints=[],prepared=[];
     for(const p of path){
       const structurallyEligible=!!p&&Number.isFinite(Number(p.x))&&Number.isFinite(Number(p.y))&&Number.isFinite(Number(p.segment));
@@ -88,8 +88,9 @@
       const a=prepared[i],b=prepared[i+1];if(!a?.p||!b?.p)continue;
       const ta=Number(a.p.time),tb=Number(b.p.time);if(!Number.isFinite(ta)||!Number.isFinite(tb)||tb<=ta)continue;
       if(Number(a.p.segment)!==Number(b.p.segment))continue;
-      const dt=tb-ta;if(maxDwellGapSec>0&&dt>maxDwellGapSec)continue;
-      eligibleIntervalSeconds+=dt;if(!a.projected||!b.projected)continue;
+      const dt=tb-ta;eligibleIntervalSeconds+=dt;
+      if(maxDwellGapSec>0&&dt>maxDwellGapSec){unobservedGapSeconds+=dt;gapBreaks++;continue;}
+      if(!a.projected||!b.projected)continue;
       timeCells[a.projected.cy][a.projected.cx]+=dt;projectedIntervalSeconds+=dt;
     }
     const coverage=eligible>0?projected/eligible:0,avgCalibrationConfidence=projected>0?confidenceSum/projected:0,defendableScore=coverage*avgCalibrationConfidence;
@@ -103,9 +104,10 @@
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
       heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,metricCoverage:+coverage.toFixed(4),
       eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,maxDwellGapSec,
+      unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,
       avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
       quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
-      temporalPolicy:'PONDERATION_TEMPS_SEULEMENT_ENTRE_POINTS_CONSECUTIFS_MEME_SEGMENT_CALIBRE_SANS_GAP_EXCESSIF'
+      temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; PONDERATION_SEULEMENT_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
   return {build,buildTrajectory,projectorInfo,qualityFromEvidenceScore};
