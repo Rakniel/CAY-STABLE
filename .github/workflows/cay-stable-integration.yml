@@ -84,6 +84,16 @@ jobs:
           node-version: '20'
       - name: Integrate runtime into STABLE HTML
         run: python3 tools/integrate_tracking_v2.py
+      - name: Verify integrator idempotency
+        run: |
+          cp CAY_ANALYZER_STABLE.html /tmp/cay-stable-integrated.html
+          python3 tools/integrate_tracking_v2.py
+          cmp --silent /tmp/cay-stable-integrated.html CAY_ANALYZER_STABLE.html || {
+            echo 'ERROR: runtime integrator is not idempotent'
+            diff -u /tmp/cay-stable-integrated.html CAY_ANALYZER_STABLE.html || true
+            exit 1
+          }
+          echo 'Runtime integrator idempotency: PASS'
       - name: Syntax check JavaScript modules
         run: |
           node --check app_domain_models_v1.js
