@@ -26,7 +26,8 @@
       if(!a||!(width>0&&height>0))return null;
       x=a.x/width;y=a.y/height;
     }
-    return {...d,cat:d.cat==='goalkeeper'?'goalkeeper':'team',x:clamp01(x),y:clamp01(y),score:Number.isFinite(Number(d.score))?Number(d.score):0,feature:Array.isArray(d.feature)?d.feature:null};
+    if(!(Number.isFinite(x)&&Number.isFinite(y)&&x>=0&&x<=1&&y>=0&&y<=1))return null;
+    return {...d,cat:d.cat==='goalkeeper'?'goalkeeper':'team',x,y,score:Number.isFinite(Number(d.score))?Number(d.score):0,feature:Array.isArray(d.feature)?d.feature:null};
   }
   function detectionEligibility(d){
     if(!d)return {accepted:false,reason:'invalid_detection'};
