@@ -12,6 +12,14 @@
     const y=finite(entity.pitchY)?Number(entity.pitchY):(finite(entity.yM)?Number(entity.yM):null);
     return x===null||y===null?null:{x,y};
   }
+  function continuityKey(row){
+    if(!row)return null;
+    if(row.segment!==undefined&&row.segment!==null)return `segment:${String(row.segment)}`;
+    if(row.segmentId!==undefined&&row.segmentId!==null)return `segment:${String(row.segmentId)}`;
+    if(row.shotId!==undefined&&row.shotId!==null)return `shot:${String(row.shotId)}`;
+    if(row.planId!==undefined&&row.planId!==null)return `plan:${String(row.planId)}`;
+    return null;
+  }
   function normalizePlayer(raw){
     if(!raw)return null;
     const id=raw.id??raw.playerId??null;
@@ -52,7 +60,7 @@
     };
     const rows=(samples||[]).filter(s=>finite(s&&s.time)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
     if(rows.length<2)return {quality:'INDISPONIBLE',reason:'INSUFFICIENT_TIMELINE',events:[],passes:0,turnovers:0,coverage:0};
-    let total=0,observable=0,owned=0,unobservedGapSeconds=0,largestGapSec=0,gapBreaks=0,stable=null,candidate=null,candidateSince=null,lastTime=null,lastFrameObservable=false,lastStableBall=null,transition=null,rejectedPassTransitions=0;
+    let total=0,observable=0,owned=0,unobservedGapSeconds=0,largestGapSec=0,gapBreaks=0,segmentBreaks=0,segmentBoundarySeconds=0,stable=null,candidate=null,candidateSince=null,lastTime=null,lastFrameObservable=false,lastStableBall=null,transition=null,rejectedPassTransitions=0,lastContinuityKey=null;
     const possessionSec={},playerPossessionSec={},events=[];
     function resetOwnershipContinuity(){
       stable=null;
@@ -94,12 +102,20 @@
       const rowBall=normalizeBall(row.ball);
       const owner=inferOwner(row,cfg);
       const frameObservable=(owner.status==='OWNED'||owner.status==='FREE'||owner.status==='AMBIGUOUS')&&!!rowBall&&rowBall.confidence>=cfg.minBallConfidence;
+      const currentContinuityKey=continuityKey(row);
       let continuityBroken=false;
       if(lastTime!==null){
         const dt=Math.max(0,t-lastTime);
         total+=dt;
         largestGapSec=Math.max(largestGapSec,dt);
-        if(dt<=cfg.maxObservationGapSec){
+        const segmentChanged=lastContinuityKey!==null&&currentContinuityKey!==null&&lastContinuityKey!==currentContinuityKey;
+        if(segmentChanged){
+          segmentBreaks+=1;
+          segmentBoundarySeconds+=dt;
+          if(dt>cfg.maxObservationGapSec)unobservedGapSeconds+=dt;
+          resetOwnershipContinuity();
+          continuityBroken=true;
+        }else if(dt<=cfg.maxObservationGapSec){
           if(lastFrameObservable&&frameObservable)observable+=dt;
           if(stable&&lastFrameObservable&&frameObservable&&owner.status==='OWNED'&&owner.playerId===stable.playerId){
             owned+=dt;
@@ -130,6 +146,7 @@
       }
       lastFrameObservable=frameObservable;
       lastTime=t;
+      if(currentContinuityKey!==null)lastContinuityKey=currentContinuityKey;
     }
     const coverage=total>0?observable/total:0;
     const passCount=events.filter(e=>e.type==='PASS').length;
@@ -141,16 +158,16 @@
     for(const [team,sec] of Object.entries(possessionSec))teamPossession[team]={seconds:round(sec),share:denom?round(sec/denom,4):0};
     return {
       quality,reason,coverage:round(coverage,4),observableSeconds:round(observable),timelineSeconds:round(total),ownedSeconds:round(owned),
-      unobservedGapSeconds:round(unobservedGapSeconds),largestGapSec:round(largestGapSec),gapBreaks,
+      unobservedGapSeconds:round(unobservedGapSeconds),largestGapSec:round(largestGapSec),gapBreaks,segmentBreaks,segmentBoundarySeconds:round(segmentBoundarySeconds),continuityBreaks:gapBreaks+segmentBreaks,
       passes:quality==='FIABLE'?passCount:'INDISPONIBLE',turnovers:quality==='FIABLE'?turnoverCount:'INDISPONIBLE',rejectedPassTransitions:quality==='FIABLE'?rejectedPassTransitions:'INDISPONIBLE',
       possession:quality==='FIABLE'?teamPossession:'INDISPONIBLE',
       playerPossession:quality==='FIABLE'?Object.fromEntries(Object.entries(playerPossessionSec).map(([id,sec])=>[id,round(sec)])):'INDISPONIBLE',
       events:quality==='FIABLE'?events:[],
       thresholds:{minBallConfidence:cfg.minBallConfidence,minStableOwnershipSec:cfg.minStableOwnershipSec,minCoverage:cfg.minCoverage,maxObservationGapSec:cfg.maxObservationGapSec,ownerRadiusM:cfg.ownerRadiusM,ambiguityMarginM:cfg.ambiguityMarginM,minPassTravelM:cfg.minPassTravelM,maxPassTransitionSec:cfg.maxPassTransitionSec,minPassMeanSpeedMps:cfg.minPassMeanSpeedMps},
-      coveragePolicy:'TOUTE_LA_DUREE_DE_LA_TIMELINE_RESTE_DANS_LE_DENOMINATEUR_MAIS_UN_INTERVALLE_N_EST_CREDITE_OBSERVABLE_QUE_SI_SES_DEUX_EXTREMITES_SONT_OBSERVABLES_ET_LE_GAP_EST_ACCEPTABLE',
-      continuityPolicy:'UN_GAP_SUPERIEUR_A_MAX_OBSERVATION_GAP_SEC_CASSE_LA_CONTINUITE_DE_POSSESSION_ET_INTERDIT_TOUTE_PASSE_A_TRAVERS_LE_TROU',
-      possessionPolicy:'TEMPS_CREDITE_SEULEMENT_SI_LE_MEME_PROPRIETAIRE_STABLE_EST_OBSERVE_AUX_DEUX_EXTREMITES',
-      rule:'UNE_PASSE_N_EST_PUBLIEE_QUE_SI_UN_VOL_DE_BALL_DETACHE_UN_DEPLACEMENT_METRIQUE_ET_UNE_VITESSE_MOYENNE_SUFFISANTE_RELient_DEUX_POSSESSIONS_STABLES_DU_MEME_CAMP'
+      coveragePolicy:'TOUTE_LA_DUREE_DE_LA_TIMELINE_RESTE_DANS_LE_DENOMINATEUR_MAIS_UN_INTERVALLE_N_EST_CREDITE_OBSERVABLE_QUE_SI_SES_DEUX_EXTREMITES_SONT_OBSERVABLES_LE_GAP_EST_ACCEPTABLE_ET_LE_PLAN_EST_IDENTIQUE',
+      continuityPolicy:'UN_GAP_SUPERIEUR_A_MAX_OBSERVATION_GAP_SEC_OU_UN_CHANGEMENT_DE_SEGMENT_PLAN_CASSE_LA_CONTINUITE_DE_POSSESSION_ET_INTERDIT_TOUTE_PASSE_A_TRAVERS_LA_FRONTIERE',
+      possessionPolicy:'TEMPS_CREDITE_SEULEMENT_SI_LE_MEME_PROPRIETAIRE_STABLE_EST_OBSERVE_AUX_DEUX_EXTREMITES_DANS_LE_MEME_PLAN',
+      rule:'UNE_PASSE_N_EST_PUBLIEE_QUE_SI_UN_VOL_DE_BALL_DETACHE_UN_DEPLACEMENT_METRIQUE_ET_UNE_VITESSE_MOYENNE_SUFFISANTE_RELient_DEUX_POSSESSIONS_STABLES_DU_MEME_CAMP_DANS_UNE_CONTINUITE_DE_PLAN'
     };
   }
   return {normalizeBall,normalizePlayer,inferOwner,analyzeBallEvents};
