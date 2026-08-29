@@ -56,11 +56,12 @@
     const cfg={
       minBallConfidence:.65,minPlayerConfidence:.45,ownerRadiusM:2.2,ambiguityMarginM:.65,
       minStableOwnershipSec:.30,minCoverage:.55,maxObservationGapSec:.75,
-      minPassTravelM:3,maxPassTransitionSec:3,minPassMeanSpeedMps:2.5,...(options||{})
+      minPassTravelM:3,maxPassTransitionSec:3,minPassMeanSpeedMps:2.5,
+      minTurnoverTravelM:.75,maxTurnoverTransitionSec:1.5,...(options||{})
     };
     const rows=(samples||[]).filter(s=>finite(s&&s.time)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
     if(rows.length<2)return {quality:'INDISPONIBLE',reason:'INSUFFICIENT_TIMELINE',events:[],passes:0,turnovers:0,coverage:0};
-    let total=0,observable=0,owned=0,unobservedGapSeconds=0,largestGapSec=0,gapBreaks=0,segmentBreaks=0,segmentBoundarySeconds=0,stable=null,candidate=null,candidateSince=null,lastTime=null,lastFrameObservable=false,lastStableBall=null,transition=null,rejectedPassTransitions=0,lastContinuityKey=null;
+    let total=0,observable=0,owned=0,unobservedGapSeconds=0,largestGapSec=0,gapBreaks=0,segmentBreaks=0,segmentBoundarySeconds=0,stable=null,candidate=null,candidateSince=null,lastTime=null,lastFrameObservable=false,lastStableBall=null,transition=null,rejectedPassTransitions=0,rejectedTurnoverTransitions=0,lastContinuityKey=null;
     const possessionSec={},playerPossessionSec={},events=[];
     function resetOwnershipContinuity(){
       stable=null;
@@ -90,7 +91,13 @@
             events.push({type:'PASS',time:round(now),fromPlayerId:stable.playerId,toPlayerId:candidate.playerId,fromTeam:stable.team,toTeam:candidate.team,travelM:round(travelM),transitionSec:round(duration),meanBallSpeedMps:round(meanSpeedMps),detachedBallObserved:true,source:'validated_ball_flight_motion_and_ownership_transition'});
           }else rejectedPassTransitions+=1;
         }else{
-          events.push({type:'TURNOVER',time:round(now),fromPlayerId:stable.playerId,toPlayerId:candidate.playerId,fromTeam:stable.team,toTeam:candidate.team,source:'validated_ball_ownership_transition'});
+          const endBall=rowBall?{x:rowBall.x,y:rowBall.y}:null;
+          const travelM=transition&&transition.fromBall&&endBall?distance(transition.fromBall,endBall):0;
+          const duration=transition?now-transition.startedAt:Infinity;
+          const turnoverVerified=!!(transition&&transition.fromPlayerId===stable.playerId&&travelM>=cfg.minTurnoverTravelM&&duration<=cfg.maxTurnoverTransitionSec);
+          if(turnoverVerified){
+            events.push({type:'TURNOVER',time:round(now),fromPlayerId:stable.playerId,toPlayerId:candidate.playerId,fromTeam:stable.team,toTeam:candidate.team,travelM:round(travelM),transitionSec:round(duration),source:'validated_ball_motion_and_ownership_transition'});
+          }else rejectedTurnoverTransitions+=1;
         }
       }
       stable={...candidate,since:candidateSince};
@@ -159,15 +166,15 @@
     return {
       quality,reason,coverage:round(coverage,4),observableSeconds:round(observable),timelineSeconds:round(total),ownedSeconds:round(owned),
       unobservedGapSeconds:round(unobservedGapSeconds),largestGapSec:round(largestGapSec),gapBreaks,segmentBreaks,segmentBoundarySeconds:round(segmentBoundarySeconds),continuityBreaks:gapBreaks+segmentBreaks,
-      passes:quality==='FIABLE'?passCount:'INDISPONIBLE',turnovers:quality==='FIABLE'?turnoverCount:'INDISPONIBLE',rejectedPassTransitions:quality==='FIABLE'?rejectedPassTransitions:'INDISPONIBLE',
+      passes:quality==='FIABLE'?passCount:'INDISPONIBLE',turnovers:quality==='FIABLE'?turnoverCount:'INDISPONIBLE',rejectedPassTransitions:quality==='FIABLE'?rejectedPassTransitions:'INDISPONIBLE',rejectedTurnoverTransitions:quality==='FIABLE'?rejectedTurnoverTransitions:'INDISPONIBLE',
       possession:quality==='FIABLE'?teamPossession:'INDISPONIBLE',
       playerPossession:quality==='FIABLE'?Object.fromEntries(Object.entries(playerPossessionSec).map(([id,sec])=>[id,round(sec)])):'INDISPONIBLE',
       events:quality==='FIABLE'?events:[],
-      thresholds:{minBallConfidence:cfg.minBallConfidence,minStableOwnershipSec:cfg.minStableOwnershipSec,minCoverage:cfg.minCoverage,maxObservationGapSec:cfg.maxObservationGapSec,ownerRadiusM:cfg.ownerRadiusM,ambiguityMarginM:cfg.ambiguityMarginM,minPassTravelM:cfg.minPassTravelM,maxPassTransitionSec:cfg.maxPassTransitionSec,minPassMeanSpeedMps:cfg.minPassMeanSpeedMps},
+      thresholds:{minBallConfidence:cfg.minBallConfidence,minStableOwnershipSec:cfg.minStableOwnershipSec,minCoverage:cfg.minCoverage,maxObservationGapSec:cfg.maxObservationGapSec,ownerRadiusM:cfg.ownerRadiusM,ambiguityMarginM:cfg.ambiguityMarginM,minPassTravelM:cfg.minPassTravelM,maxPassTransitionSec:cfg.maxPassTransitionSec,minPassMeanSpeedMps:cfg.minPassMeanSpeedMps,minTurnoverTravelM:cfg.minTurnoverTravelM,maxTurnoverTransitionSec:cfg.maxTurnoverTransitionSec},
       coveragePolicy:'TOUTE_LA_DUREE_DE_LA_TIMELINE_RESTE_DANS_LE_DENOMINATEUR_MAIS_UN_INTERVALLE_N_EST_CREDITE_OBSERVABLE_QUE_SI_SES_DEUX_EXTREMITES_SONT_OBSERVABLES_LE_GAP_EST_ACCEPTABLE_ET_LE_PLAN_EST_IDENTIQUE',
       continuityPolicy:'UN_GAP_SUPERIEUR_A_MAX_OBSERVATION_GAP_SEC_OU_UN_CHANGEMENT_DE_SEGMENT_PLAN_CASSE_LA_CONTINUITE_DE_POSSESSION_ET_INTERDIT_TOUTE_PASSE_A_TRAVERS_LA_FRONTIERE',
       possessionPolicy:'TEMPS_CREDITE_SEULEMENT_SI_LE_MEME_PROPRIETAIRE_STABLE_EST_OBSERVE_AUX_DEUX_EXTREMITES_DANS_LE_MEME_PLAN',
-      rule:'UNE_PASSE_N_EST_PUBLIEE_QUE_SI_UN_VOL_DE_BALL_DETACHE_UN_DEPLACEMENT_METRIQUE_ET_UNE_VITESSE_MOYENNE_SUFFISANTE_RELient_DEUX_POSSESSIONS_STABLES_DU_MEME_CAMP_DANS_UNE_CONTINUITE_DE_PLAN'
+      rule:'UNE_PASSE_EXIGE_UN_VOL_DE_BALL_DETACHE_ET_UN_MOUVEMENT_METRIQUE_SUFFISANT;_UN_TURNOVER_EXIGE_AUSSI_UN_DEPLACEMENT_MINIMAL_DU_BALLON_ENTRE_DEUX_POSSESSIONS_STABLES_ADVERSES_DANS_UNE_CONTINUITE_DE_PLAN'
     };
   }
   return {normalizeBall,normalizePlayer,inferOwner,analyzeBallEvents};
