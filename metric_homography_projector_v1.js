@@ -91,9 +91,17 @@
     return Number.isFinite(e)?e:null;
   }
 
-  function combinations4(n,max=70){
+  function combinations4(n,max=512){
+    const all=[];
+    for(let a=0;a<n-3;a++)for(let b=a+1;b<n-2;b++)for(let c=b+1;c<n-1;c++)for(let d=c+1;d<n;d++)all.push([a,b,c,d]);
+    const limit=Number.isFinite(Number(max))?Math.max(1,Math.floor(Number(max))):512;
+    if(all.length<=limit)return all;
+    if(limit===1)return [all[Math.floor((all.length-1)/2)]];
     const out=[];
-    for(let a=0;a<n-3&&out.length<max;a++)for(let b=a+1;b<n-2&&out.length<max;b++)for(let c=b+1;c<n-1&&out.length<max;c++)for(let d=c+1;d<n&&out.length<max;d++)out.push([a,b,c,d]);
+    for(let i=0;i<limit;i++){
+      const idx=Math.round(i*(all.length-1)/(limit-1));
+      out.push(all[idx]);
+    }
     return out;
   }
 
@@ -112,7 +120,8 @@
     }
     const threshold=Number.isFinite(Number(options.consensusThresholdM))?Math.max(.25,Number(options.consensusThresholdM)):2;
     const minRatio=Number.isFinite(Number(options.minInlierRatio))?clamp(Number(options.minInlierRatio),.5,1):.7;
-    const subsets=combinations4(correspondences.length,Number.isFinite(Number(options.maxHypotheses))?Math.max(1,Math.floor(Number(options.maxHypotheses))):70);
+    const maxHypotheses=Number.isFinite(Number(options.maxHypotheses))?Math.max(1,Math.floor(Number(options.maxHypotheses))):512;
+    const subsets=combinations4(correspondences.length,maxHypotheses);
     let best=null;
     for(const idx of subsets){
       const fit=fitFour(idx.map(i=>correspondences[i]));if(!fit.ok)continue;
@@ -144,7 +153,8 @@
       refitAttempted,refitApplied,refitMethod:refitApplied?'ALL_INLIERS_LINEAR_LEAST_SQUARES':null,
       refitCandidateMeanInlierErrorM:refitSummary?+refitSummary.mean.toFixed(4):null,
       refitRejectedReason:refitAttempted&&!refitApplied?(refit.ok?'NO_MEAN_ERROR_IMPROVEMENT':(refit.reason||'REFIT_FAILED')):null,
-      rejectedIndices,hypothesesTested:subsets.length
+      rejectedIndices,hypothesesTested:subsets.length,
+      hypothesisStrategy:subsets.length<Math.max(0,correspondences.length*(correspondences.length-1)*(correspondences.length-2)*(correspondences.length-3)/24)?'DETERMINISTIC_EVEN_COVERAGE':'EXHAUSTIVE'
     };
   }
 
@@ -182,7 +192,7 @@
       validated,
       source:fit.method==='ROBUST_4_POINT_CONSENSUS'?'manual_multi_point_homography_cay_v2':'manual_4_point_homography_cay_v1',
       confidence:+confidence.toFixed(3),reason:validated?null:reason,project:validated?safeProject:null,
-      homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1,refitAttempted:!!fit.refitAttempted,refitApplied:!!fit.refitApplied,refitMethod:fit.refitMethod||null,refitRejectedReason:fit.refitRejectedReason||null,refitCandidateMeanInlierErrorM:fit.refitCandidateMeanInlierErrorM??null,meanInlierErrorM:fit.meanInlierErrorM??null,seedMeanInlierErrorM:fit.seedMeanInlierErrorM??null},
+      homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1,hypothesisStrategy:fit.hypothesisStrategy||'EXHAUSTIVE',refitAttempted:!!fit.refitAttempted,refitApplied:!!fit.refitApplied,refitMethod:fit.refitMethod||null,refitRejectedReason:fit.refitRejectedReason||null,refitCandidateMeanInlierErrorM:fit.refitCandidateMeanInlierErrorM??null,meanInlierErrorM:fit.meanInlierErrorM??null,seedMeanInlierErrorM:fit.seedMeanInlierErrorM??null},
       pitch:{lengthM:pitchLength,widthM:pitchWidth},
       provenance:{designReferences:['SoccerNet camera calibration','TVCalib','OpenCV findHomography RANSAC principle + inlier-only refinement'],codeCopied:false,licenseDependency:'none',openCvReferenceLicense:'Apache-2.0 (OpenCV >= 4.5.0)'}
     };
