@@ -35,7 +35,7 @@ ok(rows[1].eligibleSeconds===1&&rows[1].measuredSeconds===0&&rows[1].coverage===
 ok(rows[1].rejectionReasons.PROJECTION_NON_VALIDEE===1,'raison technique du rejet conservée');
 ok(rows[1].reason==='géométrie insuffisante','raison indisponibilité calibration conservée');
 ok(rows[2].quality==='INDISPONIBLE','une observation isolée ne fabrique pas une couverture métrique');
-ok(rows.every(r=>r.aggregationPolicy==='DISTANCE_VITESSE_SPRINTS_UNIQUEMENT_SUR_PAIRES_METRIQUES_VALIDES_ET_DEFENDABLES'),'politique anti-extrapolation explicite');
+ok(rows.every(r=>r.aggregationPolicy==='DISTANCE_VITESSE_SPRINTS_UNIQUEMENT_SUR_PAIRES_METRIQUES_VALIDES_CONTINUES_ET_DEFENDABLES'),'politique anti-extrapolation et anti-gap explicite');
 
 const partialState={archive:[],active:[{globalId:'CAY-7',fullPath:[
   {time:0,segment:4,x:.1,y:.2},

@@ -8,6 +8,7 @@
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
   const qualityFromCoverage=c=>c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE';
+  const MAX_METRIC_GAP_SEC=Number(PlayerStats?.MAX_METRIC_GAP_SEC)||1;
   function ensureDeps(){
     if(!PlayerStats||typeof PlayerStats.buildReport!=='function')throw new Error('CAYPlayerStats.buildReport requis');
     if(!ReplacementEvents||typeof ReplacementEvents.buildValidatedReplacementLayer!=='function'||typeof ReplacementEvents.applyToPlayerCard!=='function')throw new Error('CAYReplacementEvents requis');
@@ -69,8 +70,9 @@
         const reject=(reason,dt)=>{rejectedPairs++;rejectedSeconds+=dt;rejectionReasons[reason]=(rejectionReasons[reason]||0)+1;};
         for(let i=1;i<points.length;i++){
           const a=points[i-1],b=points[i],dt=b.time-a.time;
-          if(!(dt>0&&dt<=3))continue;
+          if(!(dt>0))continue;
           eligibleSeconds+=dt;
+          if(dt>MAX_METRIC_GAP_SEC){reject('GAP_TEMPOREL_NON_OBSERVE',dt);continue;}
           if(!info.validated){reject('PROJECTION_NON_VALIDEE',dt);continue;}
           let pa=null,pb=null;
           try{pa=info.project(a);pb=info.project(b);}catch(e){reject('ERREUR_PROJECTION',dt);continue;}
@@ -94,7 +96,8 @@
           distanceM:measuredSeconds>0?+distanceM.toFixed(2):null,metricProjectionValidated:info.validated===true,
           calibrationSource:info.source||null,calibrationConfidence:Number.isFinite(info.confidence)?info.confidence:null,reason,
           quality:eligibleSeconds<=0?'INDISPONIBLE':(coverage>=.8?'FIABLE':(coverage>0?'PARTIEL':'INDISPONIBLE')),
-          aggregationPolicy:'DISTANCE_VITESSE_SPRINTS_UNIQUEMENT_SUR_PAIRES_METRIQUES_VALIDES_ET_DEFENDABLES'
+          maxMetricGapSec:MAX_METRIC_GAP_SEC,
+          aggregationPolicy:'DISTANCE_VITESSE_SPRINTS_UNIQUEMENT_SUR_PAIRES_METRIQUES_VALIDES_CONTINUES_ET_DEFENDABLES'
         };
       });
       byId.set(tr.globalId,rows);
@@ -170,5 +173,5 @@
       unavailable
     };
   }
-  return {buildReport,buildSegmentVisuals,buildMetricSegmentProvenance,summarizeMetricEvidence,segmentHeatmap};
+  return {buildReport,buildSegmentVisuals,buildMetricSegmentProvenance,summarizeMetricEvidence,segmentHeatmap,MAX_METRIC_GAP_SEC};
 });
