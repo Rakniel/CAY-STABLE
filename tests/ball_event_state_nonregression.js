@@ -137,4 +137,24 @@ function sample(time,ballX,ownerVisible=true){
   assert.deepEqual(r.events,[]);
 }
 
+// Une coupe caméra doit casser la continuité même si les timestamps sont proches.
+// Sans ce garde, un ballon vu près de cay-9 avant la coupe puis près de cay-10
+// après la coupe pouvait former une passe artificielle entre deux plans distincts.
+{
+  const withSegment=(time,ballX,segment)=>({...sample(time,ballX),segment});
+  const samples=[
+    withSegment(0,10.2,0),withSegment(.2,10.2,0),withSegment(.4,10.2,0),withSegment(.6,10.2,0),
+    withSegment(.8,14,0),withSegment(1.0,16,0),
+    withSegment(1.2,20.2,1),withSegment(1.4,20.2,1),withSegment(1.6,20.1,1),withSegment(1.8,20.1,1)
+  ];
+  const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.4,maxObservationGapSec:.75});
+  assert.equal(r.segmentBreaks,1);
+  assert.equal(r.continuityBreaks,1);
+  assert.equal(r.segmentBoundarySeconds,.2);
+  assert.equal(r.passes,0);
+  assert.equal(r.turnovers,0);
+  assert.deepEqual(r.events,[]);
+  assert(r.coverage<1);
+}
+
 console.log('ball event state non-regression: PASS');
