@@ -14,7 +14,7 @@ const cutMetric=stats.metricForTrack(acrossCut,{1:projector,2:projector});
 ok(cutMetric.sprintCount===2,'un sprint après cut caméra doit être compté comme un nouvel épisode');
 ok(cutMetric.metricCoveredSeconds===2,'aucune durée inter-segment ajoutée aux métriques');
 ok(cutMetric.distanceM===16,'distance agrégée uniquement dans chaque segment métrique');
-ok(cutMetric.sprintContinuityPolicy==='COMPTE_APRES_1S_CONTINUE_GE_25_KMH_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL','politique de continuité sprint exposée');
+ok(cutMetric.sprintContinuityPolicy==='COMPTE_APRES_1S_CONTINUE_GE_25_KMH_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_SUPERIEUR_A_1S_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL','politique de continuité sprint exposée');
 
 const afterGap={fullPath:[
   {time:0,segment:3,x:.10,y:.2},
@@ -24,7 +24,8 @@ const afterGap={fullPath:[
 ]};
 const gapMetric=stats.metricForTrack(afterGap,{3:projector});
 ok(gapMetric.sprintCount===2,'un long trou temporel casse la continuité du sprint');
-ok(gapMetric.metricCoveredSeconds===2,'le trou >3s reste hors couverture métrique');
+ok(gapMetric.metricCoveredSeconds===2,'le trou >1s reste hors métriques créditées');
+ok(gapMetric.rejectedGapSeconds===6,'la durée non observée reste explicitement auditée');
 
 const rejectingProjector={validated:true,source:'test_partial',confidence:1,project:p=>p.time===2?null:{x:p.x*100,y:p.y*60}};
 const rejectedPair={fullPath:[
@@ -48,4 +49,4 @@ const continuous={fullPath:[
 const continuousMetric=stats.metricForTrack(continuous,{5:projector});
 ok(continuousMetric.sprintCount===1,'un sprint continu dans le même segment n’est pas surcompté');
 ok(continuousMetric.metricCoverage===1,'segment entièrement métrique conserve couverture complète');
-console.log(`PASS ${pass}/12 sprint continuity`);
+console.log(`PASS ${pass}/13 sprint continuity`);
