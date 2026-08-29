@@ -58,7 +58,23 @@ const cutGap=Heat.build({fullPath:[
 ]},{1:projector(1)},{maxDwellGapSec:1});
 assert.equal(cutGap.heatmapBasis,'OBSERVATIONS');
 assert.equal(cutGap.projectedIntervalSeconds,0);
-assert.equal(cutGap.temporalCoverage,null);
+assert.equal(cutGap.eligibleIntervalSeconds,5);
+assert.equal(cutGap.temporalCoverage,0);
+assert.equal(cutGap.unobservedGapSeconds,5);
+assert.equal(cutGap.gapBreaks,1);
+
+const mixedGap=Heat.build({fullPath:[
+  {time:0,segment:1,x:.1,y:.1},
+  {time:.5,segment:1,x:.2,y:.2},
+  {time:3,segment:1,x:.7,y:.7},
+  {time:3.5,segment:1,x:.8,y:.8}
+]},{1:projector(1)},{maxDwellGapSec:1});
+assert.equal(mixedGap.projectedIntervalSeconds,1);
+assert.equal(mixedGap.eligibleIntervalSeconds,3.5);
+assert.equal(mixedGap.unobservedGapSeconds,2.5);
+assert.equal(mixedGap.gapBreaks,1);
+assert.equal(mixedGap.temporalCoverage,.2857);
+assert(mixedGap.temporalCoverage<1,'a long tracking gap must reduce temporal coverage instead of disappearing from its denominator');
 
 const segmentCut=Heat.build({fullPath:[
   {time:0,segment:1,x:.1,y:.1},
