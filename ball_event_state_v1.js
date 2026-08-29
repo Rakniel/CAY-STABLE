@@ -56,7 +56,7 @@
     const cfg={
       minBallConfidence:.65,minPlayerConfidence:.45,ownerRadiusM:2.2,ambiguityMarginM:.65,
       minStableOwnershipSec:.30,minCoverage:.55,maxObservationGapSec:.75,
-      minPassTravelM:3,maxPassTransitionSec:3,minPassMeanSpeedMps:2.5,minPassDetachedObservations:2,
+      minPassTravelM:3,maxPassTransitionSec:3,minPassMeanSpeedMps:2.5,minPassDetachedObservations:2,minPassDetachedSpanSec:.03,
       minTurnoverTravelM:.75,maxTurnoverTransitionSec:1.5,...(options||{})
     };
     const rows=(samples||[]).filter(s=>finite(s&&s.time)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
@@ -73,11 +73,15 @@
     function beginTransition(now,ball,detached){
       if(!stable)return;
       if(!transition||transition.fromPlayerId!==stable.playerId){
-        transition={fromPlayerId:stable.playerId,fromTeam:stable.team,startedAt:now,fromBall:lastStableBall?{...lastStableBall}:null,detachedObserved:false,detachedObservations:0,observations:0};
+        transition={fromPlayerId:stable.playerId,fromTeam:stable.team,startedAt:now,fromBall:lastStableBall?{...lastStableBall}:null,detachedObserved:false,detachedObservations:0,firstDetachedAt:null,lastDetachedAt:null,observations:0};
       }
       if(detached){
         transition.detachedObserved=true;
-        if(ball)transition.detachedObservations+=1;
+        if(ball&&(transition.lastDetachedAt===null||now-transition.lastDetachedAt>1e-6)){
+          transition.detachedObservations+=1;
+          if(transition.firstDetachedAt===null)transition.firstDetachedAt=now;
+          transition.lastDetachedAt=now;
+        }
       }
       if(ball){transition.lastBall={x:ball.x,y:ball.y};transition.observations+=1;}
     }
@@ -90,9 +94,10 @@
           const duration=transition?now-transition.startedAt:Infinity;
           const meanSpeedMps=duration>0&&Number.isFinite(duration)?travelM/duration:0;
           const detachedObservations=transition?transition.detachedObservations||0:0;
-          const passVerified=!!(transition&&transition.fromPlayerId===stable.playerId&&transition.detachedObserved&&detachedObservations>=cfg.minPassDetachedObservations&&travelM>=cfg.minPassTravelM&&duration<=cfg.maxPassTransitionSec&&meanSpeedMps>=cfg.minPassMeanSpeedMps);
+          const detachedSpanSec=transition&&transition.firstDetachedAt!==null&&transition.lastDetachedAt!==null?Math.max(0,transition.lastDetachedAt-transition.firstDetachedAt):0;
+          const passVerified=!!(transition&&transition.fromPlayerId===stable.playerId&&transition.detachedObserved&&detachedObservations>=cfg.minPassDetachedObservations&&detachedSpanSec>=cfg.minPassDetachedSpanSec&&travelM>=cfg.minPassTravelM&&duration<=cfg.maxPassTransitionSec&&meanSpeedMps>=cfg.minPassMeanSpeedMps);
           if(passVerified){
-            events.push({type:'PASS',time:round(now),fromPlayerId:stable.playerId,toPlayerId:candidate.playerId,fromTeam:stable.team,toTeam:candidate.team,travelM:round(travelM),transitionSec:round(duration),meanBallSpeedMps:round(meanSpeedMps),detachedBallObserved:true,detachedBallObservations:detachedObservations,source:'validated_ball_flight_motion_and_ownership_transition'});
+            events.push({type:'PASS',time:round(now),fromPlayerId:stable.playerId,toPlayerId:candidate.playerId,fromTeam:stable.team,toTeam:candidate.team,travelM:round(travelM),transitionSec:round(duration),meanBallSpeedMps:round(meanSpeedMps),detachedBallObserved:true,detachedBallObservations:detachedObservations,detachedBallSpanSec:round(detachedSpanSec),source:'validated_ball_flight_motion_and_ownership_transition'});
           }else rejectedPassTransitions+=1;
         }else{
           const endBall=rowBall?{x:rowBall.x,y:rowBall.y}:null;
@@ -176,11 +181,11 @@
       possession:quality==='FIABLE'?teamPossession:'INDISPONIBLE',
       playerPossession:quality==='FIABLE'?Object.fromEntries(Object.entries(playerPossessionSec).map(([id,sec])=>[id,round(sec)])):'INDISPONIBLE',
       events:quality==='FIABLE'?events:[],
-      thresholds:{minBallConfidence:cfg.minBallConfidence,minStableOwnershipSec:cfg.minStableOwnershipSec,minCoverage:cfg.minCoverage,maxObservationGapSec:cfg.maxObservationGapSec,ownerRadiusM:cfg.ownerRadiusM,ambiguityMarginM:cfg.ambiguityMarginM,minPassTravelM:cfg.minPassTravelM,maxPassTransitionSec:cfg.maxPassTransitionSec,minPassMeanSpeedMps:cfg.minPassMeanSpeedMps,minPassDetachedObservations:cfg.minPassDetachedObservations,minTurnoverTravelM:cfg.minTurnoverTravelM,maxTurnoverTransitionSec:cfg.maxTurnoverTransitionSec},
+      thresholds:{minBallConfidence:cfg.minBallConfidence,minStableOwnershipSec:cfg.minStableOwnershipSec,minCoverage:cfg.minCoverage,maxObservationGapSec:cfg.maxObservationGapSec,ownerRadiusM:cfg.ownerRadiusM,ambiguityMarginM:cfg.ambiguityMarginM,minPassTravelM:cfg.minPassTravelM,maxPassTransitionSec:cfg.maxPassTransitionSec,minPassMeanSpeedMps:cfg.minPassMeanSpeedMps,minPassDetachedObservations:cfg.minPassDetachedObservations,minPassDetachedSpanSec:cfg.minPassDetachedSpanSec,minTurnoverTravelM:cfg.minTurnoverTravelM,maxTurnoverTransitionSec:cfg.maxTurnoverTransitionSec},
       coveragePolicy:'TOUTE_LA_DUREE_DE_LA_TIMELINE_RESTE_DANS_LE_DENOMINATEUR_MAIS_UN_INTERVALLE_N_EST_CREDITE_OBSERVABLE_QUE_SI_SES_DEUX_EXTREMITES_SONT_OBSERVABLES_LE_GAP_EST_ACCEPTABLE_ET_LE_PLAN_EST_IDENTIQUE',
       continuityPolicy:'UN_GAP_SUPERIEUR_A_MAX_OBSERVATION_GAP_SEC_UN_CHANGEMENT_DE_SEGMENT_PLAN_OU_LA_PERTE_APPARITION_DE_METADONNEE_DE_PLAN_CASSE_LA_CONTINUITE_DE_POSSESSION_ET_INTERDIT_TOUTE_PASSE_A_TRAVERS_LA_FRONTIERE',
       possessionPolicy:'TEMPS_CREDITE_SEULEMENT_SI_LE_MEME_PROPRIETAIRE_STABLE_EST_OBSERVE_AUX_DEUX_EXTREMITES_DANS_LE_MEME_PLAN',
-      rule:'UNE_PASSE_EXIGE_PLUSIEURS_OBSERVATIONS_DE_BALLON_DETACHE_UN_VOL_DE_BALL_ET_UN_MOUVEMENT_METRIQUE_SUFFISANT;_UN_TURNOVER_EXIGE_AUSSI_UN_DEPLACEMENT_MINIMAL_DU_BALLON_ENTRE_DEUX_POSSESSIONS_STABLES_ADVERSES_DANS_UNE_CONTINUITE_DE_PLAN'
+      rule:'UNE_PASSE_EXIGE_PLUSIEURS_OBSERVATIONS_DE_BALLON_DETACHE_A_DES_INSTANTS_DISTINCTS_SUR_UNE_DUREE_MINIMALE_UN_VOL_DE_BALL_ET_UN_MOUVEMENT_METRIQUE_SUFFISANT;_UN_TURNOVER_EXIGE_AUSSI_UN_DEPLACEMENT_MINIMAL_DU_BALLON_ENTRE_DEUX_POSSESSIONS_STABLES_ADVERSES_DANS_UNE_CONTINUITE_DE_PLAN'
     };
   }
   return {normalizeBall,normalizePlayer,inferOwner,analyzeBallEvents};
