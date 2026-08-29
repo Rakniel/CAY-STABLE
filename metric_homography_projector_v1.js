@@ -35,6 +35,35 @@
     return Math.abs(s)/2;
   }
 
+  function convexHull(points){
+    const sorted=points.map(p=>({x:Number(p.x),y:Number(p.y)})).sort((a,b)=>a.x-b.x||a.y-b.y);
+    const unique=[];
+    for(const p of sorted){
+      const last=unique[unique.length-1];
+      if(!last||Math.abs(last.x-p.x)>EPS||Math.abs(last.y-p.y)>EPS)unique.push(p);
+    }
+    if(unique.length<=2)return unique;
+    const cross=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
+    const lower=[];
+    for(const p of unique){
+      while(lower.length>=2&&cross(lower[lower.length-2],lower[lower.length-1],p)<=EPS)lower.pop();
+      lower.push(p);
+    }
+    const upper=[];
+    for(let i=unique.length-1;i>=0;i--){
+      const p=unique[i];
+      while(upper.length>=2&&cross(upper[upper.length-2],upper[upper.length-1],p)<=EPS)upper.pop();
+      upper.push(p);
+    }
+    lower.pop();upper.pop();
+    return lower.concat(upper);
+  }
+
+  function orderInvariantArea(points){
+    const hull=convexHull(points);
+    return hull.length>=3?polygonArea(hull):0;
+  }
+
   function designRows(correspondences){
     const rows=[],rhs=[];
     for(const c of correspondences){
@@ -50,8 +79,8 @@
     if(!Array.isArray(correspondences)||correspondences.length!==4)return {ok:false,reason:'4 correspondances image-terrain requises pour un ajustement minimal'};
     const design=designRows(correspondences);
     if(!design)return {ok:false,reason:'correspondance invalide'};
-    const imageArea=polygonArea(correspondences.map(c=>c.image));
-    const pitchArea=polygonArea(correspondences.map(c=>c.pitch));
+    const imageArea=orderInvariantArea(correspondences.map(c=>c.image));
+    const pitchArea=orderInvariantArea(correspondences.map(c=>c.pitch));
     if(imageArea<1e-4||pitchArea<1)return {ok:false,reason:'géométrie dégénérée ou points trop alignés'};
     const h=solveLinear(design.rows,design.rhs);
     if(!h||!h.every(Number.isFinite))return {ok:false,reason:'homographie non résoluble'};
@@ -194,9 +223,9 @@
       confidence:+confidence.toFixed(3),reason:validated?null:reason,project:validated?safeProject:null,
       homography:fit.H.slice(),validation,fit:{method:fit.method,inlierCount:fit.inlierCount,totalCount:fit.totalCount,inlierRatio:fit.inlierRatio,rejectedIndices:fit.rejectedIndices||[],consensusThresholdM:fit.consensusThresholdM||null,hypothesesTested:fit.hypothesesTested||1,hypothesisStrategy:fit.hypothesisStrategy||'EXHAUSTIVE',refitAttempted:!!fit.refitAttempted,refitApplied:!!fit.refitApplied,refitMethod:fit.refitMethod||null,refitRejectedReason:fit.refitRejectedReason||null,refitCandidateMeanInlierErrorM:fit.refitCandidateMeanInlierErrorM??null,meanInlierErrorM:fit.meanInlierErrorM??null,seedMeanInlierErrorM:fit.seedMeanInlierErrorM??null},
       pitch:{lengthM:pitchLength,widthM:pitchWidth},
-      provenance:{designReferences:['SoccerNet camera calibration','TVCalib','OpenCV findHomography RANSAC principle + inlier-only refinement'],codeCopied:false,licenseDependency:'none',openCvReferenceLicense:'Apache-2.0 (OpenCV >= 4.5.0)'}
+      provenance:{designReferences:['SoccerNet camera calibration','TVCalib','OpenCV findHomography RANSAC principle + inlier-only refinement','OpenCV convex hull geometry principle for order-invariant degeneracy checks'],codeCopied:false,licenseDependency:'none',openCvReferenceLicense:'Apache-2.0 (OpenCV >= 4.5.0)'}
     };
   }
 
-  return {buildHomography,project,reprojectionError,createProjector,solveLinear,combinations4,fitLeastSquares};
+  return {buildHomography,project,reprojectionError,createProjector,solveLinear,combinations4,fitLeastSquares,convexHull,orderInvariantArea};
 });
