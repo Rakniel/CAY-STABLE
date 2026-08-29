@@ -26,6 +26,61 @@
     const {_cayCascadeKey,...clean}=item;
     return clean;
   }
+  function featureDistance(a,b){
+    if(!Array.isArray(a)||!Array.isArray(b)||!a.length||a.length!==b.length)return .45;
+    let sum=0;
+    for(let i=0;i<a.length;i++){
+      const delta=(Number(a[i])||0)-(Number(b[i])||0);
+      sum+=delta*delta;
+    }
+    return Math.min(1.2,Math.sqrt(sum/a.length));
+  }
+  function predictedPoint(track,time){
+    const history=Array.isArray(track&&track.motionHistory)?track.motionHistory:[];
+    const last=history[history.length-1]||{x:Number(track&&track.x)||0,y:Number(track&&track.y)||0,time:Number(time)||0};
+    if(history.length<2)return {x:last.x,y:last.y};
+    const prev=history[history.length-2],dt=Math.max(.1,Number(last.time)-Number(prev.time));
+    const horizon=Math.max(0,Number(time)-Number(last.time));
+    return {x:Number(last.x)+(Number(last.x)-Number(prev.x))/dt*horizon,y:Number(last.y)+(Number(last.y)-Number(prev.y))/dt*horizon};
+  }
+  function associationPreselectionCost(track,detection,time){
+    const p=predictedPoint(track,time);
+    const dx=(Number(p.x)||0)-(Number(detection&&detection.x)||0),dy=(Number(p.y)||0)-(Number(detection&&detection.y)||0);
+    const spatial=Math.hypot(dx,dy);
+    const appearance=featureDistance(track&&track.feature,detection&&detection.feature);
+    const trackCat=(track&&track.cat)||'team',detCat=(detection&&detection.cat)||'team';
+    const categoryPenalty=trackCat===detCat?0:((trackCat==='goalkeeper'||detCat==='goalkeeper')?.55:.16);
+    return spatial*2.65+appearance*.60+categoryPenalty;
+  }
+  function preselectAssociationCandidates(state,detections,time,maxPlayers,opts){
+    const items=[...(detections||[])];
+    if(items.length<=maxPlayers)return items;
+    const active=(state&&Array.isArray(state.active)?state.active:[]).filter(tr=>tr&&!tr.archived);
+    if(!active.length)return items.slice(0,maxPlayers);
+    const threshold=Number.isFinite(Number(opts&&opts.associationPreselectionThreshold))?Math.max(.1,Number(opts.associationPreselectionThreshold)):.72;
+    const remaining=new Set(items.map((_,index)=>index)),selected=[];
+    const trackOrder=[...active].sort((a,b)=>(Number(a.missed)||0)-(Number(b.missed)||0)||(Number(b.seen)||0)-(Number(a.seen)||0));
+    for(const tr of trackOrder){
+      if(selected.length>=maxPlayers)break;
+      let bestIndex=-1,bestCost=Infinity;
+      for(const index of remaining){
+        const cost=associationPreselectionCost(tr,items[index],time);
+        if(cost<bestCost){bestCost=cost;bestIndex=index;}
+      }
+      if(bestIndex>=0&&bestCost<=threshold){
+        selected.push(items[bestIndex]);
+        remaining.delete(bestIndex);
+      }
+    }
+    if(selected.length<maxPlayers){
+      const fill=[...remaining].map(index=>items[index]).sort((a,b)=>{
+        if(a.cat!==b.cat)return a.cat==='goalkeeper'?-1:1;
+        return (Number(b.score)||0)-(Number(a.score)||0);
+      });
+      selected.push(...fill.slice(0,maxPlayers-selected.length));
+    }
+    return selected.slice(0,maxPlayers);
+  }
   function confirmationThreshold(opts){
     const raw=Number(opts&&opts.minimumConsecutiveFrames);
     return Math.max(1,Math.min(5,Number.isFinite(raw)?Math.round(raw):2));
@@ -69,8 +124,9 @@
     const split=Cascade.splitDetections(detections,opts);
     const high=split.high.map((d,i)=>marker(d,i,'H'));
     const low=split.low.map((d,i)=>marker(d,i,'L'));
+    const highAssociation=preselectAssociationCandidates(state,high,time,maxPlayers,opts);
     const missedBeforeHigh=new Map((state.active||[]).map(tr=>[tr.globalId,Number(tr.missed)||0]));
-    const highAssigned=coreAssign(state,high,time,{...opts,maxPlayers,allowNew:false,reidentifyArchived:false,lostAfter:999999});
+    const highAssigned=coreAssign(state,highAssociation,time,{...opts,maxPlayers,allowNew:false,reidentifyArchived:false,lostAfter:999999});
     const highIds=new Set(highAssigned.map(a=>a.trackId));
     const usedHighKeys=new Set(highAssigned.map(a=>a._cayCascadeKey).filter(Boolean));
     const protectedTracks=state.active.filter(tr=>highIds.has(tr.globalId));
@@ -80,7 +136,8 @@
     state.active=recoveryTracks;
     let lowAssigned=[];
     if(recoverySlots>0&&low.length){
-      lowAssigned=coreAssign(state,low,time,{
+      const lowAssociation=preselectAssociationCandidates(state,low,time,recoverySlots,opts);
+      lowAssigned=coreAssign(state,lowAssociation,time,{
         ...opts,maxPlayers:recoverySlots,allowNew:false,reidentifyArchived:false,lostAfter:999999,
         baseThreshold:Cascade.recoveryThreshold(Number.isFinite(Number(opts.baseThreshold))?Number(opts.baseThreshold):.50,opts)
       });
@@ -110,8 +167,9 @@
     state.maxVisible=Math.max(state.maxVisible||0,assigned.length);
     state.byteTrackLowScoreRecoveries=(state.byteTrackLowScoreRecoveries||0)+lowAssigned.length;
     state.byteTrackWeakDiscarded=(state.byteTrackWeakDiscarded||0)+(split.discarded||[]).length;
+    state.byteTrackPreselectionOverflow=(state.byteTrackPreselectionOverflow||0)+Math.max(0,high.length-maxPlayers);
     if(assigned.length>maxPlayers)throw new Error('invariant violé: capacité CAY simultanée dépassée');
     return {assigned,split,highAssigned:highAssigned.map(stripMarker),lowAssigned:lowAssigned.map(stripMarker),newAssigned:newAssigned.map(stripMarker),confirmation:{minimumConsecutiveFrames:confirmation.minFrames,tentativeSuppressed:confirmation.suppressed}};
   }
-  return {assignFrame,uniqueByTrackId,confirmationThreshold};
+  return {assignFrame,uniqueByTrackId,confirmationThreshold,preselectAssociationCandidates};
 });
