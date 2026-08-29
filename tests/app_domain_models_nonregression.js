@@ -43,6 +43,15 @@ ok(user.auth.status==='BACKEND_REQUIRED','auth remains backend-dependent');
 let secretBlocked=false;
 try{app.createUser({displayName:'Coach',password:'plaintext'});}catch(e){secretBlocked=/SECRET_FIELD_FORBIDDEN/.test(e.message);}
 ok(secretBlocked,'plaintext password field rejected');
+let nestedSecretBlocked=false;
+try{app.createUser({displayName:'Coach',auth:{credentials:{refresh_token:'plaintext'}}});}catch(e){nestedSecretBlocked=e.message==='SECRET_FIELD_FORBIDDEN:auth.credentials.refresh_token';}
+ok(nestedSecretBlocked,'nested normalized secret field rejected with auditable path');
+let arraySecretBlocked=false;
+try{app.createUser({displayName:'Coach',providers:[{name:'future',accessToken:'plaintext'}]});}catch(e){arraySecretBlocked=e.message==='SECRET_FIELD_FORBIDDEN:providers[0].accessToken';}
+ok(arraySecretBlocked,'secret hidden inside arrays rejected');
+const cyclic={displayName:'Coach'}; cyclic.self=cyclic;
+const cyclicUser=app.createUser(cyclic);
+ok(cyclicUser.auth.status==='BACKEND_REQUIRED','cyclic metadata does not break secret scan');
 let badPosition=false;
 try{app.createPlayer({id:'bad',primaryPosition:'TREE'});}catch(e){badPosition=e.message==='INVALID_PRIMARY_POSITION';}
 ok(badPosition,'invalid position rejected');
