@@ -21,7 +21,8 @@
   function projectorInfo(entry){
     if(Stats&&typeof Stats.projectorInfo==='function'){
       const info=Stats.projectorInfo(entry);
-      return {...info,confidence:finite(info?.confidence)?clamp(Number(info.confidence),0,1):(info?.validated?1:0)};
+      const explicitConfidence=finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):null;
+      return {...info,confidence:explicitConfidence!==null?explicitConfidence:(info?.validated?1:0)};
     }
     const validated=!!entry&&entry.validated===true&&typeof entry.project==='function';
     return {validated,project:validated?entry.project:null,confidence:validated?(finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):1):0};
