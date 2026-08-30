@@ -40,6 +40,31 @@ const outside=Heat.build({fullPath:[{time:0,segment:1,x:.5,y:.5}]},{1:{validated
 assert.equal(outside.status,'INDISPONIBLE');
 assert.equal(outside.rejectedObservations,1);
 
+const missingInput=Heat.build({fullPath:[
+  {time:0,segment:1,x:null,y:.2},
+  {time:1,segment:1,x:'',y:.2},
+  {time:2,segment:1,x:'   ',y:.2},
+  {time:3,segment:1,x:.2,y:null},
+  {time:4,segment:'',x:.2,y:.2}
+]},{1:projector(1)},{});
+assert.equal(missingInput.status,'INDISPONIBLE');
+assert.equal(missingInput.eligibleObservations,0);
+assert.equal(missingInput.observations,0);
+assert.equal(missingInput.metricCoverage,0);
+assert.equal(missingInput.reason,'aucune position joueur exploitable');
+
+const missingProjected=Heat.build({fullPath:[
+  {time:0,segment:1,x:.2,y:.2},
+  {time:1,segment:1,x:.3,y:.3},
+  {time:2,segment:1,x:.4,y:.4}
+]},{1:{validated:true,project:p=>p.time===0?{x:null,y:10}:p.time===1?{x:'',y:10}:{x:'   ',y:10}}},{});
+assert.equal(missingProjected.status,'INDISPONIBLE');
+assert.equal(missingProjected.eligibleObservations,3);
+assert.equal(missingProjected.observations,0);
+assert.equal(missingProjected.rejectedObservations,3);
+assert.equal(missingProjected.metricCoverage,0);
+assert.equal(missingProjected.reason,'aucune position projetée sur un terrain calibré');
+
 const irregular=Heat.build({fullPath:[
   {time:0,segment:1,x:.05,y:.05},
   {time:.1,segment:1,x:.05,y:.05},
