@@ -8,6 +8,7 @@
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
   const qualityFromCoverage=c=>c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE';
+  const presentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const MAX_METRIC_GAP_SEC=Number(PlayerStats?.MAX_METRIC_GAP_SEC)||1;
   function ensureDeps(){
     if(!PlayerStats||typeof PlayerStats.buildReport!=='function')throw new Error('CAYPlayerStats.buildReport requis');
@@ -16,7 +17,7 @@
   function segmentHeatmap(points,cols=6,rows=4){
     const cells=Array.from({length:rows},()=>Array(cols).fill(0));
     for(const p of points||[]){
-      if(!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))continue;
+      if(!presentFinite(p?.x)||!presentFinite(p?.y))continue;
       const x=clamp(Number(p.x),0,.999999),y=clamp(Number(p.y),0,.999999);
       cells[Math.floor(y*rows)][Math.floor(x*cols)]++;
     }
@@ -28,9 +29,8 @@
     for(const tr of [...(coreState?.archive||[]),...(coreState?.active||[])]){
       const segments=new Map();
       for(const p of tr.fullPath||[]){
+        if(!presentFinite(p?.segment)||!presentFinite(p?.time)||!presentFinite(p?.x)||!presentFinite(p?.y))continue;
         const segment=Number(p.segment);
-        if(!Number.isFinite(segment)||!Number.isFinite(Number(p.time)))continue;
-        if(!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))continue;
         if(!segments.has(segment))segments.set(segment,[]);
         segments.get(segment).push({time:Number(p.time),segment,x:clamp(Number(p.x),0,1),y:clamp(Number(p.y),0,1)});
       }
@@ -57,8 +57,8 @@
     for(const tr of [...(coreState?.archive||[]),...(coreState?.active||[])]){
       const grouped=new Map();
       for(const p of tr.fullPath||[]){
+        if(!presentFinite(p?.segment)||!presentFinite(p?.time)||!presentFinite(p?.x)||!presentFinite(p?.y))continue;
         const segment=Number(p.segment),time=Number(p.time);
-        if(!Number.isFinite(segment)||!Number.isFinite(time))continue;
         if(!grouped.has(segment))grouped.set(segment,[]);
         grouped.get(segment).push({time,x:Number(p.x),y:Number(p.y),segment});
       }
