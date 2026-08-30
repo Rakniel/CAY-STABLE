@@ -29,6 +29,34 @@
     const cy=Math.min(rows-1,Math.floor(clamp(y/pitchWidthM,0,.999999)*rows));
     return {x,y,cx,cy,confidence:info.confidence};
   }
+  function accumulateLinearDwell(grid,a,b,dt,pitchLengthM,pitchWidthM,cols,rows){
+    if(!(dt>0)||!a||!b)return 0;
+    const ts=[0,1],dx=b.x-a.x,dy=b.y-a.y;
+    if(Math.abs(dx)>1e-12){
+      for(let i=1;i<cols;i++){
+        const t=(pitchLengthM*i/cols-a.x)/dx;
+        if(t>0&&t<1)ts.push(t);
+      }
+    }
+    if(Math.abs(dy)>1e-12){
+      for(let i=1;i<rows;i++){
+        const t=(pitchWidthM*i/rows-a.y)/dy;
+        if(t>0&&t<1)ts.push(t);
+      }
+    }
+    ts.sort((x,y)=>x-y);
+    const cuts=[];
+    for(const t of ts){if(!cuts.length||Math.abs(t-cuts[cuts.length-1])>1e-10)cuts.push(t);}
+    let allocated=0;
+    for(let i=0;i+1<cuts.length;i++){
+      const t0=cuts[i],t1=cuts[i+1],span=t1-t0;if(!(span>0))continue;
+      const tm=(t0+t1)/2,x=a.x+dx*tm,y=a.y+dy*tm;
+      const cx=Math.min(cols-1,Math.floor(clamp(x/pitchLengthM,0,.999999)*cols));
+      const cy=Math.min(rows-1,Math.floor(clamp(y/pitchWidthM,0,.999999)*rows));
+      const seconds=dt*span;grid[cy][cx]+=seconds;allocated+=seconds;
+    }
+    return allocated;
+  }
   function buildTrajectory(prepared,eligible,projected,confidenceSum,maxGapSec){
     const runs=[];let current=[];
     const flush=()=>{if(current.length)runs.push(current);current=[];};
@@ -91,7 +119,9 @@
       const dt=tb-ta;eligibleIntervalSeconds+=dt;
       if(maxDwellGapSec>0&&dt>maxDwellGapSec){unobservedGapSeconds+=dt;gapBreaks++;continue;}
       if(!a.projected||!b.projected)continue;
-      timeCells[a.projected.cy][a.projected.cx]+=dt;projectedIntervalSeconds+=dt;
+      const allocated=accumulateLinearDwell(timeCells,a.projected,b.projected,dt,pitchLengthM,pitchWidthM,cols,rows);
+      if(Math.abs(allocated-dt)>1e-7)continue;
+      projectedIntervalSeconds+=dt;
     }
     const coverage=eligible>0?projected/eligible:0,avgCalibrationConfidence=projected>0?confidenceSum/projected:0,defendableScore=coverage*avgCalibrationConfidence;
     const coverageOk=coverage>=clamp(Number(opts.minMetricCoverage)||0,0,1),confidenceOk=avgCalibrationConfidence>=minCalibrationConfidence,available=projected>0&&coverageOk&&confidenceOk;
@@ -102,13 +132,13 @@
     return {
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
-      heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,metricCoverage:+coverage.toFixed(4),
+      heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',timeAllocation:useTimeWeighting?'LINEAR_PITCH_SEGMENT':'NONE',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,metricCoverage:+coverage.toFixed(4),
       eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,maxDwellGapSec,
       unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,
       avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
       quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
-      temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; PONDERATION_SEULEMENT_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
+      temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
-  return {build,buildTrajectory,projectorInfo,qualityFromEvidenceScore};
+  return {build,buildTrajectory,projectorInfo,qualityFromEvidenceScore,accumulateLinearDwell};
 });
