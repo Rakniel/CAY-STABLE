@@ -26,6 +26,7 @@
   });
 
   const present=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='');
+  const finitePresent=v=>present(v)&&Number.isFinite(Number(v));
   const validStage=stage=>STAGES.includes(stage);
 
   function createArtifactDescriptor({stage,schemaVersion,inputFingerprint,analysisId,createdAt,provenance,coverage,confidence}={}){
@@ -33,7 +34,8 @@
     if(!present(schemaVersion))throw new Error('schemaVersion required');
     if(!present(inputFingerprint))throw new Error('inputFingerprint required');
     if(!present(analysisId))throw new Error('analysisId required');
-    const confidenceNumber=Number(confidence);
+    const coverageNumber=finitePresent(coverage)?Number(coverage):null;
+    const confidenceNumber=finitePresent(confidence)?Number(confidence):null;
     return {
       contractVersion:VERSION,
       stage,
@@ -42,8 +44,8 @@
       analysisId:String(analysisId),
       createdAt:present(createdAt)?String(createdAt):null,
       provenance:provenance&&typeof provenance==='object'?{...provenance}:null,
-      coverage:Number.isFinite(Number(coverage))?Math.max(0,Math.min(1,Number(coverage))):null,
-      confidence:Number.isFinite(confidenceNumber)?Math.max(0,Math.min(1,confidenceNumber)):null
+      coverage:coverageNumber!==null?Math.max(0,Math.min(1,coverageNumber)):null,
+      confidence:confidenceNumber!==null?Math.max(0,Math.min(1,confidenceNumber)):null
     };
   }
 
