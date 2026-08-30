@@ -3,6 +3,12 @@
 
 function $(id){ return document.getElementById(id); }
 function clamp01(v){ return Math.max(0,Math.min(1,Number(v)||0)); }
+function normalizedTrackingAnchor(p){
+  const x=Number(p?.x),y=Number(p?.y);
+  if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1||y<0||y>1)return null;
+  return {x,y};
+}
+root.CAYStableRuntimeNormalizeAnchor=normalizedTrackingAnchor;
 function appearanceVector(f){
   if(Array.isArray(f)) return f.map(Number).filter(Number.isFinite);
   if(!f||typeof f!=='object') return null;
@@ -174,7 +180,8 @@ async function runTrackingLongTermStable(){
       const frameCls=classifyFrameDetections(c,inField),dets=[];
       for(let bi=0;bi<inField.length;bi++){
         const b=inField[bi],cls=frameCls[bi];if(cls.cat!=='team'&&cls.cat!=='goalkeeper')continue;
-        const p=normTrackAnchor(b,c);dets.push({b,cat:cls.cat,feature:appearanceVector(cls.feature),x:clamp01(p.x),y:clamp01(p.y),source:b.source||'unknown',score:cls.score,isCAY:true});
+        const p=normalizedTrackingAnchor(normTrackAnchor(b,c));if(!p)continue;
+        dets.push({b,cat:cls.cat,feature:appearanceVector(cls.feature),x:p.x,y:p.y,source:b.source||'unknown',score:cls.score,isCAY:true});
       }
       const sig=trackingImageSignature(c),visualDiff=prevSig?hd(prevSig,sig):0;
       const countShock=prevDetCount>=5&&dets.length<=Math.max(1,prevDetCount*.34);

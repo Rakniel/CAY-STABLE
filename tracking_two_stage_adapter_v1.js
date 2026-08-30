@@ -8,8 +8,9 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Core,Cascade){
   'use strict';
   const coreAssign=Core&&typeof Core.assignFrame==='function'?Core.assignFrame.bind(Core):null;
+  const coreMatchCost=Core&&typeof Core.matchCost==='function'?Core.matchCost.bind(Core):null;
   function requireDeps(){
-    if(!Core||!coreAssign)throw new Error('CAYTrackingCore indisponible');
+    if(!Core||!coreAssign||!coreMatchCost)throw new Error('CAYTrackingCore indisponible');
     if(!Cascade||typeof Cascade.splitDetections!=='function')throw new Error('CAYTrackingConfidenceCascade indisponible');
   }
   function uniqueByTrackId(items){
@@ -26,32 +27,6 @@
     const {_cayCascadeKey,...clean}=item;
     return clean;
   }
-  function featureDistance(a,b){
-    if(!Array.isArray(a)||!Array.isArray(b)||!a.length||a.length!==b.length)return .45;
-    let sum=0;
-    for(let i=0;i<a.length;i++){
-      const delta=(Number(a[i])||0)-(Number(b[i])||0);
-      sum+=delta*delta;
-    }
-    return Math.min(1.2,Math.sqrt(sum/a.length));
-  }
-  function predictedPoint(track,time){
-    const history=Array.isArray(track&&track.motionHistory)?track.motionHistory:[];
-    const last=history[history.length-1]||{x:Number(track&&track.x)||0,y:Number(track&&track.y)||0,time:Number(time)||0};
-    if(history.length<2)return {x:last.x,y:last.y};
-    const prev=history[history.length-2],dt=Math.max(.1,Number(last.time)-Number(prev.time));
-    const horizon=Math.max(0,Number(time)-Number(last.time));
-    return {x:Number(last.x)+(Number(last.x)-Number(prev.x))/dt*horizon,y:Number(last.y)+(Number(last.y)-Number(prev.y))/dt*horizon};
-  }
-  function associationPreselectionCost(track,detection,time){
-    const p=predictedPoint(track,time);
-    const dx=(Number(p.x)||0)-(Number(detection&&detection.x)||0),dy=(Number(p.y)||0)-(Number(detection&&detection.y)||0);
-    const spatial=Math.hypot(dx,dy);
-    const appearance=featureDistance(track&&track.feature,detection&&detection.feature);
-    const trackCat=(track&&track.cat)||'team',detCat=(detection&&detection.cat)||'team';
-    const categoryPenalty=trackCat===detCat?0:((trackCat==='goalkeeper'||detCat==='goalkeeper')?.55:.16);
-    return spatial*2.65+appearance*.60+categoryPenalty;
-  }
   function preselectAssociationCandidates(state,detections,time,maxPlayers,opts){
     const items=[...(detections||[])];
     if(items.length<=maxPlayers)return items;
@@ -64,7 +39,7 @@
       if(selected.length>=maxPlayers)break;
       let bestIndex=-1,bestCost=Infinity;
       for(const index of remaining){
-        const cost=associationPreselectionCost(tr,items[index],time);
+        const cost=coreMatchCost(tr,items[index],time);
         if(cost<bestCost){bestCost=cost;bestIndex=index;}
       }
       if(bestIndex>=0&&bestCost<=threshold){
