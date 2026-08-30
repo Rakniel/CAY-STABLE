@@ -74,7 +74,7 @@
       if(report.team){
         report.team.playersWithPublishedPhysicalMetrics=publishablePlayers;
         report.team.measuredDistanceM=+publishedDistanceM.toFixed(2);
-        report.team.physicalMetricPublicationPolicy='SOMME UNIQUEMENT DES JOUEURS AVEC METRIQUES_FIABLES';
+        report.team.physicalMetricPublicationPolicy='SOMME UNIQUEMENT DES JOUEURS AVEC METRIQUES FIABLES';
       }
       report.metricPublicationGuard={
         version:'CAY_METRIC_PUBLICATION_GUARD_V1',
