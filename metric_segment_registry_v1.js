@@ -3,7 +3,11 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYMetricSegmentRegistry=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const finiteInt=v=>Number.isInteger(Number(v))&&Number(v)>=0;
+  const finiteInt=v=>{
+    if(v===null||v===undefined)return false;
+    if(typeof v==='string'&&v.trim()==='')return false;
+    return Number.isInteger(Number(v))&&Number(v)>=0;
+  };
 
   function createRegistry(projectorApi){
     if(!projectorApi||typeof projectorApi.createProjector!=='function')throw new Error('CAYMetricHomographyProjector requis');
