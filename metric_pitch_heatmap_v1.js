@@ -6,6 +6,7 @@
   'use strict';
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const qualityFromEvidenceScore=score=>score>=.8?'FIABLE':score>0?'PARTIEL':'INDISPONIBLE';
+  const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   function projectorInfo(entry){
     if(!entry||entry.validated!==true||typeof entry.project!=='function')return {validated:false,project:null,confidence:0};
     const confidence=Number.isFinite(Number(entry.confidence))?clamp(Number(entry.confidence),0,1):1;
@@ -17,12 +18,12 @@
     return cells.map(r=>r.map(v=>+(v/total).toFixed(6)));
   }
   function projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows){
-    if(!p||!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y))||!Number.isFinite(Number(p.segment)))return null;
+    if(!p||!isPresentFinite(p.x)||!isPresentFinite(p.y)||!isPresentFinite(p.segment))return null;
     const info=projectorInfo(projectors&&projectors[p.segment]);
     if(!info.validated)return null;
     let q=null;
     try{q=info.project(p);}catch(e){q=null;}
-    if(!q||!Number.isFinite(Number(q.x))||!Number.isFinite(Number(q.y)))return null;
+    if(!q||!isPresentFinite(q.x)||!isPresentFinite(q.y))return null;
     const x=Number(q.x),y=Number(q.y);
     if(x<0||x>pitchLengthM||y<0||y>pitchWidthM)return null;
     const cx=Math.min(cols-1,Math.floor(clamp(x/pitchLengthM,0,.999999)*cols));
@@ -103,7 +104,7 @@
     let eligible=0,projected=0,rejected=0,confidenceSum=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0;
     const projectedPoints=[],prepared=[];
     for(const p of path){
-      const structurallyEligible=!!p&&Number.isFinite(Number(p.x))&&Number.isFinite(Number(p.y))&&Number.isFinite(Number(p.segment));
+      const structurallyEligible=!!p&&isPresentFinite(p.x)&&isPresentFinite(p.y)&&isPresentFinite(p.segment);
       if(!structurallyEligible){prepared.push({p,projected:null});continue;}
       eligible++;
       const projectedPoint=projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows);
