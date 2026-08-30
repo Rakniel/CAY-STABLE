@@ -22,6 +22,7 @@ assert.equal(onlyFirst.policy,'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TER
 assert.equal(onlyFirst.projectedPoints.length,2);
 assert(Math.abs(onlyFirst.normalizedCells.flat().reduce((a,b)=>a+b,0)-1)<1e-5);
 assert.equal(onlyFirst.heatmapBasis,'TIME_SECONDS');
+assert.equal(onlyFirst.timeAllocation,'LINEAR_PITCH_SEGMENT');
 assert.equal(onlyFirst.projectedIntervalSeconds,1);
 assert.equal(onlyFirst.temporalCoverage,.5);
 
@@ -47,16 +48,28 @@ const irregular=Heat.build({fullPath:[
   {time:2.2,segment:1,x:.75,y:.75}
 ]},{1:projector(1)},{cols:2,rows:2,maxDwellGapSec:2});
 assert.equal(irregular.heatmapBasis,'TIME_SECONDS');
+assert.equal(irregular.timeAllocation,'LINEAR_PITCH_SEGMENT');
 assert.equal(irregular.projectedIntervalSeconds,2.2);
-assert(Math.abs(irregular.normalizedCells[0][0]-(1.2/2.2))<1e-5);
-assert(Math.abs(irregular.normalizedCells[1][1]-(1/2.2))<1e-5);
+assert(Math.abs(irregular.timeCells[0][0]-(.2+9/14))<1e-5);
+assert(Math.abs(irregular.timeCells[1][1]-(1+5/14))<1e-5);
+assert(Math.abs(irregular.normalizedCells.flat().reduce((a,b)=>a+b,0)-1)<1e-5);
 assert.notDeepEqual(irregular.normalizedCells,irregular.normalizedObservationCells);
+
+const crossing=Heat.build({fullPath:[
+  {time:0,segment:1,x:.1,y:.5},
+  {time:1,segment:1,x:.9,y:.5}
+]},{1:projector(1)},{cols:4,rows:1,maxDwellGapSec:2});
+assert.equal(crossing.projectedIntervalSeconds,1);
+assert.deepStrictEqual(crossing.timeCells[0],[.1875,.3125,.3125,.1875]);
+assert.deepStrictEqual(crossing.normalizedTimeCells[0],[.1875,.3125,.3125,.1875]);
+assert.equal(crossing.timeAllocation,'LINEAR_PITCH_SEGMENT');
 
 const cutGap=Heat.build({fullPath:[
   {time:0,segment:1,x:.1,y:.1},
   {time:5,segment:1,x:.9,y:.9}
 ]},{1:projector(1)},{maxDwellGapSec:1});
 assert.equal(cutGap.heatmapBasis,'OBSERVATIONS');
+assert.equal(cutGap.timeAllocation,'NONE');
 assert.equal(cutGap.projectedIntervalSeconds,0);
 assert.equal(cutGap.eligibleIntervalSeconds,5);
 assert.equal(cutGap.temporalCoverage,0);
@@ -81,6 +94,7 @@ const segmentCut=Heat.build({fullPath:[
   {time:.5,segment:2,x:.9,y:.9}
 ]},{1:projector(1),2:projector(2)},{maxDwellGapSec:1});
 assert.equal(segmentCut.heatmapBasis,'OBSERVATIONS');
+assert.equal(segmentCut.timeAllocation,'NONE');
 assert.equal(segmentCut.projectedIntervalSeconds,0);
 
 console.log('metric_pitch_heatmap_nonregression: OK');
