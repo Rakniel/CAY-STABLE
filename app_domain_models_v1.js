@@ -68,6 +68,9 @@
     if(new Set(bench).size!==bench.length)errors.push('DUPLICATE_BENCH_ID');
     if(lineup.some(x=>!rosterIds.has(x))||bench.some(x=>!rosterIds.has(x)))errors.push('UNKNOWN_ROSTER_ID');
     if(lineup.some(x=>bench.includes(x)))errors.push('PLAYER_IN_LINEUP_AND_BENCH');
+    const statusById=new Map((team.roster||[]).map(p=>[String(p.id),p.status]));
+    if(lineup.some(x=>statusById.get(x)==='INACTIVE'))errors.push('INACTIVE_PLAYER_IN_LINEUP');
+    if(bench.some(x=>statusById.get(x)==='INACTIVE'))errors.push('INACTIVE_PLAYER_ON_BENCH');
     return {valid:errors.length===0,errors,maxActive:11,minActive:1};
   }
   function createAnalysisProfile(raw={}){
@@ -83,8 +86,10 @@
     const team=input.team||createTeam({});
     const club=input.club||createClub({});
     const profile=input.analysisProfile||createAnalysisProfile({teamId:team.id});
+    const hasUsableKit=(team.kits||[]).some(kit=>!!clean(kit.shirtColor));
+    const profileMatchesTeam=!!profile&&!!clean(profile.teamId)&&clean(profile.teamId)===clean(team.id);
     const checks=[
-      ['CLUB_NAME',!!clean(club.name)],['TEAM_NAME',!!clean(team.name)],['ROSTER',team.roster.length>0],['KIT',team.kits.length>0],['ANALYSIS_PROFILE',!!profile]
+      ['CLUB_NAME',!!clean(club.name)],['TEAM_NAME',!!clean(team.name)],['ROSTER',team.roster.length>0],['KIT',hasUsableKit],['ANALYSIS_PROFILE',!!profile],['ANALYSIS_PROFILE_TEAM',profileMatchesTeam]
     ];
     const lineup=validateLineup(team);
     checks.push(['LINEUP_VALID',lineup.valid]);
