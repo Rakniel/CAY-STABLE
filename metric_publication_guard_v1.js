@@ -8,7 +8,7 @@
   const MIN_PUBLISHABLE_EVIDENCE_SCORE=0.80;
   const MIN_PUBLISHABLE_COVERED_SECONDS=3;
   const PHYSICAL_FIELDS=['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount','sprintQualifiedSeconds'];
-  const finite=v=>Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
 
   function publicationDecision(metric){
     if(!metric||!finite(metric.metricCoverage)||Number(metric.metricCoverage)<=0){
@@ -74,7 +74,7 @@
       if(report.team){
         report.team.playersWithPublishedPhysicalMetrics=publishablePlayers;
         report.team.measuredDistanceM=+publishedDistanceM.toFixed(2);
-        report.team.physicalMetricPublicationPolicy='SOMME UNIQUEMENT DES JOUEURS AVEC METRIQUES FIABLES';
+        report.team.physicalMetricPublicationPolicy='SOMME UNIQUEMENT DES JOUEURS AVEC METRIQUES_FIABLES';
       }
       report.metricPublicationGuard={
         version:'CAY_METRIC_PUBLICATION_GUARD_V1',
