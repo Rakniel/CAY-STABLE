@@ -5,7 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Stats){
   'use strict';
   const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
-  const finite=v=>Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const median3=(a,b,c)=>a+b+c-Math.min(a,b,c)-Math.max(a,b,c);
   const SPRINT_THRESHOLD_KMH=25;
@@ -21,7 +21,8 @@
   function projectorInfo(entry){
     if(Stats&&typeof Stats.projectorInfo==='function'){
       const info=Stats.projectorInfo(entry);
-      return {...info,confidence:finite(info?.confidence)?clamp(Number(info.confidence),0,1):(info?.validated?1:0)};
+      const explicitConfidence=finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):null;
+      return {...info,confidence:explicitConfidence!==null?explicitConfidence:(info?.validated?1:0)};
     }
     const validated=!!entry&&entry.validated===true&&typeof entry.project==='function';
     return {validated,project:validated?entry.project:null,confidence:validated?(finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):1):0};
@@ -35,7 +36,7 @@
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<path.length;i++){
       const p=path[i];
-      if(i>0){const a=path[i-1],dt=Number(p.time)-Number(a.time);if(a.segment===p.segment&&dt>0&&dt<=3)eligibleDt+=dt;}
+      if(i>0){const a=path[i-1];if(finite(a.time)&&finite(p.time)){const dt=Number(p.time)-Number(a.time);if(a.segment===p.segment&&dt>0&&dt<=3)eligibleDt+=dt;}}
       const info=projectorInfo(projectors&&projectors[p.segment]);
       let projected=null;
       if(info.validated){try{projected=info.project(p);}catch(_){projected=null;}}
