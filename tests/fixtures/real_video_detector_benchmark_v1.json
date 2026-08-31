@@ -1,0 +1,24 @@
+{
+  "version": "CAY_REAL_VIDEO_BENCHMARK_V1",
+  "video": {
+    "label": "Sarcelles vs Aubervilliers U16 R1",
+    "durationSeconds": 6894,
+    "width": 640,
+    "height": 360,
+    "fps": 29.97
+  },
+  "minCoverage": 0.82,
+  "frames": [
+    {"id":"t0120","time":120,"minOnPitch":8,"critical":false,"tags":["far_players","spread"]},
+    {"id":"t0600","time":600,"minOnPitch":8,"critical":false,"tags":["low_density","far_goalkeeper"]},
+    {"id":"t1200","time":1200,"minOnPitch":12,"critical":false,"tags":["far_players","complex_background"]},
+    {"id":"t1800","time":1800,"minOnPitch":12,"critical":true,"tags":["camera_pan","spread"]},
+    {"id":"t2400","time":2400,"minOnPitch":13,"critical":true,"tags":["dense_box","occlusion"]},
+    {"id":"t3000","time":3000,"maxOnPitch":0,"critical":true,"tags":["empty_pitch","false_positive_guard"]},
+    {"id":"t3600","time":3600,"minOnPitch":4,"critical":false,"tags":["restart","very_low_density"]},
+    {"id":"t4200","time":4200,"minOnPitch":12,"critical":false,"tags":["far_players","dense_box"]},
+    {"id":"t4800","time":4800,"minOnPitch":10,"critical":false,"tags":["central_alignment","occlusion"]},
+    {"id":"t5400","time":5400,"minOnPitch":9,"critical":true,"tags":["bench_visible","staff_exclusion"]},
+    {"id":"t6200","time":6200,"minOnPitch":13,"critical":false,"tags":["mixed_scale","near_far_players"]}
+  ]
+}
