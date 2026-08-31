@@ -6,6 +6,7 @@ text = path.read_text(encoding='utf-8')
 marker = '<!-- STABLE_LONG_TERM_TRACKING_V2 -->'
 canonical_tags = [
     '<script src="./detector_license_guard_v1.js"></script>',
+    '<script src="./rfdetr_onnx_adapter_v1.js"></script>',
     '<script src="./tracking_core_v1.js"></script>',
     '<script src="./tracking_confidence_cascade_v1.js"></script>',
     '<script src="./tracking_two_stage_adapter_v1.js"></script>',
@@ -30,8 +31,6 @@ canonical_tags = [
     '<script src="./stable_runtime_tracking_v2.js"></script>',
 ]
 
-# Remove complete runtime lines, including their newline. The previous implementation
-# removed only the tag text and leaked one blank line per module on every run.
 for tag in canonical_tags:
     text = re.sub(
         rf'^[ \t]*{re.escape(tag)}[ \t]*(?:\r?\n)?',
@@ -50,8 +49,6 @@ needle = '</body>'
 if needle not in text:
     raise SystemExit('ERROR: </body> not found')
 
-# Canonicalize only trailing whitespace immediately before </body>. This cleans up
-# historical blank-line accumulation while leaving the application body untouched.
 prefix, suffix = text.split(needle, 1)
 payload = marker + '\n' + '\n'.join(canonical_tags)
 text = prefix.rstrip() + '\n\n' + payload + '\n' + needle + suffix
