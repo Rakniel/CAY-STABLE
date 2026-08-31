@@ -5,6 +5,7 @@ path = Path('CAY_ANALYZER_STABLE.html')
 text = path.read_text(encoding='utf-8')
 marker = '<!-- STABLE_LONG_TERM_TRACKING_V2 -->'
 canonical_tags = [
+    '<script src="./detector_license_guard_v1.js"></script>',
     '<script src="./tracking_core_v1.js"></script>',
     '<script src="./tracking_confidence_cascade_v1.js"></script>',
     '<script src="./tracking_two_stage_adapter_v1.js"></script>',
