@@ -5,6 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const configured=(value,fallback)=>finite(value)?Number(value):fallback;
   const round=(v,n=3)=>Number(Number(v).toFixed(n));
   function pointOf(entity){
     if(!entity)return null;
@@ -40,8 +41,17 @@
     return {x:p.x,y:p.y,confidence:finite(raw.confidence)?clamp01(raw.confidence):0};
   }
   function distance(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+  function ownerConfig(options){
+    const raw=options||{};
+    return {
+      minBallConfidence:configured(raw.minBallConfidence,.65),
+      minPlayerConfidence:configured(raw.minPlayerConfidence,.45),
+      ownerRadiusM:configured(raw.ownerRadiusM,2.2),
+      ambiguityMarginM:configured(raw.ambiguityMarginM,.65)
+    };
+  }
   function inferOwner(sample,options){
-    const cfg={minBallConfidence:.65,minPlayerConfidence:.45,ownerRadiusM:2.2,ambiguityMarginM:.65,...(options||{})};
+    const cfg=ownerConfig(options);
     const ball=normalizeBall(sample&&sample.ball);
     if(!ball)return {status:'UNAVAILABLE',reason:'BALL_NOT_OBSERVED'};
     if(ball.confidence<cfg.minBallConfidence)return {status:'UNAVAILABLE',reason:'BALL_CONFIDENCE_TOO_LOW',ballConfidence:ball.confidence};
@@ -56,11 +66,12 @@
     return {status:'OWNED',playerId:c.id,team:c.team,distanceM:round(c.distanceM),ballConfidence:round(ball.confidence,4),playerConfidence:round(c.confidence,4)};
   }
   function analyzeBallEvents(samples,options){
+    const raw=options||{};
     const cfg={
-      minBallConfidence:.65,minPlayerConfidence:.45,ownerRadiusM:2.2,ambiguityMarginM:.65,
-      minStableOwnershipSec:.30,minCoverage:.55,maxObservationGapSec:.75,
-      minPassTravelM:3,maxPassTransitionSec:3,minPassMeanSpeedMps:2.5,minPassDetachedObservations:2,minPassDetachedSpanSec:.03,
-      minTurnoverTravelM:.75,maxTurnoverTransitionSec:1.5,...(options||{})
+      minBallConfidence:configured(raw.minBallConfidence,.65),minPlayerConfidence:configured(raw.minPlayerConfidence,.45),ownerRadiusM:configured(raw.ownerRadiusM,2.2),ambiguityMarginM:configured(raw.ambiguityMarginM,.65),
+      minStableOwnershipSec:configured(raw.minStableOwnershipSec,.30),minCoverage:configured(raw.minCoverage,.55),maxObservationGapSec:configured(raw.maxObservationGapSec,.75),
+      minPassTravelM:configured(raw.minPassTravelM,3),maxPassTransitionSec:configured(raw.maxPassTransitionSec,3),minPassMeanSpeedMps:configured(raw.minPassMeanSpeedMps,2.5),minPassDetachedObservations:configured(raw.minPassDetachedObservations,2),minPassDetachedSpanSec:configured(raw.minPassDetachedSpanSec,.03),
+      minTurnoverTravelM:configured(raw.minTurnoverTravelM,.75),maxTurnoverTransitionSec:configured(raw.maxTurnoverTransitionSec,1.5)
     };
     const rows=(samples||[]).filter(s=>finite(s&&s.time)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
     if(rows.length<2)return {quality:'INDISPONIBLE',reason:'INSUFFICIENT_TIMELINE',events:[],passes:0,turnovers:0,coverage:0};
