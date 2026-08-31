@@ -14,4 +14,16 @@ assert.throws(()=>A.decode({foo:{dims:[1,2,4],data:new Float32Array(8)}},{width:
 assert.throws(()=>A.decode({dets:boxes,labels:logits},{width:0,height:360}),/FRAME_SIZE/);
 const named=A.decode({pred_boxes:boxes,pred_logits:logits},{width:640,height:360,threshold:.95,personClassId:0});
 assert.strictEqual(named.length,1,'alternate canonical output names supported');
+
+const footballLogits={dims:[1,3,4],data:new Float32Array([
+  5,-5,-5,-5,
+  -5,3,4,-4,
+  -5,5,2,4
+])};
+const multi=A.decode({dets:boxes,labels:footballLogits},{width:640,height:360,threshold:.8,personClassIds:[1,2,3]});
+assert.strictEqual(multi.length,2,'football profile can retain several people classes while excluding ball');
+assert.strictEqual(multi[0].classId,1,'best configured people class is preserved');
+assert.strictEqual(multi[1].classId,2,'per-query best class avoids duplicate boxes for multi-class people profiles');
+assert.throws(()=>A.decode({dets:boxes,labels:footballLogits},{width:640,height:360,personClassIds:[9]}),/PERSON_CLASS_OUT_OF_RANGE/);
+
 console.log('RF-DETR ONNX adapter non-regression: PASS');
