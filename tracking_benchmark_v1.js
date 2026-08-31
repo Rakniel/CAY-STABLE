@@ -105,7 +105,20 @@
     };
   }
 
+  function groundTruthEvidence(rows){
+    return normalize(rows).map(r=>key(r.frame,r.gtId)).sort();
+  }
+
+  function assertComparableEvidence(beforeRows,afterRows){
+    const before=groundTruthEvidence(beforeRows),after=groundTruthEvidence(afterRows);
+    if(before.length!==after.length)throw new Error(`tracking benchmark comparison requires identical ground-truth evidence: before=${before.length}, after=${after.length}`);
+    for(let i=0;i<before.length;i++){
+      if(before[i]!==after[i])throw new Error(`tracking benchmark comparison requires identical ground-truth evidence: mismatch at ${before[i]} vs ${after[i]}`);
+    }
+  }
+
   function compare(beforeRows,afterRows){
+    assertComparableEvidence(beforeRows,afterRows);
     const before=evaluate(beforeRows),after=evaluate(afterRows);
     return {
       before,after,
