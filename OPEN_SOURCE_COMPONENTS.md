@@ -101,6 +101,17 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Useful ideas: end-to-end athlete tracking, ReID, calibration and game-state reconstruction.
 - License rule: do not copy GPL-3.0 implementation code into CAY-STABLE unless the project deliberately adopts compatible distribution obligations.
 
+## Real-Time-Football-Detection
+- Source: https://github.com/rustyneuron01/Real-Time-Football-Detection
+- Upstream revision inspected: `9a6f3a7e96d4f3b38e8dfc3c4e0c71731178ab44` (2026-03-13).
+- License: MIT.
+- Status: studied / benchmark and design candidate; no source code or model weights copied.
+- Useful patterns: short-history centroid ranking for multiple ball candidates; appearance-based two-team clustering from player crops.
+- CAY use under consideration: benchmark the ball prior behind the existing `ball_event_state_v1.js` evidence contract, and evaluate appearance clustering only as secondary team evidence behind explicit kit/yellow-detail/bench/spectator identity guards.
+- Local provenance detail: `docs/open_source_real_time_football_detection_audit.md`.
+- Estimated benefit if validated: 0.5–1.5 days of prototype/plumbing avoided; potentially fewer ambiguous ball frames and unresolved team assignments.
+- Risks: heavy SigLIP/UMAP/scikit-learn stack, two-cluster contamination by referees/goalkeepers/non-field people, simplistic centroid prior on long ball flights/camera cuts, and separately licensed third-party model weights.
+
 ## Rejected / reference-only examples
 - `Tony-Luna/soccer-video-analytics`: AGPL-3.0. Useful as a conceptual reference for possession/homography/heatmaps, but not copied or incorporated into the current CAY-STABLE runtime because its copyleft obligations are intentionally avoided at this stage.
 - `mikel-brostrom/boxmot`: AGPL-3.0 in its current public repository. Useful for benchmarking tracker/ReID options and hardware trade-offs, but no BoxMOT source code is incorporated into the current CAY-STABLE runtime.
