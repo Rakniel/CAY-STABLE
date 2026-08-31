@@ -18,6 +18,7 @@ assert.equal(cleanReport.frames[1].presenceQuality,'PARTIEL');
 assert.equal(cleanReport.presenceQuality,'PARTIEL');
 assert.equal(cleanReport.invalidObservedInstants,0);
 assert.equal(cleanReport.observedPlayerSlots,19);
+assert.equal(cleanReport.possiblePlayerSlots,22);
 assert.equal(cleanReport.policy.noSilentTruncation,true);
 assert.equal(cleanReport.policy.noSilentDeduplication,true);
 
@@ -41,13 +42,26 @@ assert.equal(badReport.frames[2].frameEvidenceValid,true);
 assert.equal(badReport.invalidObservedInstants,2);
 assert.equal(badReport.validObservedInstants,1);
 assert.equal(badReport.observedPlayerSlots,3);
+assert.equal(badReport.possiblePlayerSlots,11);
+assert.equal(badReport.presenceCoverage,+((3/11).toFixed(4)));
 assert.equal(badReport.invalidFrameEvidence.overflowIds,1);
 assert.equal(badReport.invalidFrameEvidence.duplicateIds,1);
+assert.equal(badReport.invalidFrameEvidence.policy,'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR');
 assert.equal(badReport.teamMetricProjectionCoverage,undefined);
 assert.equal(badReport.metricProjectionCoverage,1);
+
+const allInvalid={
+  frames:[{time:0,segment:1,observedIds:[1,1],confidence:.9}],
+  players:new Map(),maxObserved:0,rejectedDuplicateIds:0,rejectedOverflow:0
+};
+const allInvalidReport=Report.buildPresenceReport(allInvalid,cards(12),projectors);
+assert.equal(allInvalidReport.validObservedInstants,0);
+assert.equal(allInvalidReport.possiblePlayerSlots,0);
+assert.equal(allInvalidReport.presenceCoverage,0);
+assert.equal(allInvalidReport.presenceQuality,'INDISPONIBLE');
 
 const applied=Report.applyToReport({team:{},teamCoverage:{},players:cards(12)},corrupted,projectors);
 assert.equal(applied.team.invalidObservedInstants,2);
 assert.equal(applied.teamCoverage.invalidObservedInstants,2);
-assert.equal(applied.presenceEvidence.policy.invalidFrame,'INDISPONIBLE_AND_EXCLUDED_FROM_OBSERVED_SLOTS');
-console.log('observed presence invalid-frame guard: PASS (24 checks)');
+assert.equal(applied.presenceEvidence.policy.invalidFrame,'INDISPONIBLE_AND_EXCLUDED_FROM_OBSERVED_SLOTS_AND_COVERAGE_DENOMINATOR');
+console.log('observed presence invalid-frame guard: PASS (31 checks)');

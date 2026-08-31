@@ -71,14 +71,15 @@
       };
     });
     const frameCount=frames.length;
-    const possibleSlots=frameCount*11;
+    const validFrameCount=frameCount-invalidFrames;
+    const possibleSlots=validFrameCount*11;
     const presenceCoverage=possibleSlots?observedSlots/possibleSlots:0;
     const identityCoverage=observedSlots?reliableIdentitySlots/observedSlots:0;
     const metricProjectionCoverage=observedSlots?metricProjectionSlots/observedSlots:0;
     const observationConfidence=confidenceSlots?confidenceSum/confidenceSlots:null;
     return {
       rosterSize:summary.rosterSize,maxObservedSimultaneously:summary.maxObservedSimultaneously,
-      frames,observedInstants:frameCount,validObservedInstants:frameCount-invalidFrames,invalidObservedInstants:invalidFrames,
+      frames,observedInstants:frameCount,validObservedInstants:validFrameCount,invalidObservedInstants:invalidFrames,
       observedPlayerSlots:observedSlots,possiblePlayerSlots:possibleSlots,
       presenceCoverage:+presenceCoverage.toFixed(4),presenceQuality:presenceQuality(presenceCoverage),
       identityCoverage:+identityCoverage.toFixed(4),identityQuality:quality(identityCoverage),
@@ -86,13 +87,13 @@
       observationConfidence:observationConfidence===null?null:+observationConfidence.toFixed(4),
       rejectedDuplicateIds:(summary.rejectedDuplicateIds||0)+duplicateFrameIds,
       rejectedOverflow:(summary.rejectedOverflow||0)+overflowFrameIds,
-      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,policy:'INVALID_FRAME_NOT_TRUNCATED_OR_SILENTLY_DEDUPLICATED'},
+      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
       players:summary.players,
       policy:{
         source:'OBSERVED_PRESENCE_LEDGER',maxSimultaneousCAY:11,
         missingPlayer:'NOT_COUNTED_PRESENT_AT_INSTANT',substitutions:'NEVER_INFERRED_FROM_PRESENCE',
-        denominator:'11_JOUEURS_MAX_PAR_INSTANT_OBSERVE',noSilentCompletion:true,noSilentTruncation:true,noSilentDeduplication:true,
-        invalidFrame:'INDISPONIBLE_AND_EXCLUDED_FROM_OBSERVED_SLOTS'
+        denominator:'11_JOUEURS_MAX_PAR_INSTANT_OBSERVE_VALIDE',noSilentCompletion:true,noSilentTruncation:true,noSilentDeduplication:true,
+        invalidFrame:'INDISPONIBLE_AND_EXCLUDED_FROM_OBSERVED_SLOTS_AND_COVERAGE_DENOMINATOR'
       }
     };
   }
