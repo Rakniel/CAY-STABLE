@@ -2,15 +2,16 @@
   'use strict';
   const Core=root.CAYTrackingCore,TwoStage=root.CAYTrackingTwoStageAdapter;
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
-  const finite=v=>Number.isFinite(Number(v))?Number(v):null;
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v))?Number(v):null;
 
   function detectionPoint(d,ctx){
     if(!d)return null;
     let x=finite(d.x),y=finite(d.y);
     if(x!==null&&y!==null)return {x:clamp01(x),y:clamp01(y)};
-    const b=d.b||d.box,w=Number(ctx?.width)||0,h=Number(ctx?.height)||0;
-    if(!b||!(w>0&&h>0))return null;
-    const bw=Math.max(1,Number(b.w)||0),bh=Math.max(1,Number(b.h)||0),bx=Number(b.x)||0,by=Number(b.y)||0;
+    const b=d.b||d.box,w=finite(ctx?.width),h=finite(ctx?.height);
+    if(!b||w===null||h===null||!(w>0&&h>0))return null;
+    const bw=finite(b.w),bh=finite(b.h),bx=finite(b.x),by=finite(b.y);
+    if(bw===null||bh===null||bx===null||by===null||!(bw>0&&bh>0))return null;
     x=(bx+bw*.5)/w;y=(by+bh*((bw/bh)>1.05?.64:.96))/h;
     return {x:clamp01(x),y:clamp01(y)};
   }
