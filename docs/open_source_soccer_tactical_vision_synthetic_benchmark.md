@@ -3,67 +3,82 @@
 ## Upstream
 - Project: `rafaelsouza-tech/soccer-tactical-vision`
 - Upstream default branch reviewed: `main`
-- Review date: 2026-08-30
+- Review dates: 2026-08-30 and 2026-09-01
 - Repository license: MIT
-- Upstream repository metadata confirms SPDX `MIT`.
-- No upstream source code is copied into CAY-STABLE by this assessment.
+- Upstream repository metadata/README identifies the project as MIT.
+- No upstream source code is copied into CAY-STABLE by this adaptation.
 
 ## Why this project is useful to CAY-STABLE now
 The strongest immediate value is not another detector or tracker. It is the deterministic synthetic-clip and ground-truth testing strategy around a football-specific geometry pipeline.
 
-The upstream project exposes a CPU-only synthetic demo with generated football footage and full ground truth, and uses it to exercise stage contracts spanning detection-like observations, ball trajectories, pitch registration, projection, rendering and tactical outputs. Its README also reports deterministic testing with injected keypoint noise/dropout and explicit before/after camera-jitter measurements.
+The upstream project exposes a CPU-only synthetic demo with generated football footage and full ground truth, and uses it to exercise stage contracts spanning detection-like observations, ball trajectories, pitch registration, projection, rendering and tactical outputs. Its README also describes deterministic validation of calibration/tracking stages.
 
-For CAY-STABLE this directly addresses the current bottleneck: many robust tracking/calibration/metric guards already exist, but real-footage validation is expensive and does not provide perfect ground truth. A small deterministic CAY-native synthetic fixture can therefore catch regressions before real-video benchmarking.
+For CAY-STABLE this directly addresses a core bottleneck: robust tracking/calibration/metric guards exist, while real-footage validation is slower and does not provide perfect ground truth. A deterministic CAY-native fixture can catch regressions before real-video benchmarking.
 
-## Clean-room adaptation proposed
-Status: **STUDIED / DESIGN ADAPTED; NO UPSTREAM CODE COPIED**.
+## Clean-room adaptation
+Status: **INTEGRATED AS CAY-NATIVE TEST FIXTURE; NO UPSTREAM CODE COPIED**.
 
-CAY-STABLE should extend its existing JavaScript non-regression fixtures rather than import the Python package. The useful idea is a deterministic synthetic match-segment generator producing normalized observations and known expected outputs.
+Implemented locally:
+- `synthetic_tracking_benchmark_v1.js`
+- `tests/synthetic_tracking_benchmark_nonregression.js`
 
-Minimum CAY fixture contract:
-- up to 11 simultaneous CAY players, with roster IDs greater than 11 allowed through substitutions;
-- known pitch-space trajectories and timestamps;
-- deterministic camera pan/zoom transform per frame;
-- optional camera cut / multi-plan segment boundary;
-- configurable observation dropout and coordinate noise;
-- optional spectator/bench/referee clutter;
-- explicit yellow-detail-only false-CAY candidates;
-- known ball path and nearest-player ownership windows for later phases;
-- ground-truth visibility mask so coverage can be scored separately from tracking correctness.
+The implementation was written from CAY-STABLE contracts and the benchmark idea only. It imports the existing `tracking_core_v1.js`; it does not import the upstream Python package, model weights, datasets or implementation files.
 
-The synthetic generator must feed existing CAY contracts (`tracking_core`, bridge, homography/projector, trajectory and metric guards) rather than create parallel tracking or metric logic.
+Current deterministic fixture covers:
+- 11 simultaneous CAY players maximum;
+- unique persistent appearance evidence per synthetic player;
+- deterministic motion paths;
+- deterministic short occlusions;
+- synthetic camera pan + mild zoom;
+- explicit camera cut / second segment;
+- archived-track ReID after the cut;
+- visible-ground-truth assignment coverage;
+- persistent ID continuity;
+- deterministic replay equality.
 
-## Measurements to add before promotion
-A generated fixture is useful only if it produces measurable gates. Proposed non-regression outputs:
-1. **ID continuity:** percentage of visible ground-truth player observations preserving the expected persistent ID.
-2. **False CAY:** hard target 0 for bench/spectator/yellow-detail-only clutter.
-3. **11-player invariant:** published simultaneous CAY count never exceeds 11.
-4. **Coverage honesty:** observed/evaluable coverage must match the synthetic visibility mask within a small deterministic tolerance.
-5. **Projection error:** median and high-percentile pitch-space error after homography.
-6. **Trajectory error:** path-point RMSE / median error for evaluable samples.
-7. **Metric error:** distance and speed compared with ground truth only when metric publication guards classify the segment as defensible.
-8. **Cut isolation:** no track/homography continuity may silently cross a declared multi-plan cut unless an explicit re-identification rule validates it.
+The fixture deliberately extends existing CAY logic rather than creating parallel tracking logic.
+
+## Measured promotion gates
+The non-regression test fails unless all of the following remain true:
+1. explicit multi-plan cut produces exactly two tracking segments;
+2. published simultaneous CAY assignments never exceed 11;
+3. visible-player assignment coverage remains at least 98%;
+4. persistent ID continuity remains at least 98%;
+5. the cut actually exercises archived-track re-identification;
+6. a second identical run produces exactly the same benchmark result.
+
+Future extensions should add false-CAY clutter/yellow-detail candidates through the existing strict membership/filtering layer, plus homography projection error, trajectory RMSE and distance/speed error once those stages are wired into the same fixture.
 
 ## Expected work avoided / impact
-- Estimated work avoided: **0.5–1.5 days** versus designing a benchmark strategy from scratch.
-- Expected impact: faster and repeatable diagnosis of regressions in homography, camera compensation, ID persistence, coverage and physical metrics before spending time on real C.A. Yenne footage.
-- Expected CI impact: a lightweight JS fixture should stay CPU-only and deterministic, avoiding model downloads and GPU dependencies.
+- Estimated work avoided: **0.5–1.5 days** versus designing a football-specific deterministic benchmark strategy from scratch.
+- Immediate impact: tracking changes now have a repeatable synthetic gate for 11-player invariants, camera cuts, occlusions, coverage and identity persistence.
+- Expected downstream impact: the same fixture can be extended to calibration, trajectories, heatmaps and physical metrics without introducing another benchmark framework.
+- CI impact: CPU-only Node test, no model download and no GPU dependency.
 
 ## Licensing / dependency assessment
-The upstream repository is MIT. Its README explicitly states that it deliberately avoids AGPL/GPL runtime dependencies in the core path and keeps optional PnLCalib evaluation isolated. It also documents separate licenses/usage constraints for datasets and model-related assets. Those statements are useful architectural guidance but do not authorize importing third-party weights or datasets into CAY-STABLE.
+The upstream repository is MIT. Its README also documents separate constraints around datasets/models; those statements do not authorize importing third-party weights or broadcast media.
 
 CAY-STABLE decision:
-- reuse the **testing/benchmark design idea** clean-room;
-- copy **no upstream implementation** at this stage;
-- add **no Python runtime dependency**;
+- reuse/adapt the **testing and benchmark design idea** clean-room;
+- copy **no upstream implementation code**;
+- add **no upstream runtime dependency**;
 - add **no model weights or SoccerNet broadcast frames**;
 - audit any future dataset/model independently before integration.
 
-## Provenance
+## Provenance, version and local modifications
 - Upstream: `rafaelsouza-tech/soccer-tactical-vision`
-- Capability studied: deterministic synthetic football clip + full ground truth; stage-contract testing; camera-registration quality measurements.
+- Upstream branch reviewed: `main`
+- Capability studied: deterministic synthetic football clip + full ground truth; stage-contract testing; camera-registration/tracking quality measurements.
 - License: MIT.
-- Local modification: conceptual adaptation to existing browser/Node CAY-STABLE contracts, strict CAY roster/clutter/coverage rules, no copied code.
+- Local version: `synthetic_tracking_benchmark_v1`.
+- Local modifications: JavaScript/Node clean-room fixture designed for CAY-STABLE, capped at 11 simultaneous CAY players, deterministic occlusion schedule, explicit two-plan camera cut, CAY tracking-core ReID exercise, coverage and persistent-ID gates.
+- Runtime dependency added: none beyond existing CAY-STABLE modules.
+
+## Risks / limitations
+- Current synthetic embeddings are intentionally easy to separate; this is a regression gate, not proof of real-world ReID accuracy.
+- Camera transform is deterministic and simplified; real handheld/broadcast motion remains a separate benchmark requirement.
+- False-CAY bench/spectator/yellow-detail testing must be attached to the strict membership guard rather than injected directly into `tracking_core_v1.js`, so the benchmark does not accidentally test the wrong layer.
+- Real-video promotion remains mandatory for detector/tracker backend changes.
 
 ## Promotion criterion
-Promote this from documentation to implementation only as an extension of the existing CAY non-regression framework. The first implementation should remain small and deterministic and must prove a measurable regression signal for at least tracking continuity + false-CAY + coverage + homography before more synthetic features are added.
+This fixture is promoted only as a deterministic non-regression layer. It does not replace real C.A. Yenne footage validation. New tracking/calibration integrations must pass this fixture plus existing non-regression tests and then demonstrate measurable benefit on licensed/owned real footage before becoming the STABLE runtime default.
