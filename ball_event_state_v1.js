@@ -12,12 +12,15 @@
     const y=finite(entity.pitchY)?Number(entity.pitchY):(finite(entity.yM)?Number(entity.yM):null);
     return x===null||y===null?null:{x,y};
   }
+  function presentContinuityMarker(value){
+    return value!==undefined&&value!==null&&!(typeof value==='string'&&value.trim()==='');
+  }
   function continuityKey(row){
     if(!row)return null;
-    if(row.segment!==undefined&&row.segment!==null)return `segment:${String(row.segment)}`;
-    if(row.segmentId!==undefined&&row.segmentId!==null)return `segment:${String(row.segmentId)}`;
-    if(row.shotId!==undefined&&row.shotId!==null)return `shot:${String(row.shotId)}`;
-    if(row.planId!==undefined&&row.planId!==null)return `plan:${String(row.planId)}`;
+    if(presentContinuityMarker(row.segment))return `segment:${String(row.segment)}`;
+    if(presentContinuityMarker(row.segmentId))return `segment:${String(row.segmentId)}`;
+    if(presentContinuityMarker(row.shotId))return `shot:${String(row.shotId)}`;
+    if(presentContinuityMarker(row.planId))return `plan:${String(row.planId)}`;
     return null;
   }
   function normalizePlayer(raw){
