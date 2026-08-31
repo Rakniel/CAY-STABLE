@@ -12,6 +12,7 @@ on:
       - 'detector_benchmark_v1.js'
       - 'rfdetr_onnx_adapter_v1.js'
       - 'rfdetr_onnx_runtime_v1.js'
+      - 'tracking_backend_candidate_registry_v1.js'
       - 'tracking_core_v1.js'
       - 'tracking_confidence_cascade_v1.js'
       - 'tracking_two_stage_adapter_v1.js'
@@ -49,6 +50,7 @@ on:
       - 'detector_benchmark_v1.js'
       - 'rfdetr_onnx_adapter_v1.js'
       - 'rfdetr_onnx_runtime_v1.js'
+      - 'tracking_backend_candidate_registry_v1.js'
       - 'tracking_core_v1.js'
       - 'tracking_confidence_cascade_v1.js'
       - 'tracking_two_stage_adapter_v1.js'
@@ -112,6 +114,7 @@ jobs:
           node --check detector_benchmark_v1.js
           node --check rfdetr_onnx_adapter_v1.js
           node --check rfdetr_onnx_runtime_v1.js
+          node --check tracking_backend_candidate_registry_v1.js
           node --check tracking_core_v1.js
           node --check tracking_confidence_cascade_v1.js
           node --check tracking_two_stage_adapter_v1.js
