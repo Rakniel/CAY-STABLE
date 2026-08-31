@@ -24,4 +24,15 @@ TwoStage.assignFrame(mixed,[det(.20,.90),det(.80,.88,[.8,.7,.6])],0,mixedLegacyO
 r=TwoStage.assignFrame(mixed,[det(.205,.31),det(.805,.89,[.8,.7,.6])],.5,mixedLegacyOpts);
 assert.strictEqual(new Set(r.assigned.map(a=>a.trackId)).size,r.assigned.length,'aucun ID ne doit être assigné deux fois sur la même frame');
 assert.strictEqual(r.assigned.length,2);
+assert.strictEqual(TwoStage.confirmationThreshold({minimumConsecutiveFrames:null}),2,'null doit conserver le seuil de confirmation par défaut');
+assert.strictEqual(TwoStage.confirmationThreshold({minimumConsecutiveFrames:'   '}),2,'vide doit conserver le seuil de confirmation par défaut');
+assert.strictEqual(TwoStage.confirmationThreshold({minimumConsecutiveFrames:0}),1,'un zéro explicite conserve le bornage historique à 1');
+const missingOptions=Core.createState();
+r=TwoStage.assignFrame(missingOptions,[det(.30,.93)],0,{highScoreThreshold:.55,lowScoreThreshold:.20,minimumConsecutiveFrames:1,lostAfter:null,baseThreshold:null,associationPreselectionThreshold:null});
+assert.strictEqual(r.assigned.length,1);
+const missingId=r.assigned[0].trackId;
+r=TwoStage.assignFrame(missingOptions,[],.5,{highScoreThreshold:.55,lowScoreThreshold:.20,minimumConsecutiveFrames:1,lostAfter:null,baseThreshold:null,associationPreselectionThreshold:null});
+assert.strictEqual(missingOptions.active.length,1,'lostAfter null doit utiliser le défaut 8 au lieu d\'archiver après une frame manquée');
+assert.strictEqual(missingOptions.active[0].globalId,missingId);
+assert.strictEqual(missingOptions.archive.length,0);
 console.log('tracking_two_stage_adapter_nonregression: OK');
