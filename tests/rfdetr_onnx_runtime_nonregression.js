@@ -33,7 +33,9 @@ let checks=0;const ok=(c,m)=>{assert.ok(c,m);checks++;};
   ok(Runtime.looksLikeRFDETR(session)===true,'canonical RF-DETR outputs are recognized');
   ok(Runtime.inputShape(session).width===2,'input shape is read from ONNX Runtime metadata');
 
-  const canvas={width:2,height:2,getContext(){return {getImageData(){return {data:quad};}};}};
+  const frameW=20,frameH=20,pixels=new Uint8ClampedArray(frameW*frameH*4);
+  for(let i=0;i<pixels.length;i+=4){pixels[i]=128;pixels[i+1]=128;pixels[i+2]=128;pixels[i+3]=255;}
+  const canvas={width:frameW,height:frameH,getContext(){return {getImageData(){return {data:pixels};}};}};
   const bench=Runtime.createDetector(session,{candidateId:'rfdetr-soccernet-julianzu9612',profile:{personClassIds:[1,2]},Tensor:FakeTensor,mode:'benchmark'});
   ok(bench.kind==='football-rfdetr-benchmark','unvalidated local model is benchmark-only');
   const detections=await bench.detect(canvas,10,.8);
