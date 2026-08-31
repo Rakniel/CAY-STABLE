@@ -5,14 +5,16 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const finite=v=>Number.isFinite(Number(v))?Number(v):null;
+  const isPresent=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='');
+  const finite=v=>isPresent(v)&&Number.isFinite(Number(v))?Number(v):null;
+  const normalizedId=v=>isPresent(v)?String(v).trim():null;
   const key=(frame,id)=>`${frame}::${id}`;
 
   function normalize(rows){
     return (rows||[]).map((r,i)=>({
       frame:finite(r&&r.frame),
-      gtId:r&&r.gtId!=null?String(r.gtId):null,
-      trackId:r&&r.trackId!=null?String(r.trackId):null,
+      gtId:normalizedId(r&&r.gtId),
+      trackId:normalizedId(r&&r.trackId),
       visible:r&&r.visible!==false,
       matched:r&&r.matched!==false,
       index:i
