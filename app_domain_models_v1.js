@@ -82,19 +82,29 @@
   function createPreferences(raw={}){
     return {language:clean(raw.language)||'fr',autoSave:raw.autoSave!==false,showAdvanced:raw.showAdvanced===true,lastTeamId:clean(raw.lastTeamId)||null,lastAnalysisProfileId:clean(raw.lastAnalysisProfileId)||null};
   }
+  function resolveActiveKit(team,requestedKitId){
+    const usable=(team.kits||[]).filter(kit=>!!clean(kit.shirtColor));
+    const requested=clean(requestedKitId);
+    if(requested){
+      const selected=usable.find(kit=>clean(kit.id)===requested)||null;
+      return {valid:!!selected,selectedKitId:selected?selected.id:null,mode:selected?'EXPLICIT':'INVALID_EXPLICIT',usableKitIds:usable.map(kit=>kit.id)};
+    }
+    if(usable.length===1)return {valid:true,selectedKitId:usable[0].id,mode:'AUTO_SINGLE',usableKitIds:[usable[0].id]};
+    return {valid:false,selectedKitId:null,mode:usable.length>1?'AMBIGUOUS':'NONE',usableKitIds:usable.map(kit=>kit.id)};
+  }
   function setupReadiness(input={}){
     const team=input.team||createTeam({});
     const club=input.club||createClub({});
     const profile=input.analysisProfile||createAnalysisProfile({teamId:team.id});
-    const hasUsableKit=(team.kits||[]).some(kit=>!!clean(kit.shirtColor));
+    const kitSelection=resolveActiveKit(team,input.selectedKitId);
     const profileMatchesTeam=!!profile&&!!clean(profile.teamId)&&clean(profile.teamId)===clean(team.id);
     const checks=[
-      ['CLUB_NAME',!!clean(club.name)],['TEAM_NAME',!!clean(team.name)],['ROSTER',team.roster.length>0],['KIT',hasUsableKit],['ANALYSIS_PROFILE',!!profile],['ANALYSIS_PROFILE_TEAM',profileMatchesTeam]
+      ['CLUB_NAME',!!clean(club.name)],['TEAM_NAME',!!clean(team.name)],['ROSTER',team.roster.length>0],['KIT',kitSelection.valid],['ANALYSIS_PROFILE',!!profile],['ANALYSIS_PROFILE_TEAM',profileMatchesTeam]
     ];
     const lineup=validateLineup(team);
     checks.push(['LINEUP_VALID',lineup.valid]);
     const complete=checks.filter(x=>x[1]).length;
-    return {ready:complete===checks.length,completion:+(complete/checks.length).toFixed(3),missing:checks.filter(x=>!x[1]).map(x=>x[0]),lineup,uxRule:'MINIMUM_REQUIRED_FIELDS_ONLY',targetSetupMinutes:20};
+    return {ready:complete===checks.length,completion:+(complete/checks.length).toFixed(3),missing:checks.filter(x=>!x[1]).map(x=>x[0]),lineup,kitSelection,selectedKitId:kitSelection.selectedKitId,uxRule:'MINIMUM_REQUIRED_FIELDS_ONLY',targetSetupMinutes:20};
   }
-  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,createAnalysisProfile,createPreferences,setupReadiness};
+  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,createAnalysisProfile,createPreferences,resolveActiveKit,setupReadiness};
 });
