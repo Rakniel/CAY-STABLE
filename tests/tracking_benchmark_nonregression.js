@@ -4,7 +4,8 @@ const {evaluate,compare}=require('../tracking_benchmark_v1.js');
 const perfect=[
   {frame:1,gtId:'7',trackId:'A'},
   {frame:2,gtId:'7',trackId:'A'},
-  {frame:3,gtId:'7',trackId:'A'}
+  {frame:3,gtId:'7',trackId:'A'},
+  {frame:4,gtId:'7',trackId:'A'}
 ];
 const p=evaluate(perfect);
 assert.strictEqual(p.observedCoverage,1);
@@ -30,6 +31,15 @@ assert.ok(cmp.delta.observedCoverage>0);
 assert.ok(cmp.delta.identityContinuity>0);
 assert.ok(cmp.delta.idSwitches<0);
 assert.ok(cmp.delta.fragmentations<0);
+
+assert.throws(()=>compare(
+  broken,
+  perfect.filter(row=>row.frame!==2)
+),/identical ground-truth evidence/);
+assert.throws(()=>compare(
+  broken,
+  perfect.map(row=>row.frame===4?{...row,gtId:'8'}:row)
+),/identical ground-truth evidence/);
 
 assert.throws(()=>evaluate([
   {frame:1,gtId:'7',trackId:'A'},
