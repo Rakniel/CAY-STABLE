@@ -13,6 +13,11 @@
     if(!Core||!coreAssign||!coreMatchCost)throw new Error('CAYTrackingCore indisponible');
     if(!Cascade||typeof Cascade.splitDetections!=='function')throw new Error('CAYTrackingConfidenceCascade indisponible');
   }
+  function finiteOption(value,fallback){
+    if(value==null||(typeof value==='string'&&!value.trim()))return fallback;
+    const numeric=Number(value);
+    return Number.isFinite(numeric)?numeric:fallback;
+  }
   function uniqueByTrackId(items){
     const seen=new Set(),out=[];
     for(const item of items||[]){
@@ -32,7 +37,7 @@
     if(items.length<=maxPlayers)return items;
     const active=(state&&Array.isArray(state.active)?state.active:[]).filter(tr=>tr&&!tr.archived);
     if(!active.length)return items.slice(0,maxPlayers);
-    const threshold=Number.isFinite(Number(opts&&opts.associationPreselectionThreshold))?Math.max(.1,Number(opts.associationPreselectionThreshold)):.72;
+    const threshold=Math.max(.1,finiteOption(opts&&opts.associationPreselectionThreshold,.72));
     const remaining=new Set(items.map((_,index)=>index)),selected=[];
     const trackOrder=[...active].sort((a,b)=>(Number(a.missed)||0)-(Number(b.missed)||0)||(Number(b.seen)||0)-(Number(a.seen)||0));
     for(const tr of trackOrder){
@@ -57,8 +62,8 @@
     return selected.slice(0,maxPlayers);
   }
   function confirmationThreshold(opts){
-    const raw=Number(opts&&opts.minimumConsecutiveFrames);
-    return Math.max(1,Math.min(5,Number.isFinite(raw)?Math.round(raw):2));
+    const raw=finiteOption(opts&&opts.minimumConsecutiveFrames,2);
+    return Math.max(1,Math.min(5,Math.round(raw)));
   }
   function applyConfirmation(state,highAssigned,newAssigned,survivors,time,opts){
     const minFrames=confirmationThreshold(opts),frameIndex=(state.cayConfirmationFrameIndex||0)+1;
@@ -114,7 +119,7 @@
       const lowAssociation=preselectAssociationCandidates(state,low,time,recoverySlots,opts);
       lowAssigned=coreAssign(state,lowAssociation,time,{
         ...opts,maxPlayers:recoverySlots,allowNew:false,reidentifyArchived:false,lostAfter:999999,
-        baseThreshold:Cascade.recoveryThreshold(Number.isFinite(Number(opts.baseThreshold))?Number(opts.baseThreshold):.50,opts)
+        baseThreshold:Cascade.recoveryThreshold(finiteOption(opts.baseThreshold,.50),opts)
       });
     }else{
       for(const tr of state.active)tr.missed=(missedBeforeHigh.get(tr.globalId)||0)+1;
@@ -129,7 +134,7 @@
       const createdOrReidentified=[...state.active];
       survivors=uniqueByTrackId([...survivors,...createdOrReidentified].map(track=>({trackId:track.globalId,track}))).map(x=>x.track);
     }
-    const lostAfter=Number.isFinite(Number(opts.lostAfter))?Number(opts.lostAfter):8,keep=[];
+    const lostAfter=finiteOption(opts.lostAfter,8),keep=[];
     for(const tr of survivors){
       if((tr.missed||0)>lostAfter){
         if(!tr.archived){tr.archived=true;tr.exitReason='lost';state.archive.push(tr);}
