@@ -18,8 +18,19 @@ assert.strictEqual(linear.sprintCount,0,'18 km/h must not create a sprint');
 
 const sprint=Guard.robustMetricForTrack(track([[0,0],[8,0],[16,0],[24,0],[32,0]]),projector);
 assert.strictEqual(sprint.sprintCount,1,'continuous 28.8 km/h run must count as one sprint episode');
+assert.strictEqual(sprint.sprintQualifiedSeconds,4,'full qualified sprint duration must include the interval that reaches the duration threshold');
 assert.strictEqual(sprint.sprintThresholdKmh,25,'sprint threshold must stay explicit');
 assert.strictEqual(sprint.minSprintDurationSeconds,1,'sprint duration guard must stay explicit');
+
+const subsecondSamples={fullPath:[
+  {x:0,y:0,time:0,segment:1},
+  {x:3.2,y:0,time:0.4,segment:1},
+  {x:6.4,y:0,time:0.8,segment:1},
+  {x:9.6,y:0,time:1.2,segment:1}
+]};
+const subsecondSprint=Guard.robustMetricForTrack(subsecondSamples,projector);
+assert.strictEqual(subsecondSprint.sprintCount,1,'sub-second samples sustained beyond one second must form one sprint episode');
+assert.strictEqual(subsecondSprint.sprintQualifiedSeconds,1.2,'qualified duration must include all pre-qualification sprint candidate intervals');
 
 const shortSpike={fullPath:[
   {x:0,y:0,time:0,segment:1},
