@@ -57,8 +57,9 @@
         metricDt+=dt;confidenceDt+=dt*clamp(pairConfidence,0,1);distanceM+=d;maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);speeds.push({time:b.time,segment:b.segment,kmh:speedKmh,calibrationConfidence:+clamp(pairConfidence,0,1).toFixed(3)});
         if(speedKmh>=SPRINT_THRESHOLD_KMH){
           sprintCandidateSeconds+=dt;
-          if(!sprintEpisodeCounted&&sprintCandidateSeconds>=MIN_SPRINT_SECONDS){sprintCount++;sprintEpisodeCounted=true;}
-          if(sprintEpisodeCounted)sprintQualifiedSeconds+=dt;
+          if(!sprintEpisodeCounted&&sprintCandidateSeconds>=MIN_SPRINT_SECONDS){
+            sprintCount++;sprintEpisodeCounted=true;sprintQualifiedSeconds+=sprintCandidateSeconds;
+          }else if(sprintEpisodeCounted)sprintQualifiedSeconds+=dt;
         }else resetSprint();
       }
       resetSprint();
