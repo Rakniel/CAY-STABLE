@@ -52,5 +52,7 @@
     out.sort((a,b)=>b.score-a.score);
     return out.slice(0,maxBoxes);
   }
-  root.CAYRFDETRONNXAdapter={decode,pickOutputs,selectedClassIds,sigmoid,license:'Apache-2.0-adaptation'};
+  const api={decode,pickOutputs,selectedClassIds,sigmoid,license:'Apache-2.0-adaptation'};
+  root.CAYRFDETRONNXAdapter=api;
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
