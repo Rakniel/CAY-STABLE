@@ -6,6 +6,12 @@
   }
 })(typeof globalThis!=='undefined'?globalThis:this,function(ObservedPresence,PlayerStats){
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
+  const finiteEvidenceNumber=v=>{
+    if(v===null||v===undefined)return null;
+    if(typeof v==='string'&&v.trim()==='')return null;
+    const n=Number(v);
+    return Number.isFinite(n)?n:null;
+  };
   const quality=c=>c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE';
   const presenceQuality=c=>c>=.999999?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE';
   function ensureDeps(){
@@ -45,14 +51,15 @@
       reliableIdentitySlots+=reliableIdentityCount;
       const calibration=PlayerStats.projectorInfo((projectors||{})[frame.segment]);
       if(calibration.validated&&audit.valid)metricProjectionSlots+=presentCount;
-      if(audit.valid&&Number.isFinite(Number(frame.confidence))){confidenceSum+=Number(frame.confidence)*presentCount;confidenceSlots+=presentCount;}
+      const frameConfidence=finiteEvidenceNumber(frame.confidence);
+      if(audit.valid&&frameConfidence!==null){confidenceSum+=frameConfidence*presentCount;confidenceSlots+=presentCount;}
       const identityCoverage=presentCount?reliableIdentityCount/presentCount:0;
       return {
         time:frame.time,segment:frame.segment,presentIds:ids,presentCount,
         frameEvidenceValid:audit.valid,frameEvidenceReason:audit.reason,
         rejectedDuplicateIds:audit.duplicateCount,rejectedOverflowIds:audit.overflowCount,
         presenceCoverage:+clamp01(presentCount/11).toFixed(4),presenceQuality:audit.valid?(presentCount===11?'FIABLE':(presentCount?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE',
-        observationConfidence:audit.valid&&Number.isFinite(Number(frame.confidence))?clamp01(frame.confidence):null,
+        observationConfidence:audit.valid&&frameConfidence!==null?clamp01(frameConfidence):null,
         reliableIdentityCount,uncertainIdentityCount:presentCount-reliableIdentityCount,
         identityCoverage:+identityCoverage.toFixed(4),identityQuality:audit.valid?quality(identityCoverage):'INDISPONIBLE',
         metricProjectionValidated:audit.valid&&calibration.validated===true,
