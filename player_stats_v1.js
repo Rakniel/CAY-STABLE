@@ -13,7 +13,10 @@
     if(!entry)return {validated:false,project:null,source:null,confidence:null,reason:'aucune projection terrain fournie'};
     if(typeof entry==='function')return {validated:false,project:null,source:'legacy_function',confidence:null,reason:'projection fournie sans validation explicite'};
     const validated=entry.validated===true&&typeof entry.project==='function';
-    return {validated,project:validated?entry.project:null,source:entry.source||entry.method||null,confidence:Number.isFinite(Number(entry.confidence))?clamp(Number(entry.confidence),0,1):null,reason:validated?null:(entry.reason||'projection terrain non validée')};
+    const rawConfidence=entry.confidence;
+    const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
+    const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
+    return {validated,project:validated?entry.project:null,source:entry.source||entry.method||null,confidence:Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null,reason:validated?null:(entry.reason||'projection terrain non validée')};
   }
   function heatmap(points,cols=6,rows=4){
     const cells=Array.from({length:rows},()=>Array(cols).fill(0));
