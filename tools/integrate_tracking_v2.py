@@ -8,6 +8,7 @@ canonical_tags = [
     '<script src="./detector_license_guard_v1.js"></script>',
     '<script src="./detector_candidate_registry_v1.js"></script>',
     '<script src="./rfdetr_onnx_adapter_v1.js"></script>',
+    '<script src="./rfdetr_onnx_runtime_v1.js"></script>',
     '<script src="./tracking_core_v1.js"></script>',
     '<script src="./tracking_confidence_cascade_v1.js"></script>',
     '<script src="./tracking_two_stage_adapter_v1.js"></script>',
