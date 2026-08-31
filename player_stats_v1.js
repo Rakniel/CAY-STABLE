@@ -5,6 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const presentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const MetricHeatmap=(typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_pitch_heatmap_v1.js'):((typeof globalThis!=='undefined'&&globalThis.CAYMetricPitchHeatmap)||null);
   const MAX_METRIC_GAP_SEC=1;
   function qualityFromCoverage(c){ return c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE'; }
@@ -16,8 +17,14 @@
   }
   function heatmap(points,cols=6,rows=4){
     const cells=Array.from({length:rows},()=>Array(cols).fill(0));
-    for(const p of points||[]){const x=clamp(Number(p.x)||0,0,.999999),y=clamp(Number(p.y)||0,0,.999999);cells[Math.floor(y*rows)][Math.floor(x*cols)]++;}
-    return {cols,rows,cells,max:cells.reduce((m,r)=>Math.max(m,...r),0),observations:(points||[]).length,coordinateSystem:'IMAGE_NORMALIZED',status:(points||[]).length?'OBSERVABLE':'INDISPONIBLE'};
+    let observations=0;
+    for(const p of points||[]){
+      if(!presentFinite(p?.x)||!presentFinite(p?.y))continue;
+      const x=clamp(Number(p.x),0,.999999),y=clamp(Number(p.y),0,.999999);
+      cells[Math.floor(y*rows)][Math.floor(x*cols)]++;
+      observations++;
+    }
+    return {cols,rows,cells,max:cells.reduce((m,r)=>Math.max(m,...r),0),observations,coordinateSystem:'IMAGE_NORMALIZED',status:observations?'OBSERVABLE':'INDISPONIBLE'};
   }
   function metricPitchHeatmap(track,projectors){
     if(!MetricHeatmap||typeof MetricHeatmap.build!=='function')return {status:'INDISPONIBLE',reason:'module heatmap terrain métrique indisponible',coordinateSystem:'PITCH_METERS',cols:6,rows:4,cells:Array.from({length:4},()=>Array(6).fill(0)),max:0,observations:0,eligibleObservations:Array.isArray(track?.fullPath)?track.fullPath.length:0,rejectedObservations:0,metricCoverage:0,quality:'INDISPONIBLE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN'};
