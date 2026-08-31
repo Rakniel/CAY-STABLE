@@ -9,7 +9,10 @@
   const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   function projectorInfo(entry){
     if(!entry||entry.validated!==true||typeof entry.project!=='function')return {validated:false,project:null,confidence:0};
-    const confidence=Number.isFinite(Number(entry.confidence))?clamp(Number(entry.confidence),0,1):1;
+    const rawConfidence=entry.confidence;
+    const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
+    const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
+    const confidence=Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):1;
     return {validated:true,project:entry.project,confidence};
   }
   function createGrid(cols,rows){ return Array.from({length:rows},()=>Array(cols).fill(0)); }
