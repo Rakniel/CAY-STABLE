@@ -36,4 +36,27 @@ assert.throws(()=>evaluate([
   {frame:1,gtId:'7',trackId:'B'}
 ]),/duplicate ground-truth observation/);
 
+const missingEvidence=evaluate([
+  {frame:null,gtId:'7',trackId:'A'},
+  {frame:'',gtId:'7',trackId:'A'},
+  {frame:'   ',gtId:'7',trackId:'A'},
+  {frame:1,gtId:null,trackId:'A'},
+  {frame:2,gtId:'',trackId:'A'},
+  {frame:3,gtId:'   ',trackId:'A'},
+  {frame:4,gtId:'7',trackId:''},
+  {frame:5,gtId:'7',trackId:'   '},
+  {frame:6,gtId:' 7 ',trackId:' A '}
+]);
+assert.strictEqual(missingEvidence.groundTruthObservations,3);
+assert.strictEqual(missingEvidence.matchedObservations,1);
+assert.strictEqual(missingEvidence.missedObservations,2);
+assert.strictEqual(missingEvidence.groundTruthPlayers,1);
+assert.strictEqual(missingEvidence.producedTrackIds,1);
+assert.strictEqual(missingEvidence.observedCoverage,1/3);
+
+const explicitZero=evaluate([{frame:0,gtId:0,trackId:0}]);
+assert.strictEqual(explicitZero.groundTruthObservations,1);
+assert.strictEqual(explicitZero.matchedObservations,1);
+assert.strictEqual(explicitZero.observedCoverage,1);
+
 console.log('tracking benchmark non-regression: PASS');
