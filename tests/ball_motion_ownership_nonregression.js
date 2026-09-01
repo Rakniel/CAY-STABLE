@@ -6,11 +6,13 @@ const players=[
   {id:'cay-10',team:'CAY',pitchX:20,pitchY:10,confidence:.95,onField:true}
 ];
 
-// A fast ball passing close to a player is observed, but is not credited as controlled possession.
+// A clearly fast ball passing close to a player is observed, but is not credited as controlled possession.
+// Default is deliberately less aggressive than the first prototype so plausible receiver acquisition stays compatible.
 {
-  const r=inferOwner({ball:{pitchX:10.2,pitchY:10,confidence:.95},players,observedBallSpeedMps:18});
+  const r=inferOwner({ball:{pitchX:10.2,pitchY:10,confidence:.95},players,observedBallSpeedMps:28});
   assert.equal(r.status,'FREE');
   assert.equal(r.reason,'BALL_MOVING_TOO_FAST_FOR_STABLE_OWNERSHIP');
+  assert.equal(r.maxOwnershipBallSpeedMps,22);
 }
 
 // An implausible metric jump is excluded from observability rather than assigned to a player.
@@ -27,7 +29,7 @@ const players=[
   assert.equal(r.playerId,'cay-9');
 }
 
-// A fast pass across another player's control radius must remain detached in the event state machine.
+// A configurable stricter gate can keep fast pass-flight observations detached in the event state machine.
 {
   const samples=[
     {time:0,segment:1,ball:{pitchX:10.1,pitchY:10,confidence:.95},players},
@@ -44,6 +46,7 @@ const players=[
   assert.equal(r.quality,'FIABLE');
   assert(r.fastBallFreeFrames>=2);
   assert.equal(r.motionRejectedFrames,0);
+  assert.equal(r.thresholds.maxOwnershipBallSpeedMps,12);
   assert.equal(r.passes,1);
 }
 
