@@ -12,10 +12,13 @@ const base={
   avgSpeedKmh:7.2,
   maxSpeedKmh:24.8,
   sprintCount:2,
-  sprintQualifiedSeconds:1.8
+  sprintQualifiedSeconds:1.8,
+  speedSamples:[
+    {time:0,segment:1,kmh:7.0},{time:1,segment:1,kmh:7.1},{time:2,segment:1,kmh:7.3},{time:3,segment:1,kmh:7.2},{time:4,segment:1,kmh:7.4}
+  ]
 };
 
-ok(guard.publicationDecision(base).publishable===true,'une métrique physique complète et finie reste publiable');
+ok(guard.publicationDecision(base).publishable===true,'une métrique physique complète, finie et temporellement continue reste publiable');
 ok(guard.publicationDecision({...base,distanceM:NaN}).status==='INDISPONIBLE','NaN ne doit jamais être publié comme distance fiable');
 ok(guard.publicationDecision({...base,maxSpeedKmh:Infinity}).status==='INDISPONIBLE','Infinity ne doit jamais être publié comme vitesse fiable');
 ok(guard.publicationDecision({...base,sprintQualifiedSeconds:undefined}).status==='INDISPONIBLE','une durée de sprint absente rend le bloc physique indisponible');
