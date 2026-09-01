@@ -50,10 +50,17 @@
     if(!PitchHeatmap||typeof PitchHeatmap.build!=='function')return {status:'INDISPONIBLE',reason:'METRIC_PITCH_HEATMAP_ENGINE_UNAVAILABLE',coordinateSystem:'PITCH_METERS_CAY_ATTACKS_LEFT_TO_RIGHT'};
     const normalizedProjectors=wrapProjectors(projectors,options);
     const result=PitchHeatmap.build(track,normalizedProjectors,options);
+    const trajectory=result?.trajectory?{
+      ...result.trajectory,
+      coordinateSystem:'PITCH_METERS_CAY_ATTACKS_LEFT_TO_RIGHT',
+      attackingDirectionNormalized:true
+    }:result?.trajectory;
     return {
       ...result,
+      trajectory,
       coordinateSystem:'PITCH_METERS_CAY_ATTACKS_LEFT_TO_RIGHT',
       attackingDirectionNormalized:true,
+      normalizationRequiresExplicitDirection:true,
       attackingDirectionPolicy:'EXPLICITE_PAR_OBSERVATION_OU_RESOLVER; AUCUNE_DIRECTION_DEVINEE; RTL_MIROIR_X_ET_Y; COORDONNEES_BRUTES_INCHANGEES',
       provenance:'SOCCERACTION_SPADL_PLAY_LEFT_TO_RIGHT_PATTERN_ADAPTED_CLEAN_ROOM_NO_UPSTREAM_CODE_COPIED'
     };
