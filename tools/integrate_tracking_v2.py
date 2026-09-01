@@ -19,6 +19,7 @@ canonical_tags = [
     '<script src="./metric_camera_motion_projector_v1.js"></script>',
     '<script src="./metric_segment_registry_v1.js"></script>',
     '<script src="./metric_pitch_heatmap_v1.js"></script>',
+    '<script src="./metric_attacking_direction_v1.js"></script>',
     '<script src="./metric_trajectory_smoother_v1.js"></script>',
     '<script src="./ball_player_drift_guard_v1.js"></script>',
     '<script src="./ball_candidate_continuity_v1.js"></script>',
