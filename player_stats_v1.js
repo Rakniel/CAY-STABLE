@@ -7,6 +7,7 @@
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const presentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const MetricHeatmap=(typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_pitch_heatmap_v1.js'):((typeof globalThis!=='undefined'&&globalThis.CAYMetricPitchHeatmap)||null);
+  const MetricSmoother=(typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_trajectory_smoother_v1.js'):((typeof globalThis!=='undefined'&&globalThis.CAYMetricTrajectorySmoother)||null);
   const MAX_METRIC_GAP_SEC=1;
   function qualityFromCoverage(c){ return c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE'; }
   function projectorInfo(entry){
@@ -33,18 +34,31 @@
     if(!MetricHeatmap||typeof MetricHeatmap.build!=='function')return {status:'INDISPONIBLE',reason:'module heatmap terrain métrique indisponible',coordinateSystem:'PITCH_METERS',cols:6,rows:4,cells:Array.from({length:4},()=>Array(6).fill(0)),max:0,observations:0,eligibleObservations:Array.isArray(track?.fullPath)?track.fullPath.length:0,rejectedObservations:0,metricCoverage:0,quality:'INDISPONIBLE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN'};
     return MetricHeatmap.build(track,projectors||{},{cols:6,rows:4,minMetricCoverage:.35,maxDwellGapSec:MAX_METRIC_GAP_SEC});
   }
+  function projectedMetricSeries(path,projectors){
+    return (path||[]).map(p=>{
+      if(!p||!presentFinite(p.time)||p.segment===undefined||p.segment===null)return null;
+      const info=projectorInfo(projectors&&projectors[p.segment]);if(!info.validated)return null;
+      let q=null;try{q=info.project(p);}catch(e){return null;}
+      if(!q||!presentFinite(q.x)||!presentFinite(q.y))return null;
+      return {x:Number(q.x),y:Number(q.y),time:Number(p.time),segment:p.segment,smoothing:'RAW'};
+    });
+  }
   function metricForTrack(track,projectors){
-    const path=track.fullPath||[];let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0,rejectedGapSeconds=0,gapBreaks=0;const speeds=[];const SPRINT_THRESHOLD_KMH=25,MIN_SPRINT_SECONDS=1;let sprintDuration=0,sprintCounted=false;
+    const path=track.fullPath||[],rawProjected=projectedMetricSeries(path,projectors||{}),smoothResult=MetricSmoother&&typeof MetricSmoother.smoothSeries==='function'?MetricSmoother.smoothSeries(rawProjected,{maxGapSec:MAX_METRIC_GAP_SEC,maxSpacingRatio:1.35}):{points:rawProjected,smoothedSamples:0,smoothingCoverage:0,method:'NONE',policy:'MODULE_LISSAGE_INDISPONIBLE'},projected=smoothResult.points||rawProjected;
+    let eligibleDt=0,metricDt=0,distanceM=0,rawDistanceM=0,maxSpeedKmh=0,sprintCount=0,rejectedGapSeconds=0,gapBreaks=0,rejectedRawSpikePairs=0,smoothingPairs=0;const speeds=[];const SPRINT_THRESHOLD_KMH=25,MIN_SPRINT_SECONDS=1;let sprintDuration=0,sprintCounted=false;
     const breakSprintContinuity=()=>{sprintDuration=0;sprintCounted=false;};
     for(let i=1;i<path.length;i++){
       const a=path[i-1],b=path[i];if(a.segment!==b.segment){breakSprintContinuity();continue;}const dt=b.time-a.time;if(!(dt>0)){breakSprintContinuity();continue;}eligibleDt+=dt;if(dt>MAX_METRIC_GAP_SEC){rejectedGapSeconds+=dt;gapBreaks++;breakSprintContinuity();continue;}
-      const info=projectorInfo(projectors&&projectors[a.segment]);if(!info.validated){breakSprintContinuity();continue;}let pa=null,pb=null;try{pa=info.project(a);pb=info.project(b);}catch(e){breakSprintContinuity();continue;}
-      if(!pa||!pb||![pa.x,pa.y,pb.x,pb.y].every(Number.isFinite)){breakSprintContinuity();continue;}const d=hypot(pa,pb);if(!Number.isFinite(d)||d<0){breakSprintContinuity();continue;}const speedKmh=(d/dt)*3.6;if(!Number.isFinite(speedKmh)||speedKmh>45){breakSprintContinuity();continue;}
-      metricDt+=dt;distanceM+=d;speeds.push({time:b.time,segment:b.segment,kmh:speedKmh});maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);
+      const ra=rawProjected[i-1],rb=rawProjected[i],pa=projected[i-1],pb=projected[i];if(!ra||!rb||!pa||!pb){breakSprintContinuity();continue;}
+      const rawD=hypot(ra,rb),d=hypot(pa,pb);if(!Number.isFinite(rawD)||!Number.isFinite(d)||rawD<0||d<0){breakSprintContinuity();continue;}
+      const rawSpeedKmh=(rawD/dt)*3.6,speedKmh=(d/dt)*3.6;
+      if(!Number.isFinite(rawSpeedKmh)||rawSpeedKmh>55){rejectedRawSpikePairs++;breakSprintContinuity();continue;}
+      if(!Number.isFinite(speedKmh)||speedKmh>45){breakSprintContinuity();continue;}
+      metricDt+=dt;rawDistanceM+=rawD;distanceM+=d;if(pa.smoothing!=='RAW'||pb.smoothing!=='RAW')smoothingPairs++;speeds.push({time:b.time,segment:b.segment,kmh:speedKmh,rawKmh:+rawSpeedKmh.toFixed(3),smoothed:pa.smoothing!=='RAW'||pb.smoothing!=='RAW'});maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);
       if(speedKmh>=SPRINT_THRESHOLD_KMH){sprintDuration+=dt;if(!sprintCounted&&sprintDuration>=MIN_SPRINT_SECONDS){sprintCount++;sprintCounted=true;}}else breakSprintContinuity();
     }
-    const coverage=eligibleDt>0?metricDt/eligibleDt:0,avgSpeedKmh=metricDt>0?(distanceM/metricDt)*3.6:null;
-    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,quality:qualityFromCoverage(coverage),speedSamples:speeds,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,rejectedGapSeconds:+rejectedGapSeconds.toFixed(3),gapBreaks,sprintContinuityPolicy:'COMPTE_APRES_1S_CONTINUE_GE_25_KMH_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_SUPERIEUR_A_1S_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL'};
+    const coverage=eligibleDt>0?metricDt/eligibleDt:0,avgSpeedKmh=metricDt>0?(distanceM/metricDt)*3.6:null,distanceCorrectionPct=rawDistanceM>0?((distanceM/rawDistanceM)-1)*100:null;
+    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,rawDistanceM:metricDt>0?+rawDistanceM.toFixed(2):null,distanceCorrectionPct:distanceCorrectionPct===null?null:+distanceCorrectionPct.toFixed(2),avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,quality:qualityFromCoverage(coverage),speedSamples:speeds,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,rejectedGapSeconds:+rejectedGapSeconds.toFixed(3),gapBreaks,rejectedRawSpikePairs,smoothingPairs,smoothingSamples:smoothResult.smoothedSamples||0,smoothingCoverage:smoothResult.smoothingCoverage||0,smoothingMethod:smoothResult.method||'NONE',smoothingPolicy:smoothResult.policy||null,sprintContinuityPolicy:'COMPTE_APRES_1S_CONTINUE_GE_25_KMH_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_SUPERIEUR_A_1S_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL',distancePolicy:'DISTANCE_ET_VITESSE_SUR_TRAJECTOIRE_TERRAIN_VALIDEE_LISSEE_CONSERVATIVEMENT_REJET_SPIKE_BRUT_SUPERIEUR_A_55_KMH'};
   }
   function rosterState(trackSummary,trackRaw,analysisStart){
     const uncertain=(trackSummary.dataQuality?.identity||trackSummary.quality)!=='FIABLE',active=trackRaw&&trackRaw.archived!==true,presentAtStart=Number.isFinite(analysisStart)&&trackSummary.firstTime<=analysisStart+2.5;
@@ -75,5 +89,5 @@
     const base=coreApi.summary(coreState),rawById=new Map([...(coreState.archive||[]),...(coreState.active||[])].filter(t=>t&&t.cayIdentityConfirmed!==false).map(t=>[t.globalId,t])),starts=base.tracks.map(t=>t.firstTime).filter(Number.isFinite),analysisStart=starts.length?Math.min(...starts):null,players=base.tracks.map(s=>buildPlayerCard(s,rawById.get(s.id),projectors||{},analysisStart)),measuredPlayers=players.filter(p=>p.metric.metricCoverage>0),totalDistanceM=measuredPlayers.reduce((s,p)=>s+(p.metric.distanceM||0),0),avgMetricCoverage=players.length?players.reduce((s,p)=>s+p.metric.metricCoverage,0)/players.length:0,instant=buildInstantTeamTimeline(coreState,base,projectors||{});
     return {version:'STABLE_PLAYER_STATS_V1',segments:base.segments,rosterTotal:base.rosterTotal,maxVisible:base.maxVisible,analysisStart,players,team:{playersTracked:players.length,playersWithMetricData:measuredPlayers.length,activeTracking:players.filter(p=>p.rosterState.visibility==='ACTIF_TRACKING').length,uncertainIdentity:players.filter(p=>p.rosterState.visibility==='IDENTITE_INCERTAINE').length,appearedLater:players.filter(p=>p.rosterState.entry==='APPARU_PLUS_TARD').length,confirmedReplacements:0,measuredDistanceM:+totalDistanceM.toFixed(2),avgMetricCoverage:+avgMetricCoverage.toFixed(4),instantaneousIdentityCoverage:instant.identityCoverage,instantaneousMetricCoverage:instant.metricCoverage,observedInstants:instant.observedInstants,invalidObservedInstants:instant.invalidObservedInstants,observedPlayerSlots:instant.observedPlayerSlots,quality:instant.identityQuality,calculation:instant.calculation},teamTimeline:instant.frames,teamCoverage:{identity:instant.identityCoverage,metric:instant.metricCoverage,identityQuality:instant.identityQuality,metricQuality:instant.metricQuality,calculation:instant.calculation,validObservedInstants:instant.validObservedInstants,invalidObservedInstants:instant.invalidObservedInstants,invalidReasons:instant.invalidReasons,integrityPolicy:instant.integrityPolicy},unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé',confirmedReplacements:'aucun détecteur de remplacement validé'}};
   }
-  return {heatmap,metricPitchHeatmap,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage,projectorInfo,MAX_METRIC_GAP_SEC};
+  return {heatmap,metricPitchHeatmap,projectedMetricSeries,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage,projectorInfo,MAX_METRIC_GAP_SEC};
 });
