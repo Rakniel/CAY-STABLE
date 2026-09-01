@@ -12,6 +12,8 @@ const reliable={
 };
 const published=Guard.applyPublicationPolicy(reliable);
 assert.equal(published.publication.status,'FIABLE');
+assert.equal(published.metricCoverage,1);
+assert.equal(published.diagnosticMetricCoverage,1);
 assert.equal(published.distanceM,123.4);
 assert.equal(published.sprintCount,2);
 assert.equal(published.diagnosticPhysicalMetrics.distanceM,123.4);
@@ -19,6 +21,8 @@ assert.equal(published.continuousSpeedEvidenceSeconds,4);
 
 const partialCoverage=Guard.applyPublicationPolicy({...reliable,metricCoverage:.55,defendableScore:.55,quality:'PARTIEL'});
 assert.equal(partialCoverage.publication.status,'INDISPONIBLE');
+assert.equal(partialCoverage.metricCoverage,0,'UI-facing coverage must not make unavailable physical values look publishable');
+assert.equal(partialCoverage.diagnosticMetricCoverage,.55,'evidence coverage must remain auditable separately');
 assert.equal(partialCoverage.distanceM,null,'partial distance must not be published');
 assert.equal(partialCoverage.avgSpeedKmh,null,'partial average speed must not be published');
 assert.equal(partialCoverage.maxSpeedKmh,null,'partial max speed must not be published');
@@ -28,6 +32,8 @@ assert.equal(partialCoverage.diagnosticPhysicalMetrics.distanceM,123.4,'raw diag
 const tooShort=Guard.applyPublicationPolicy({...reliable,metricCoveredSeconds:2.9});
 assert.equal(tooShort.publication.status,'INDISPONIBLE');
 assert.match(tooShort.publication.reason,/3s/);
+assert.equal(tooShort.metricCoverage,0);
+assert.equal(tooShort.diagnosticMetricCoverage,1);
 assert.equal(tooShort.distanceM,null);
 
 const fragmented=Guard.applyPublicationPolicy({...reliable,speedSamples:[
@@ -38,6 +44,8 @@ const fragmented=Guard.applyPublicationPolicy({...reliable,speedSamples:[
 assert.equal(fragmented.publication.status,'INDISPONIBLE','scattered evidence must not publish physical stats');
 assert.match(fragmented.publication.reason,/continus/);
 assert.equal(fragmented.continuousSpeedEvidenceSeconds,.5);
+assert.equal(fragmented.metricCoverage,0);
+assert.equal(fragmented.diagnosticMetricCoverage,1);
 assert.equal(fragmented.distanceM,null);
 
 const crossSegment=Guard.longestContinuousSpeedEvidenceSeconds([
@@ -51,6 +59,8 @@ const noCalibration=Guard.applyPublicationPolicy({
   distanceM:null,avgSpeedKmh:null,maxSpeedKmh:null,sprintCount:null,sprintQualifiedSeconds:null,speedSamples:[]
 });
 assert.equal(noCalibration.publication.status,'INDISPONIBLE');
+assert.equal(noCalibration.metricCoverage,0);
+assert.equal(noCalibration.diagnosticMetricCoverage,0);
 assert.equal(noCalibration.distanceM,null);
 
 assert.equal(Guard.MIN_PUBLISHABLE_EVIDENCE_SCORE,.8);

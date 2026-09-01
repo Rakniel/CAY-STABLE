@@ -57,11 +57,14 @@
     const decision=publicationDecision(metric);
     const diagnostic={};
     for(const field of PHYSICAL_FIELDS)diagnostic[field]=metric[field]===undefined?null:metric[field];
+    const diagnosticMetricCoverage=finite(metric.metricCoverage)?Number(metric.metricCoverage):0;
     const published={};
     for(const field of PHYSICAL_FIELDS)published[field]=decision.publishable?diagnostic[field]:null;
     return {
       ...metric,
       ...published,
+      metricCoverage:decision.publishable?diagnosticMetricCoverage:0,
+      diagnosticMetricCoverage:+diagnosticMetricCoverage.toFixed(4),
       continuousSpeedEvidenceSeconds:decision.continuousSpeedSeconds??longestContinuousSpeedEvidenceSeconds(metric.speedSamples),
       diagnosticPhysicalMetrics:diagnostic,
       publication:{
@@ -107,7 +110,7 @@
         minCoveredSeconds:MIN_PUBLISHABLE_COVERED_SECONDS,
         minContinuousSpeedEvidenceSeconds:MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,
         maxContinuousSpeedGapSeconds:MAX_CONTINUOUS_SPEED_GAP_SECONDS,
-        principle:'les valeurs partielles restent auditables mais les statistiques physiques affichables deviennent INDISPONIBLE tant que la preuve nest pas FIABLE et temporellement continue'
+        principle:'les valeurs partielles restent auditables dans diagnosticMetricCoverage/diagnosticPhysicalMetrics mais les statistiques physiques affichables deviennent INDISPONIBLE tant que la preuve nest pas FIABLE et temporellement continue'
       };
       return report;
     };
