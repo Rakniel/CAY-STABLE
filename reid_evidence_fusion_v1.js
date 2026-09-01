@@ -65,9 +65,14 @@
       let sw=0,ss=0; for(const v of keep){sw+=v.w;ss+=v.s*v.w;}
       return sw?ss/sw:null;
     }
-    function suggest(trackId,candidateIds){
+    function pairScore(leftId,rightId){
+      const a=evidence(leftId),b=evidence(rightId);
+      if(a.effective.length<minSamples||b.effective.length<minSamples)return null;
+      return scoreSamples(a.effective,b.effective);
+    }
+    function rank(trackId,candidateIds){
       const srcEvidence=evidence(trackId),src=srcEvidence.effective;
-      if(src.length<minSamples)return {status:'INDISPONIBLE',reason:'INSUFFICIENT_SOURCE_EVIDENCE',rawSamples:srcEvidence.raw.length,effectiveSamples:src.length};
+      if(src.length<minSamples)return {status:'INDISPONIBLE',reason:'INSUFFICIENT_SOURCE_EVIDENCE',rawSamples:srcEvidence.raw.length,effectiveSamples:src.length,scored:[]};
       const scored=[];
       for(const c of candidateIds||[]){
         const id=String(c); if(id===String(trackId))continue;
@@ -76,14 +81,32 @@
         const s=scoreSamples(src,dst); if(s!=null)scored.push({trackId:id,similarity:s,samples:Math.min(src.length,dst.length),rawSamples:Math.min(srcEvidence.raw.length,dstEvidence.raw.length)});
       }
       scored.sort((a,b)=>b.similarity-a.similarity);
-      if(!scored.length)return {status:'INDISPONIBLE',reason:'NO_VALID_CANDIDATE'};
-      const best=scored[0],second=scored[1];
+      return {status:scored.length?'OK':'INDISPONIBLE',reason:scored.length?null:'NO_VALID_CANDIDATE',scored};
+    }
+    function reciprocalCheck(trackId,bestId,candidateIds){
+      const peers=[...new Set([String(trackId),...(candidateIds||[]).map(String)])];
+      const reverse=rank(bestId,peers.filter(id=>id!==String(bestId)));
+      const reverseBest=reverse.scored&&reverse.scored[0]?reverse.scored[0]:null;
+      return {
+        reciprocal:!!reverseBest&&String(reverseBest.trackId)===String(trackId),
+        reverseBest,
+        reverseStatus:reverse.status,
+        policy:'MUTUAL_BEST_MATCH_EVIDENCE'
+      };
+    }
+    function suggest(trackId,candidateIds,request={}){
+      const ranked=rank(trackId,candidateIds);
+      if(ranked.status!=='OK')return {status:'INDISPONIBLE',reason:ranked.reason,rawSamples:ranked.rawSamples,effectiveSamples:ranked.effectiveSamples};
+      const scored=ranked.scored,best=scored[0],second=scored[1];
       if(best.similarity<minSimilarity)return {status:'INDISPONIBLE',reason:'LOW_SIMILARITY',best};
       if(second&&best.similarity-second.similarity<minMargin)return {status:'A_VERIFIER',reason:'AMBIGUOUS_REID',best,second};
-      return {status:'A_VERIFIER',reason:'REID_SUGGESTION_ONLY',best,second:second||null,policy:'NEVER_AUTO_MERGE'};
+      const requireReciprocal=request&&request.requireReciprocalMatch===true;
+      const reciprocal=requireReciprocal?reciprocalCheck(trackId,best.trackId,candidateIds):null;
+      if(requireReciprocal&&!reciprocal.reciprocal)return {status:'A_VERIFIER',reason:'NON_RECIPROCAL_REID',best,second:second||null,reciprocal,policy:'NEVER_AUTO_MERGE'};
+      return {status:'A_VERIFIER',reason:requireReciprocal?'RECIPROCAL_REID_SUGGESTION_ONLY':'REID_SUGGESTION_ONLY',best,second:second||null,reciprocal,policy:'NEVER_AUTO_MERGE'};
     }
-    function diagnostics(){return {tracks:[...tracks].map(([id,v])=>({trackId:id,rawSamples:v.length,effectiveSamples:temporalDiverseSamples(v,minTemporalSeparation).length})),minSamples,minSimilarity,minMargin,maxSamples,minTemporalSeparation,policy:'NEVER_AUTO_MERGE',evidencePolicy:'TEMPORALLY_DIVERSE_SAMPLES'};}
-    return {add,suggest,diagnostics};
+    function diagnostics(){return {tracks:[...tracks].map(([id,v])=>({trackId:id,rawSamples:v.length,effectiveSamples:temporalDiverseSamples(v,minTemporalSeparation).length})),minSamples,minSimilarity,minMargin,maxSamples,minTemporalSeparation,policy:'NEVER_AUTO_MERGE',evidencePolicy:'TEMPORALLY_DIVERSE_SAMPLES',optionalReciprocalPolicy:'MUTUAL_BEST_MATCH_EVIDENCE'};}
+    return {add,suggest,rank,pairScore,reciprocalCheck,diagnostics};
   }
   return {create,cosine,temporalDiverseSamples};
 });
