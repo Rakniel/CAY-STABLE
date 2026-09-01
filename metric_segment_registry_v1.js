@@ -165,7 +165,8 @@
         dynamicSegments:dynamic.length,
         calibrationKeyframes:dynamic.reduce((s,r)=>s+r.calibrationKeyframes.length,0),
         avgConfidence:validated.length?+(validated.reduce((s,r)=>s+r.confidence,0)/validated.length).toFixed(3):0,
-        policy:'CALIBRATION_EXACTE_PAR_SEGMENT; CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES_AVEC_AGE_MAX_SANS_REUTILISATION_SILENCIEUSE'
+        policy:'CALIBRATION_EXACTE_PAR_SEGMENT_SANS_REUTILISATION_SILENCIEUSE_ENTRE_PLANS',
+        dynamicPolicy:'CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES_AVEC_AGE_MAX; SINON_PROJECTION_INDISPONIBLE'
       };
     }
 
