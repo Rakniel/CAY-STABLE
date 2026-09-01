@@ -16,7 +16,7 @@ CAY already had stricter metric-space player/ball proximity, confidence, ambigui
 The adaptation adds two conservative motion gates from validated pitch-metre observations within the same camera plan:
 
 1. **Implausible-motion rejection** — default observed ball speed > 45 m/s returns `UNAVAILABLE` for that frame. The interval cannot improve observable coverage and the ball cannot be assigned to a player.
-2. **Fast-ball ownership veto** — default observed ball speed > 12 m/s keeps the ball observable but `FREE`, preventing a fast pass/shot from being credited as controlled possession merely because it crosses a player's proximity radius.
+2. **Fast-ball ownership veto** — default observed ball speed > 22 m/s keeps the ball observable but `FREE`, preventing a clearly fast pass/shot from being credited as controlled possession merely because it crosses a player's proximity radius. The threshold remains configurable for representative-footage tuning.
 
 Motion is evaluated only when both observations have sufficient ball confidence, timestamps are increasing, the gap is <= `maxObservationGapSec`, and the continuity key/plan is unchanged. No motion evidence crosses camera cuts.
 
@@ -33,11 +33,12 @@ Motion is evaluated only when both observations have sufficient ball confidence,
 - No accuracy percentage is claimed until representative C.A. Yenne match footage is benchmarked before/after.
 
 ## Risks and dependencies
-- The default 12 m/s ownership threshold is deliberately conservative and must be benchmarked on CAY footage; a hard first touch can temporarily exceed it. Stable ownership can still be established once the ball slows.
+- The first development prototype used a 12 m/s default ownership threshold. Full CAY non-regression correctly showed that this was too aggressive: it delayed receiver acquisition in an existing valid synthetic pass sequence. The default was therefore raised to **22 m/s** rather than weakening the historical pass test. A stricter threshold can still be configured and benchmarked on representative footage.
 - Metric motion requires validated homography/segment projection upstream. Without defensible pitch coordinates, event statistics remain `INDISPONIBLE` through existing guards.
 - Ball height is not available, so the gate cannot distinguish aerial from ground motion directly.
 - Model/checkpoint licenses remain independent from this MIT design reference.
 
 ## Validation
-- Existing `tests/ball_event_state_nonregression.js` remains mandatory.
-- `tests/ball_motion_ownership_nonregression.js` covers fast pass-through ownership veto, implausible motion rejection, normal controlled-ball compatibility, same-plan pass detection and camera-plan boundary isolation.
+- Existing `tests/ball_event_state_nonregression.js` and the full JavaScript non-regression suite remain mandatory.
+- `tests/ball_motion_ownership_nonregression.js` covers default fast pass-through ownership veto, configurable stricter gating, implausible motion rejection, normal controlled-ball compatibility, same-plan pass detection and camera-plan boundary isolation.
+- The initial CI failure at the 12 m/s default is retained as design evidence: the implementation was corrected, not the existing regression expectation.
