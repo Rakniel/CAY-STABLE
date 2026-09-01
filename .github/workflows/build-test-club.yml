@@ -1,0 +1,70 @@
+name: CAY STABLE Test Club package
+
+on:
+  push:
+    branches: [build/test-club-0-2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Integrate runtime into HTML
+        run: python3 tools/integrate_tracking_v2.py
+
+      - name: Verify integrator idempotency
+        run: |
+          cp CAY_ANALYZER_STABLE.html /tmp/cay-integrated.html
+          python3 tools/integrate_tracking_v2.py
+          cmp --silent /tmp/cay-integrated.html CAY_ANALYZER_STABLE.html
+
+      - name: Syntax check root JavaScript
+        run: |
+          set -e
+          for js in *.js; do
+            echo "checking $js"
+            node --check "$js"
+          done
+
+      - name: Run non-regression suite
+        run: |
+          set -e
+          for test in tests/*.js; do
+            echo "== $test =="
+            node "$test"
+          done
+
+      - name: Build Test Club folder
+        run: |
+          set -e
+          mkdir -p dist
+          cp CAY_ANALYZER_STABLE.html dist/
+          cp ./*.js dist/
+          cp START_CAY_STABLE.bat serve_cay_stable.ps1 README_TEST_CLUB.txt dist/
+          cp OPEN_SOURCE_COMPONENTS.md dist/
+          printf '%s\n' 'CAY-STABLE TEST CLUB 0.2' 'Base main: 623364ca3cc34ea0fa22b21ee7bf18f34963abd1' "Package commit: $GITHUB_SHA" > dist/BUILD_INFO.txt
+
+      - name: Verify packaged entrypoints
+        run: |
+          test -s dist/CAY_ANALYZER_STABLE.html
+          test -s dist/START_CAY_STABLE.bat
+          test -s dist/serve_cay_stable.ps1
+          grep -q 'STABLE_LONG_TERM_TRACKING_V2' dist/CAY_ANALYZER_STABLE.html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CAY-STABLE-TEST-CLUB-0.2
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
