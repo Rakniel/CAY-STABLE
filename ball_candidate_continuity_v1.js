@@ -43,7 +43,7 @@
       if(state.lastTime!==null&&t!==null&&t-state.lastTime>cfg.maxGapSec)reset('gap');
       if(state.lastKey!==null&&key!==null&&state.lastKey!==key)reset('segment');
       const valid=(candidates||[]).map((raw,index)=>({raw,index,p:pointOf(raw),confidence:confidenceOf(raw)}))
-        .filter(x=>x.p&&x.confidence>=cfg.minConfidence&&x.raw.valid!==false&&x.raw.visible!==false);
+        .filter(x=>x.p&&x.confidence>=cfg.minConfidence&&x.raw.valid!==false&&x.raw.visible!==false&&x.raw.drifted!==true&&x.raw.driftStatus!=='DRIFTED');
       if(!valid.length){if(t!==null)state.lastTime=t;if(key!==null)state.lastKey=key;return {status:'UNAVAILABLE',reason:'NO_VALID_BALL_CANDIDATE'};}
 
       let best=null;
