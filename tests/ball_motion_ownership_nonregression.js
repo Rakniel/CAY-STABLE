@@ -7,12 +7,12 @@ const players=[
 ];
 
 // A clearly fast ball passing close to a player is observed, but is not credited as controlled possession.
-// Default is deliberately less aggressive than the first prototype so plausible receiver acquisition stays compatible.
+// Default is deliberately conservative so plausible receiver acquisition stays compatible.
 {
-  const r=inferOwner({ball:{pitchX:10.2,pitchY:10,confidence:.95},players,observedBallSpeedMps:28});
+  const r=inferOwner({ball:{pitchX:10.2,pitchY:10,confidence:.95},players,observedBallSpeedMps:35});
   assert.equal(r.status,'FREE');
   assert.equal(r.reason,'BALL_MOVING_TOO_FAST_FOR_STABLE_OWNERSHIP');
-  assert.equal(r.maxOwnershipBallSpeedMps,22);
+  assert.equal(r.maxOwnershipBallSpeedMps,30);
 }
 
 // An implausible metric jump is excluded from observability rather than assigned to a player.
