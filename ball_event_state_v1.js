@@ -48,7 +48,7 @@
       minPlayerConfidence:configured(raw.minPlayerConfidence,.45),
       ownerRadiusM:configured(raw.ownerRadiusM,2.2),
       ambiguityMarginM:configured(raw.ambiguityMarginM,.65),
-      maxOwnershipBallSpeedMps:configured(raw.maxOwnershipBallSpeedMps,12),
+      maxOwnershipBallSpeedMps:configured(raw.maxOwnershipBallSpeedMps,22),
       maxPlausibleBallSpeedMps:configured(raw.maxPlausibleBallSpeedMps,45)
     };
   }
@@ -78,7 +78,7 @@
     const raw=options||{};
     const cfg={
       minBallConfidence:configured(raw.minBallConfidence,.65),minPlayerConfidence:configured(raw.minPlayerConfidence,.45),ownerRadiusM:configured(raw.ownerRadiusM,2.2),ambiguityMarginM:configured(raw.ambiguityMarginM,.65),
-      maxOwnershipBallSpeedMps:configured(raw.maxOwnershipBallSpeedMps,12),maxPlausibleBallSpeedMps:configured(raw.maxPlausibleBallSpeedMps,45),
+      maxOwnershipBallSpeedMps:configured(raw.maxOwnershipBallSpeedMps,22),maxPlausibleBallSpeedMps:configured(raw.maxPlausibleBallSpeedMps,45),
       minStableOwnershipSec:configured(raw.minStableOwnershipSec,.30),minCoverage:configured(raw.minCoverage,.55),maxObservationGapSec:configured(raw.maxObservationGapSec,.75),
       minPassTravelM:configured(raw.minPassTravelM,3),maxPassTransitionSec:configured(raw.maxPassTransitionSec,3),minPassMeanSpeedMps:configured(raw.minPassMeanSpeedMps,2.5),minPassDetachedObservations:configured(raw.minPassDetachedObservations,2),minPassDetachedSpanSec:configured(raw.minPassDetachedSpanSec,.03),
       minTurnoverTravelM:configured(raw.minTurnoverTravelM,.75),maxTurnoverTransitionSec:configured(raw.maxTurnoverTransitionSec,1.5)
