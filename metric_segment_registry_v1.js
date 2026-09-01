@@ -8,10 +8,44 @@
     if(typeof v==='string'&&v.trim()==='')return false;
     return Number.isInteger(Number(v))&&Number(v)>=0;
   };
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
 
   function createRegistry(projectorApi){
     if(!projectorApi||typeof projectorApi.createProjector!=='function')throw new Error('CAYMetricHomographyProjector requis');
     const entries=new Map();
+
+    function calibrationSnapshot(projector,time,kind='absolute'){
+      return {
+        time:Number(time),projector,validated:projector?.validated===true,
+        source:projector?.source||null,
+        confidence:finite(projector?.confidence)?Number(projector.confidence):0,
+        validation:projector?.validation||null,kind
+      };
+    }
+
+    function temporalProjector(record){
+      const valid=(record.keyframes||[]).filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function').sort((a,b)=>a.time-b.time);
+      if(!valid.length)return null;
+      const maxAge=finite(record.maxCalibrationAgeSec)?Math.max(.02,Number(record.maxCalibrationAgeSec)):.35;
+      const avgConfidence=valid.reduce((s,k)=>s+k.confidence,0)/valid.length;
+      return {
+        validated:true,
+        source:'temporal_calibration_keyframes',
+        confidence:avgConfidence,
+        validation:{keyframes:valid.length,maxCalibrationAgeSec:maxAge,dynamicCamera:true},
+        pitch:record.pitch||valid[0].projector.pitch||null,
+        project(point){
+          if(!point||!finite(point.time))return null;
+          const t=Number(point.time);let best=null,bestAge=Infinity;
+          for(const k of valid){const age=Math.abs(t-k.time);if(age<bestAge){bestAge=age;best=k;}}
+          if(!best||bestAge>maxAge)return null;
+          let q=null;try{q=best.projector.project(point);}catch(e){return null;}
+          if(!q||!finite(q.x)||!finite(q.y))return null;
+          return {...q,calibrationKeyframeTime:best.time,calibrationAgeSec:+bestAge.toFixed(4),calibrationKind:best.kind};
+        },
+        provenance:{strategy:'ABSOLUTE_KEYFRAMES_WITH_STRICT_FRESHNESS_GUARD',codeCopied:false,licenseDependency:'none'}
+      };
+    }
 
     function calibrate(segment,options={}){
       if(!finiteInt(segment))return {ok:false,reason:'segment invalide'};
@@ -22,14 +56,17 @@
         projector,
         validated:projector.validated===true,
         source:projector.source||null,
-        confidence:Number.isFinite(Number(projector.confidence))?Number(projector.confidence):0,
+        confidence:finite(projector.confidence)?Number(projector.confidence):0,
         reason:projector.reason||null,
         validation:projector.validation||null,
         pitch:projector.pitch||null,
-        createdAt:Number.isFinite(Number(options.createdAt))?Number(options.createdAt):null,
+        createdAt:finite(options.createdAt)?Number(options.createdAt):null,
         shotId:options.shotId==null?null:String(options.shotId),
+        dynamicCamera:false,
+        maxCalibrationAgeSec:finite(options.maxCalibrationAgeSec)?Math.max(.02,Number(options.maxCalibrationAgeSec)):.35,
+        keyframes:[],
         provenance:{
-          architectureReferences:['soccer-tactical-vision calibration/validation/project stages','TVCalib','SoccerNet calibration'],
+          architectureReferences:['soccer-tactical-vision calibration/validation/project stages','TVCalib','SoccerNet calibration','MatchVision guarded short-horizon calibration propagation'],
           codeCopied:false,
           licenseDependency:'none'
         }
@@ -44,6 +81,8 @@
         segment:record.segment,validated:record.validated,source:record.source,
         confidence:record.confidence,reason:record.reason,validation:record.validation,
         pitch:record.pitch,createdAt:record.createdAt,shotId:record.shotId,
+        dynamicCamera:record.dynamicCamera===true,maxCalibrationAgeSec:record.maxCalibrationAgeSec,
+        calibrationKeyframes:(record.keyframes||[]).map(k=>({time:k.time,validated:k.validated,source:k.source,confidence:k.confidence,kind:k.kind})),
         provenance:record.provenance
       };
     }
@@ -56,7 +95,40 @@
     function projectorFor(segment){
       if(!finiteInt(segment))return null;
       const record=entries.get(Number(segment));
-      return record&&record.validated?record.projector:null;
+      if(!record||!record.validated)return null;
+      if(record.dynamicCamera===true)return temporalProjector(record);
+      return record.projector;
+    }
+
+    function markDynamic(segment,time,options={}){
+      if(!finiteInt(segment))return {ok:false,reason:'segment invalide'};
+      const record=entries.get(Number(segment));if(!record)return {ok:false,reason:'segment non calibré'};
+      if(finite(options.maxCalibrationAgeSec))record.maxCalibrationAgeSec=Math.max(.02,Number(options.maxCalibrationAgeSec));
+      const anchorTime=finite(time)?Number(time):(finite(record.createdAt)?Number(record.createdAt):null);
+      if(record.dynamicCamera!==true&&record.projector?.validated===true&&anchorTime!==null){
+        record.keyframes.push(calibrationSnapshot(record.projector,anchorTime,'absolute_anchor'));
+      }
+      record.dynamicCamera=true;
+      record.source='temporal_calibration_keyframes';
+      record.validation={...(record.validation||{}),dynamicCamera:true,maxCalibrationAgeSec:record.maxCalibrationAgeSec};
+      return {ok:!!temporalProjector(record),record:safeRecord(record),reason:temporalProjector(record)?null:'aucun keyframe de calibration validé'};
+    }
+
+    function addCalibrationKeyframe(segment,time,options={}){
+      if(!finiteInt(segment)||!finite(time))return {ok:false,reason:'segment ou temps invalide'};
+      const record=entries.get(Number(segment));if(!record)return {ok:false,reason:'segment non calibré'};
+      const projector=projectorApi.createProjector(options);
+      if(projector.validated!==true)return {ok:false,reason:projector.reason||'keyframe de calibration non validé',record:safeRecord(record)};
+      record.dynamicCamera=true;
+      if(finite(options.maxCalibrationAgeSec))record.maxCalibrationAgeSec=Math.max(.02,Number(options.maxCalibrationAgeSec));
+      const snapshot=calibrationSnapshot(projector,Number(time),options.kind||'absolute_refresh');
+      const duplicate=(record.keyframes||[]).findIndex(k=>Math.abs(k.time-snapshot.time)<1e-6);
+      if(duplicate>=0)record.keyframes[duplicate]=snapshot;else record.keyframes.push(snapshot);
+      record.keyframes.sort((a,b)=>a.time-b.time);
+      record.source='temporal_calibration_keyframes';
+      record.confidence=record.keyframes.reduce((s,k)=>s+k.confidence,0)/record.keyframes.length;
+      record.validation={dynamicCamera:true,keyframes:record.keyframes.length,maxCalibrationAgeSec:record.maxCalibrationAgeSec};
+      return {ok:true,record:safeRecord(record),reason:null};
     }
 
     function invalidate(segment,reason='calibration invalidée explicitement'){
@@ -68,31 +140,36 @@
       if(record.projector){
         record.projector={...record.projector,validated:false,project:null,reason};
       }
+      record.keyframes=[];
       return true;
     }
 
     function exportProjectors(){
       const out={};
       for(const [segment,record] of entries){
-        if(record.validated&&record.projector&&typeof record.projector.project==='function')out[segment]=record.projector;
+        if(!record.validated)continue;
+        const projector=record.dynamicCamera===true?temporalProjector(record):record.projector;
+        if(projector&&projector.validated&&typeof projector.project==='function')out[segment]=projector;
       }
       return out;
     }
 
     function summary(){
       const records=[...entries.values()].sort((a,b)=>a.segment-b.segment).map(safeRecord);
-      const validated=records.filter(r=>r.validated);
+      const validated=records.filter(r=>r.validated),dynamic=validated.filter(r=>r.dynamicCamera);
       return {
         segments:records,
         configuredSegments:records.length,
         validatedSegments:validated.length,
         rejectedSegments:records.length-validated.length,
+        dynamicSegments:dynamic.length,
+        calibrationKeyframes:dynamic.reduce((s,r)=>s+r.calibrationKeyframes.length,0),
         avgConfidence:validated.length?+(validated.reduce((s,r)=>s+r.confidence,0)/validated.length).toFixed(3):0,
-        policy:'CALIBRATION_EXACTE_PAR_SEGMENT_SANS_REUTILISATION_SILENCIEUSE_ENTRE_PLANS'
+        policy:'CALIBRATION_EXACTE_PAR_SEGMENT; CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES_AVEC_AGE_MAX_SANS_REUTILISATION_SILENCIEUSE'
       };
     }
 
-    return {calibrate,get,projectorFor,invalidate,exportProjectors,summary};
+    return {calibrate,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
   return {createRegistry};
