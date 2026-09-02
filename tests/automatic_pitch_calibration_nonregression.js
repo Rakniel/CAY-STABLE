@@ -6,8 +6,8 @@ const good = [
   { image:{x:105,y:0}, pitch:{x:105,y:0}, confidence:.98 },
   { image:{x:105,y:68}, pitch:{x:105,y:68}, confidence:.99 },
   { image:{x:0,y:68}, pitch:{x:0,y:68}, confidence:.97 },
-  { image:{x:52.5,y:34}, pitch:{x:52.5,y:34}, confidence:.96 },
-  { image:{x:25,y:20}, pitch:{x:25,y:20}, confidence:.95 }
+  { image:{x:60,y:20}, pitch:{x:60,y:20}, confidence:.96 },
+  { image:{x:25,y:45}, pitch:{x:25,y:45}, confidence:.95 }
 ];
 
 let r = auto.splitFitValidation(good);
@@ -49,5 +49,14 @@ r = auto.evaluateAutomaticCalibration({
 });
 assert.strictEqual(r.status,'REJECTED');
 assert.strictEqual(r.reason,'AUTO_CALIBRATION_SOURCE_CONFIDENCE_TOO_LOW');
+
+r = auto.evaluateAutomaticCalibration({
+  correspondences:good.map(c=>({image:c.image,pitch:c.pitch})),
+  frameSize:{width:105,height:68},
+  minSourceMeanConfidence:.5
+});
+assert.strictEqual(r.status,'ACCEPTED_AUTOMATIC');
+assert.strictEqual(r.sourceConfidence.available,false);
+assert.strictEqual(r.sourceConfidence.mean,null);
 
 console.log('automatic_pitch_calibration_nonregression: OK');
