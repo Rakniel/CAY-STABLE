@@ -57,6 +57,40 @@ text = re.sub(
     flags=re.MULTILINE,
 )
 
+# STABLE UX policy: automatic analysis is the primary path. Manual calibration is a
+# correction/fallback and must never gate tracking or the first result screen.
+def replace_policy(old, new, label):
+    global text
+    if new in text:
+        return
+    if old not in text:
+        raise SystemExit(f'ERROR: expected source for {label} not found')
+    text = text.replace(old, new, 1)
+
+replace_policy(
+    '<div class="status" id="v55Status">Termine les 3 images de calibrage puis lance ce test unique.</div>',
+    '<div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.</div>',
+    'automatic analysis status',
+)
+
+replace_policy(
+    "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Étape suivante : 3 images de référence maximum.`,'success');",
+    "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.`,'success');",
+    'scan completion automatic-analysis message',
+)
+
+replace_policy(
+    "renderReviews();$('reviewSection').classList.add('hidden');\n  $('guidedCalibSection').classList.remove('hidden');renderGuidedRefs();\n  if(guidedCalibrationRefs.length===3&&guidedCalibrationRefs.every(r=>r.poly&&r.poly.length>=3)){",
+    "renderReviews();$('reviewSection').classList.add('hidden');\n  $('guidedCalibSection').classList.remove('hidden');renderGuidedRefs();\n  $('validation55Section').classList.remove('hidden');\n  $('v55Refs').textContent=`${Math.min(3,guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length)}/3`;\n  if(guidedCalibrationRefs.length===3&&guidedCalibrationRefs.every(r=>r.poly&&r.poly.length>=3)){",
+    'remove manual calibration gate before analysis',
+)
+
+replace_policy(
+    "{label:'3 images maximum',ok:metrics.calibrationImages===3,value:`${metrics.calibrationImages}/3`},",
+    "{label:'calibrage manuel optionnel (max 3)',ok:Number.isFinite(metrics.calibrationImages)&&metrics.calibrationImages>=0&&metrics.calibrationImages<=3,value:`${metrics.calibrationImages}/3`},",
+    'manual calibration validation policy',
+)
+
 needle = '</body>'
 if needle not in text:
     raise SystemExit('ERROR: </body> not found')
@@ -73,5 +107,16 @@ if positions != sorted(positions):
 if any(text.count(tag) != 1 for tag in canonical_tags):
     raise SystemExit('ERROR: tracking runtime script duplicated')
 
+required_policy = [
+    'Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.',
+    'Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.',
+    "$('validation55Section').classList.remove('hidden');",
+    "label:'calibrage manuel optionnel (max 3)'",
+]
+if any(item not in text for item in required_policy):
+    raise SystemExit('ERROR: automatic-analysis entry policy not fully integrated')
+if "label:'3 images maximum',ok:metrics.calibrationImages===3" in text:
+    raise SystemExit('ERROR: obsolete mandatory three-reference calibration gate remains')
+
 path.write_text(text, encoding='utf-8')
-print('integrated long-term tracking runtime in canonical dependency order')
+print('integrated long-term tracking runtime and auto-first analysis policy')
