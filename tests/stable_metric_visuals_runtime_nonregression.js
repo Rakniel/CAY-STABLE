@@ -27,5 +27,21 @@ const strict=Runtime.attachMetricVisuals({players:[{id:7}]},{active:[track]},pro
 assert.strictEqual(strict.players[0].metricVisuals.status,'INDISPONIBLE');
 assert.deepStrictEqual(strict.players[0].metricVisuals.pitchHeatmap.normalizedCells,[]);
 assert.ok(strict.players[0].metricVisuals.trajectory.metricCoverage>0);
-assert.strictEqual(strict.metricVisualsPolicy,'TRAJECTOIRES_ET_HEATMAPS_TERRAIN_UNIQUEMENT_SUR_PROJECTION_METRIQUE_VALIDEE; SINON INDISPONIBLE');
+assert.strictEqual(strict.metricVisualsPolicy,'TRAJECTOIRES_ET_HEATMAPS_TERRAIN_UNIQUEMENT_SUR_PROJECTION_METRIQUE_VALIDEE_AVEC_CONFIANCE_EXPLICITE; SINON INDISPONIBLE');
+
+for(const confidence of [undefined,null,'','   ','not-a-number']){
+  const missingProjector={validated:true,project:p=>({x:p.x*105,y:p.y*68})};
+  if(confidence!==undefined)missingProjector.confidence=confidence;
+  const blocked=Runtime.attachMetricVisuals({players:[{id:7}]},{active:[track]},{1:missingProjector,2:projectors[2]},{minMetricCoverage:.5,minCalibrationConfidence:.5});
+  assert.strictEqual(blocked.players[0].metricVisuals.status,'INDISPONIBLE','missing calibration confidence must never publish STABLE metric visuals');
+  assert.strictEqual(blocked.players[0].metricVisuals.avgCalibrationConfidence,null);
+  assert.strictEqual(blocked.players[0].metricVisuals.trajectory,null);
+  assert.deepStrictEqual(blocked.players[0].metricVisuals.pitchHeatmap.normalizedCells,[]);
+  assert(/confiance calibration absente/.test(blocked.players[0].metricVisuals.reason));
+}
+
+const explicitZero=Runtime.attachMetricVisuals({players:[{id:7}]},{active:[track]},{1:{validated:true,confidence:0,project:p=>({x:p.x*105,y:p.y*68})},2:projectors[2]},{minMetricCoverage:.5,minCalibrationConfidence:.5});
+assert.strictEqual(explicitZero.players[0].metricVisuals.status,'INDISPONIBLE');
+assert.strictEqual(explicitZero.players[0].metricVisuals.avgCalibrationConfidence,0,'measured zero confidence must remain distinct from missing confidence');
+
 console.log('stable_metric_visuals_runtime_nonregression: PASS');
