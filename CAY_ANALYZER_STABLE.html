@@ -5427,9 +5427,9 @@ function trackingStart(){
 function trackingPoly(t,c){
  const s=sceneAt(t);
  if(s&&s.manual&&s.manual.length>=3)return s.manual;
- const af=autoField(c);
- if(af.poly&&af.confidence>=.32)return af.poly;
- return s&&s.auto?s.auto:null;
+ // Tracking image-space : ne jamais exclure des joueurs à cause du masque gazon.
+ const w=Math.max(1,c&&c.width||1),h=Math.max(1,c&&c.height||1);
+ return [{x:0,y:0},{x:w-1,y:0},{x:w-1,y:h-1},{x:0,y:h-1}];
 }
 function trackingSummaryTracks(state){
  return [...state.archive,...state.tracks].map(tr=>{
