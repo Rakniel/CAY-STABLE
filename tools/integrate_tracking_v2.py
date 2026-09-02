@@ -69,13 +69,13 @@ def replace_policy(old, new, label):
 
 replace_policy(
     '<div class="status" id="v55Status">Termine les 3 images de calibrage puis lance ce test unique.</div>',
-    '<div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.</div>',
+    '<div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Les métriques terrain restent INDISPONIBLE tant qu’une vraie calibration géométrique n’est pas défendable.</div>',
     'automatic analysis status',
 )
 
 replace_policy(
     "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Étape suivante : 3 images de référence maximum.`,'success');",
-    "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.`,'success');",
+    "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Analyse disponible immédiatement. La segmentation de pelouse sert uniquement de masque spatial ; elle n’est jamais utilisée comme calibration terrain.`,'success');",
     'scan completion automatic-analysis message',
 )
 
@@ -107,6 +107,33 @@ replace_policy(
     'mutable restored pitch appearance blend',
 )
 
+# The legacy autoField() algorithm learns the connected grass appearance. It is a
+# coarse spatial ROI, NOT a football-pitch calibration and must never be exposed as
+# a red calibration boundary or automatically create a calibration correction queue.
+replace_policy(
+    " s.auto=af.poly;s.conf=af.confidence;s.autoEval=ev;\n s.review=!ev.ok;\n s.reviewReasons=ev.reasons;",
+    " s.auto=af.poly;s.autoRole='COARSE_GRASS_MASK_ONLY';s.conf=af.confidence;s.autoEval=ev;\n // Un masque de pelouse mauvais reste un diagnostic, jamais une demande de calibrage.\n s.review=false;\n s.reviewReasons=ev.ok?[]:ev.reasons.map(r=>'masque_gazon_'+r);",
+    'grass mask must not create calibration review queue',
+)
+
+replace_policy(
+    "points=s.manual?[...s.manual]:(s.auto?[...s.auto]:[]);selectedPoints=[];groupDragStart=null;boxSelectMode=false;boxSelectStart=null;boxSelectCurrent=null;polygonClosed=points.length>=3;",
+    "// Ne jamais pré-remplir la ligne rouge avec autoField(): c'est un masque de pelouse, pas une calibration.\n points=s.manual?[...s.manual]:[];selectedPoints=[];groupDragStart=null;boxSelectMode=false;boxSelectStart=null;boxSelectCurrent=null;polygonClosed=points.length>=3;",
+    'manual calibration must not inherit grass mask polygon',
+)
+
+replace_policy(
+    "renderReviews();$('reviewSection').classList.add('hidden');\n  $('guidedCalibSection').classList.remove('hidden');renderGuidedRefs();\n  $('validation55Section').classList.remove('hidden');",
+    "renderReviews();$('reviewSection').classList.add('hidden');\n  // Parcours principal : aucun écran de calibrage tant qu'une vraie géométrie terrain n'est pas disponible.\n  $('guidedCalibSection').classList.add('hidden');renderGuidedRefs();\n  $('validation55Section').classList.remove('hidden');",
+    'hide legacy grass-based guided calibration from primary flow',
+)
+
+replace_policy(
+    "  $('guidedCalibSection').scrollIntoView({behavior:'smooth',block:'start'});",
+    "  $('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});",
+    'primary scan flow must scroll to analysis not calibration',
+)
+
 needle = '</body>'
 if needle not in text:
     raise SystemExit('ERROR: </body> not found')
@@ -124,12 +151,16 @@ if any(text.count(tag) != 1 for tag in canonical_tags):
     raise SystemExit('ERROR: tracking runtime script duplicated')
 
 required_policy = [
-    'Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.',
-    'Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.',
+    'Les métriques terrain restent INDISPONIBLE tant qu’une vraie calibration géométrique n’est pas défendable.',
+    'La segmentation de pelouse sert uniquement de masque spatial ; elle n’est jamais utilisée comme calibration terrain.',
     "$('validation55Section').classList.remove('hidden');",
     "label:'calibrage manuel optionnel (max 3)'",
     'Calibration manuelle optionnelle : conserver le compteur comme preuve de couverture',
     'let medS=medianNumber(svals),medV=medianNumber(vvals);',
+    "s.autoRole='COARSE_GRASS_MASK_ONLY'",
+    "points=s.manual?[...s.manual]:[];",
+    "$('guidedCalibSection').classList.add('hidden');renderGuidedRefs();",
+    "$('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});",
 ]
 if any(item not in text for item in required_policy):
     raise SystemExit('ERROR: automatic-analysis / scan runtime policy not fully integrated')
@@ -139,6 +170,8 @@ if 'Calibrage incomplet : ${calibrated}/3 image(s). Termine d’abord les 3 réf
     raise SystemExit('ERROR: obsolete runtime manual-calibration gate remains')
 if 'const medS=medianNumber(svals),medV=medianNumber(vvals);' in text:
     raise SystemExit('ERROR: restored pitch model would still reassign const medS/medV')
+if "points=s.manual?[...s.manual]:(s.auto?[...s.auto]:[]);" in text:
+    raise SystemExit('ERROR: grass mask would still be exposed as manual calibration polygon')
 
 path.write_text(text, encoding='utf-8')
-print('integrated long-term tracking runtime, auto-first analysis and crash-free restored pitch scan')
+print('integrated long-term tracking runtime, auto-first analysis and strict grass-mask/calibration separation')
