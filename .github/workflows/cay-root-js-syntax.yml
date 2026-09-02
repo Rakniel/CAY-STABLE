@@ -1,0 +1,52 @@
+name: CAY root JavaScript syntax guard
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '*.js'
+      - 'tests/**'
+      - '.github/workflows/cay-root-js-syntax.yml'
+  push:
+    branches: [main]
+    paths:
+      - '*.js'
+      - 'tests/**'
+      - '.github/workflows/cay-root-js-syntax.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-nonregression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check every root JavaScript module
+        run: |
+          set -e
+          count=0
+          for file in ./*.js; do
+            [ -f "$file" ] || continue
+            echo "== syntax $file =="
+            node --check "$file"
+            count=$((count + 1))
+          done
+          [ "$count" -gt 0 ] || { echo 'ERROR: no root JavaScript modules found'; exit 1; }
+          echo "Root JavaScript syntax checked: $count modules"
+      - name: Run every JavaScript non-regression test
+        run: |
+          set -e
+          count=0
+          for test in tests/*.js; do
+            [ -f "$test" ] || continue
+            echo "== $test =="
+            node "$test"
+            count=$((count + 1))
+          done
+          [ "$count" -gt 0 ] || { echo 'ERROR: no JavaScript tests found'; exit 1; }
+          echo "JavaScript non-regression tests executed: $count"
