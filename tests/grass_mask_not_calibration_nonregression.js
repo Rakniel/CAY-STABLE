@@ -31,7 +31,9 @@ assert(
 const scanMarker="renderReviews();$('reviewSection').classList.add('hidden');";
 const scanPos=html.indexOf(scanMarker);
 assert(scanPos>=0,'scan completion block must exist');
-const scanBlock=html.slice(scanPos,scanPos+1200);
+const scanEnd=html.indexOf("}catch(e){status($('scanStatus')",scanPos);
+assert(scanEnd>scanPos,'scan completion handler end must exist');
+const scanBlock=html.slice(scanPos,scanEnd);
 assert(
   scanBlock.includes("$('guidedCalibSection').classList.add('hidden');"),
   'primary scan flow must keep legacy guided calibration hidden'
