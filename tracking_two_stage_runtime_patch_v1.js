@@ -45,6 +45,16 @@
     for(const c of ordered){if(usedT.has(c.ti)||usedD.has(c.di))continue;usedT.add(c.ti);usedD.add(c.di);picked.push(c);}
     return picked;
   }
+  function spatialSupportSpan(pairs){
+    let span=0;
+    for(let i=0;i<(pairs||[]).length-1;i++)for(let j=i+1;j<pairs.length;j++){
+      const a=pairs[i]?.tr,b=pairs[j]?.tr;
+      if(!a||!b)continue;
+      const d=Math.hypot(Number(a.x)-Number(b.x),Number(a.y)-Number(b.y));
+      if(Number.isFinite(d))span=Math.max(span,d);
+    }
+    return span;
+  }
   function fitSimilarity(pairs){
     if(!pairs||pairs.length<3)return null;
     let sw=0,mx=0,my=0,mu=0,mv=0;
@@ -104,17 +114,18 @@
     if(initial.length<3)return {available:false,reason:'insufficient_unique_pairs',model:'none',support:initial.length,confidence:0};
     const consensus=robustSimilarityConsensus(initial,.055);
     if(!consensus)return {available:false,reason:'insufficient_similarity_consensus',model:'none',support:0,confidence:0};
-    const fit=consensus.fit,used=consensus.inliers;
+    const fit=consensus.fit,used=consensus.inliers,supportSpan=spatialSupportSpan(used);
+    if(supportSpan<.22)return {available:false,reason:'insufficient_spatial_support',model:'similarity',support:used.length,supportSpan,confidence:0,residual:fit.residual};
     const scaleDelta=Math.abs(fit.scale-1),rotationAbs=Math.abs(fit.rotation);
-    if(fit.scale<.88||fit.scale>1.14||rotationAbs>.12)return {available:false,reason:'unsupported_similarity',model:'similarity',support:used.length,confidence:0,scale:fit.scale,rotation:fit.rotation};
-    if(fit.residual>.045)return {available:false,reason:'high_similarity_residual',model:'similarity',support:used.length,confidence:0,residual:fit.residual};
-    if(scaleDelta>.035&&zoomHint<.015&&geometry<.02)return {available:false,reason:'unconfirmed_zoom',model:'similarity',support:used.length,confidence:0,scale:fit.scale};
+    if(fit.scale<.88||fit.scale>1.14||rotationAbs>.12)return {available:false,reason:'unsupported_similarity',model:'similarity',support:used.length,supportSpan,confidence:0,scale:fit.scale,rotation:fit.rotation};
+    if(fit.residual>.045)return {available:false,reason:'high_similarity_residual',model:'similarity',support:used.length,supportSpan,confidence:0,residual:fit.residual};
+    if(scaleDelta>.035&&zoomHint<.015&&geometry<.02)return {available:false,reason:'unconfirmed_zoom',model:'similarity',support:used.length,supportSpan,confidence:0,scale:fit.scale};
     const supportRatio=Math.min(1,used.length/Math.max(3,Math.min(active.length,dets.length)));
     const residualStrength=1-Math.min(1,fit.residual/.045),shapeStrength=1-Math.min(1,(scaleDelta/.14)+(rotationAbs/.12)*.5);
     const confidence=clamp01(.48*supportRatio+.27*motion+.17*residualStrength+.08*shapeStrength);
-    if(confidence<.60)return {available:false,reason:'low_consensus_confidence',model:'similarity',support:used.length,confidence,residual:fit.residual};
+    if(confidence<.60)return {available:false,reason:'low_consensus_confidence',model:'similarity',support:used.length,supportSpan,confidence,residual:fit.residual};
     const model=(scaleDelta<.008&&rotationAbs<.012)?'translation':'similarity';
-    return {available:true,reason:null,model,a:fit.a,b:fit.b,tx:fit.tx,ty:fit.ty,dx:fit.tx,dy:fit.ty,scale:fit.scale,rotation:fit.rotation,support:used.length,confidence,residual:fit.residual,candidates:initial.length,rejectedPairs:Math.max(0,initial.length-used.length)};
+    return {available:true,reason:null,model,a:fit.a,b:fit.b,tx:fit.tx,ty:fit.ty,dx:fit.tx,dy:fit.ty,scale:fit.scale,rotation:fit.rotation,support:used.length,supportSpan,confidence,residual:fit.residual,candidates:initial.length,rejectedPairs:Math.max(0,initial.length-used.length)};
   }
   function estimateGlobalTranslation(state,detections,ctx){
     const e=estimateGlobalMotion(state,detections,ctx);
@@ -138,7 +149,7 @@
       changed++;
     }
     state.cameraCompensations=(state.cameraCompensations||0)+1;
-    state.lastCameraCompensation={model:estimate.model||'translation',dx:+(Number(estimate.tx??estimate.dx)||0).toFixed(6),dy:+(Number(estimate.ty??estimate.dy)||0).toFixed(6),scale:+(Number(estimate.scale)||1).toFixed(6),rotation:+(Number(estimate.rotation)||0).toFixed(6),support:estimate.support||0,confidence:+(estimate.confidence||0).toFixed(4),residual:+(estimate.residual||0).toFixed(6),candidates:estimate.candidates||estimate.support||0,rejectedPairs:estimate.rejectedPairs||0};
+    state.lastCameraCompensation={model:estimate.model||'translation',dx:+(Number(estimate.tx??estimate.dx)||0).toFixed(6),dy:+(Number(estimate.ty??estimate.dy)||0).toFixed(6),scale:+(Number(estimate.scale)||1).toFixed(6),rotation:+(Number(estimate.rotation)||0).toFixed(6),support:estimate.support||0,supportSpan:+(Number(estimate.supportSpan)||0).toFixed(6),confidence:+(estimate.confidence||0).toFixed(4),residual:+(estimate.residual||0).toFixed(6),candidates:estimate.candidates||estimate.support||0,rejectedPairs:estimate.rejectedPairs||0};
     return changed;
   }
   function applyTranslationToState(state,estimate){return applyMotionToState(state,{...estimate,model:'translation',a:1,b:0,tx:Number(estimate?.dx)||0,ty:Number(estimate?.dy)||0,scale:1,rotation:0});}
@@ -164,7 +175,7 @@
     Bridge.__cayCameraConsensusPatched=true;return true;
   }
   function install(){patchCore();patchBridge();}
-  root.CAYCameraMotionConsensus={estimateGlobalMotion,estimateGlobalTranslation,applyMotionToState,applyTranslationToState,patchBridge,install};
+  root.CAYCameraMotionConsensus={estimateGlobalMotion,estimateGlobalTranslation,applyMotionToState,applyTranslationToState,spatialSupportSpan,patchBridge,install};
   install();
   if(typeof document!=='undefined'){
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});
