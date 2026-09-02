@@ -23,6 +23,13 @@
       };
     }
 
+    function projectKeyframe(keyframe,point){
+      if(!keyframe||!keyframe.projector||typeof keyframe.projector.project!=='function')return null;
+      let q=null;try{q=keyframe.projector.project(point);}catch(e){return null;}
+      if(!q||!finite(q.x)||!finite(q.y))return null;
+      return {x:Number(q.x),y:Number(q.y)};
+    }
+
     function temporalProjector(record){
       const valid=(record.keyframes||[]).filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function').sort((a,b)=>a.time-b.time);
       if(!valid.length)return null;
@@ -32,18 +39,53 @@
         validated:true,
         source:'temporal_calibration_keyframes',
         confidence:avgConfidence,
-        validation:{keyframes:valid.length,maxCalibrationAgeSec:maxAge,dynamicCamera:true},
+        validation:{keyframes:valid.length,maxCalibrationAgeSec:maxAge,dynamicCamera:true,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'},
         pitch:record.pitch||valid[0].projector.pitch||null,
         project(point){
           if(!point||!finite(point.time))return null;
-          const t=Number(point.time);let best=null,bestAge=Infinity;
+          const t=Number(point.time);
+          let previous=null,next=null;
+          for(const k of valid){
+            if(k.time<=t)previous=k;
+            if(k.time>=t){next=k;break;}
+          }
+
+          if(previous&&next&&previous!==next){
+            const agePrev=t-previous.time,ageNext=next.time-t;
+            if(agePrev<=maxAge&&ageNext<=maxAge){
+              const q0=projectKeyframe(previous,point),q1=projectKeyframe(next,point);
+              if(q0&&q1){
+                const gap=next.time-previous.time;
+                if(gap>0){
+                  const alpha=Math.max(0,Math.min(1,(t-previous.time)/gap));
+                  const q={x:q0.x+(q1.x-q0.x)*alpha,y:q0.y+(q1.y-q0.y)*alpha};
+                  if(finite(q.x)&&finite(q.y))return {
+                    ...q,
+                    calibrationKeyframeTime:null,
+                    calibrationKeyframeTimes:[previous.time,next.time],
+                    calibrationAgeSec:+Math.max(agePrev,ageNext).toFixed(4),
+                    calibrationKind:'interpolated_validated_keyframes',
+                    calibrationBlendAlpha:+alpha.toFixed(4)
+                  };
+                }
+              }
+            }
+          }
+
+          let best=null,bestAge=Infinity;
           for(const k of valid){const age=Math.abs(t-k.time);if(age<bestAge){bestAge=age;best=k;}}
           if(!best||bestAge>maxAge)return null;
-          let q=null;try{q=best.projector.project(point);}catch(e){return null;}
-          if(!q||!finite(q.x)||!finite(q.y))return null;
+          const q=projectKeyframe(best,point);if(!q)return null;
           return {...q,calibrationKeyframeTime:best.time,calibrationAgeSec:+bestAge.toFixed(4),calibrationKind:best.kind};
         },
-        provenance:{strategy:'ABSOLUTE_KEYFRAMES_WITH_STRICT_FRESHNESS_GUARD',codeCopied:false,licenseDependency:'none'}
+        provenance:{
+          strategy:'ABSOLUTE_KEYFRAMES_WITH_STRICT_FRESHNESS_GUARD_AND_OUTPUT_SPACE_TEMPORAL_BLEND',
+          designReference:'rafaelsouza-tech/soccer-tactical-vision',
+          auditedRevision:'4c557534c624948f3bfe3db956859c7ea3b442fa',
+          referenceLicense:'MIT',
+          adaptedIdea:'smooth a geometrically meaningful representation across validated frames instead of interpolating raw homography coefficients',
+          codeCopied:false,licenseDependency:'none'
+        }
       };
     }
 
@@ -110,7 +152,7 @@
       }
       record.dynamicCamera=true;
       record.source='temporal_calibration_keyframes';
-      record.validation={...(record.validation||{}),dynamicCamera:true,maxCalibrationAgeSec:record.maxCalibrationAgeSec};
+      record.validation={...(record.validation||{}),dynamicCamera:true,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
       return {ok:!!temporalProjector(record),record:safeRecord(record),reason:temporalProjector(record)?null:'aucun keyframe de calibration validé'};
     }
 
@@ -127,7 +169,7 @@
       record.keyframes.sort((a,b)=>a.time-b.time);
       record.source='temporal_calibration_keyframes';
       record.confidence=record.keyframes.reduce((s,k)=>s+k.confidence,0)/record.keyframes.length;
-      record.validation={dynamicCamera:true,keyframes:record.keyframes.length,maxCalibrationAgeSec:record.maxCalibrationAgeSec};
+      record.validation={dynamicCamera:true,keyframes:record.keyframes.length,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
       return {ok:true,record:safeRecord(record),reason:null};
     }
 
@@ -166,12 +208,12 @@
         calibrationKeyframes:dynamic.reduce((s,r)=>s+r.calibrationKeyframes.length,0),
         avgConfidence:validated.length?+(validated.reduce((s,r)=>s+r.confidence,0)/validated.length).toFixed(3):0,
         policy:'CALIBRATION_EXACTE_PAR_SEGMENT_SANS_REUTILISATION_SILENCIEUSE_ENTRE_PLANS',
-        dynamicPolicy:'CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES_AVEC_AGE_MAX; SINON_PROJECTION_INDISPONIBLE'
+        dynamicPolicy:'CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES_AVEC_AGE_MAX; INTERPOLATION UNIQUEMENT EN ESPACE PROJETE ENTRE DEUX KEYFRAMES VALIDES; SINON_PROJECTION_INDISPONIBLE'
       };
     }
 
     return {calibrate,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
-  return {createRegistry};
+  return {VERSION:'1.1.0',createRegistry};
 });
