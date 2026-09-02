@@ -20,6 +20,9 @@ assert.equal(onlyFirst.observations,2);
 assert.equal(onlyFirst.coordinateSystem,'PITCH_METERS');
 assert.equal(onlyFirst.policy,'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN');
 assert.equal(onlyFirst.projectedPoints.length,2);
+assert.equal(onlyFirst.trajectory.status,'DISPONIBLE');
+assert.equal(onlyFirst.trajectory.points.length,2);
+assert.equal(onlyFirst.trajectory.publicationPolicy,'MEMES_SEUILS_DE_PREUVE_QUE_HEATMAP_TERRAIN');
 assert(Math.abs(onlyFirst.normalizedCells.flat().reduce((a,b)=>a+b,0)-1)<1e-5);
 assert.equal(onlyFirst.heatmapBasis,'TIME_SECONDS');
 assert.equal(onlyFirst.timeAllocation,'LINEAR_PITCH_SEGMENT');
@@ -29,12 +32,35 @@ assert.equal(onlyFirst.temporalCoverage,.5);
 const strict=Heat.build(track,{1:projector(1)},{minMetricCoverage:.8});
 assert.equal(strict.status,'INDISPONIBLE');
 assert.equal(strict.projectedPoints.length,0);
+assert.equal(strict.trajectory.status,'INDISPONIBLE');
+assert.equal(strict.trajectory.points.length,0);
+assert.equal(strict.trajectory.runs.length,0);
+assert.equal(strict.trajectory.quality,'INDISPONIBLE');
+assert.equal(strict.trajectory.observations,2);
+assert.equal(strict.trajectory.metricCoverage,.5);
+assert(/couverture métrique insuffisante/.test(strict.trajectory.reason));
+assert(/COORDONNEES_DIAGNOSTIQUES_NON_PUBLIEES/.test(strict.trajectory.publicationPolicy));
 assert(/couverture métrique insuffisante/.test(strict.reason));
+
+const lowConfidence=Heat.build(
+  {fullPath:[{time:0,segment:1,x:.1,y:.1},{time:.5,segment:1,x:.2,y:.2}]},
+  {1:{validated:true,confidence:.25,project:p=>({x:p.x*105,y:p.y*68})}},
+  {minMetricCoverage:.5,minCalibrationConfidence:.5}
+);
+assert.equal(lowConfidence.status,'INDISPONIBLE');
+assert.equal(lowConfidence.metricCoverage,1);
+assert.equal(lowConfidence.avgCalibrationConfidence,.25);
+assert.equal(lowConfidence.trajectory.status,'INDISPONIBLE');
+assert.equal(lowConfidence.trajectory.points.length,0);
+assert.equal(lowConfidence.trajectory.observations,2);
+assert(/confiance calibration insuffisante/.test(lowConfidence.trajectory.reason));
 
 const none=Heat.build(track,{},{});
 assert.equal(none.status,'INDISPONIBLE');
 assert.equal(none.observations,0);
 assert.equal(none.metricCoverage,0);
+assert.equal(none.trajectory.status,'INDISPONIBLE');
+assert.equal(none.trajectory.points.length,0);
 
 const outside=Heat.build({fullPath:[{time:0,segment:1,x:.5,y:.5}]},{1:{validated:true,project:()=>({x:999,y:999})}},{});
 assert.equal(outside.status,'INDISPONIBLE');
