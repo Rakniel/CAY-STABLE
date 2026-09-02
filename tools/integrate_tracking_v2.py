@@ -91,6 +91,15 @@ replace_policy(
     'manual calibration validation policy',
 )
 
+# Runtime regression guard: pitchAppearanceModel blends the current frame with
+# restored stadium references. medS/medV must be mutable because the blend updates
+# them. Declaring them const crashes the scene scan with "Assignment to constant variable".
+replace_policy(
+    'const medS=medianNumber(svals),medV=medianNumber(vvals);',
+    'let medS=medianNumber(svals),medV=medianNumber(vvals);',
+    'mutable restored pitch appearance blend',
+)
+
 needle = '</body>'
 if needle not in text:
     raise SystemExit('ERROR: </body> not found')
@@ -112,11 +121,14 @@ required_policy = [
     'Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.',
     "$('validation55Section').classList.remove('hidden');",
     "label:'calibrage manuel optionnel (max 3)'",
+    'let medS=medianNumber(svals),medV=medianNumber(vvals);',
 ]
 if any(item not in text for item in required_policy):
-    raise SystemExit('ERROR: automatic-analysis entry policy not fully integrated')
+    raise SystemExit('ERROR: automatic-analysis entry/runtime policy not fully integrated')
 if "label:'3 images maximum',ok:metrics.calibrationImages===3" in text:
     raise SystemExit('ERROR: obsolete mandatory three-reference calibration gate remains')
+if 'const medS=medianNumber(svals),medV=medianNumber(vvals);' in text:
+    raise SystemExit('ERROR: restored pitch appearance blend is still const and can crash the scan')
 
 path.write_text(text, encoding='utf-8')
-print('integrated long-term tracking runtime and auto-first analysis policy')
+print('integrated long-term tracking runtime, auto-first analysis policy and scan runtime fix')
