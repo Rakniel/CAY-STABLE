@@ -471,7 +471,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:15px;ma
   </div>
 
   <div class="progress hidden" id="v55Progress"><i id="v55Bar"></i></div>
-  <div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.</div>
+  <div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Les métriques terrain restent INDISPONIBLE tant qu’une vraie calibration géométrique n’est pas défendable.</div>
   <div class="v55phase" id="v55Phase">En attente.</div>
 
   <div class="v55stats">
@@ -1568,17 +1568,19 @@ $('scanBtn').onclick=async()=>{
   for(let i=0;i<scenes.length;i++){
  let s=scenes[i],kt=Math.min(s.end-.1,s.start+Math.max(1,Math.min(5,(s.end-s.start)*.3)));
  let c=await frame(kt,600),af=autoField(c),ev=evaluateAutoField(c,af,null);
- s.auto=af.poly;s.conf=af.confidence;s.autoEval=ev;
- s.review=!ev.ok;
- s.reviewReasons=ev.reasons;
+ s.auto=af.poly;s.autoRole='COARSE_GRASS_MASK_ONLY';s.conf=af.confidence;s.autoEval=ev;
+ // Un masque de pelouse mauvais reste un diagnostic, jamais une demande de calibrage.
+ s.review=false;
+ s.reviewReasons=ev.ok?[]:ev.reasons.map(r=>'masque_gazon_'+r);
  s.thumb=c.toDataURL('image/jpeg',.72);
  if(s.review)reviewN++;else autoN++;
 }
   applyRestoredGuidedPolygons();
   $('scanPill').textContent='TERMINÉ';
-  status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.`,'success');
+  status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Analyse disponible immédiatement. La segmentation de pelouse sert uniquement de masque spatial ; elle n’est jamais utilisée comme calibration terrain.`,'success');
   renderReviews();$('reviewSection').classList.add('hidden');
-  $('guidedCalibSection').classList.remove('hidden');renderGuidedRefs();
+  // Parcours principal : aucun écran de calibrage tant qu'une vraie géométrie terrain n'est pas disponible.
+  $('guidedCalibSection').classList.add('hidden');renderGuidedRefs();
   $('validation55Section').classList.remove('hidden');
   $('v55Refs').textContent=`${Math.min(3,guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length)}/3`;
   if(guidedCalibrationRefs.length===3&&guidedCalibrationRefs.every(r=>r.poly&&r.poly.length>=3)){
@@ -1596,7 +1598,7 @@ $('scanBtn').onclick=async()=>{
         : 'Scan terminé. Démarre le calibrage intelligent : la première image servira à apprendre CAY.'
     );
   }
-  $('guidedCalibSection').scrollIntoView({behavior:'smooth',block:'start'});
+  $('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){status($('scanStatus'),'Erreur : '+e.message,'warning')}finally{$('scanBtn').disabled=false}
 };
 
@@ -3488,7 +3490,8 @@ async function openCalib(i,timeOverride=null,fromResult=false){
  let t=calibTimeOverride!==null ? calibTimeOverride : Math.min(s.end-.1,s.start+Math.max(1,Math.min(5,(s.end-s.start)*.3)));
  calibCurrentTime=t;
  baseCanvas=await frame(t,1100);
- points=s.manual?[...s.manual]:(s.auto?[...s.auto]:[]);selectedPoints=[];groupDragStart=null;boxSelectMode=false;boxSelectStart=null;boxSelectCurrent=null;polygonClosed=points.length>=3;
+ // Ne jamais pré-remplir la ligne rouge avec autoField(): c'est un masque de pelouse, pas une calibration.
+ points=s.manual?[...s.manual]:[];selectedPoints=[];groupDragStart=null;boxSelectMode=false;boxSelectStart=null;boxSelectCurrent=null;polygonClosed=points.length>=3;
  cc.width=baseCanvas.width;cc.height=baseCanvas.height;
  calibZoom=1;applyCalibZoom();
  let reviewPos=reviewQueuePosition(i);
