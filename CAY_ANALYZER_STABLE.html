@@ -471,7 +471,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:15px;ma
   </div>
 
   <div class="progress hidden" id="v55Progress"><i id="v55Bar"></i></div>
-  <div class="status" id="v55Status">Termine les 3 images de calibrage puis lance ce test unique.</div>
+  <div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.</div>
   <div class="v55phase" id="v55Phase">En attente.</div>
 
   <div class="v55stats">
@@ -1576,9 +1576,11 @@ $('scanBtn').onclick=async()=>{
 }
   applyRestoredGuidedPolygons();
   $('scanPill').textContent='TERMINÉ';
-  status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Étape suivante : 3 images de référence maximum.`,'success');
+  status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.`,'success');
   renderReviews();$('reviewSection').classList.add('hidden');
   $('guidedCalibSection').classList.remove('hidden');renderGuidedRefs();
+  $('validation55Section').classList.remove('hidden');
+  $('v55Refs').textContent=`${Math.min(3,guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length)}/3`;
   if(guidedCalibrationRefs.length===3&&guidedCalibrationRefs.every(r=>r.poly&&r.poly.length>=3)){
     setGuidedFlow(3);
     $('guidedNextAction').innerHTML='<strong>Calibrage retrouvé :</strong> les 3 références sont sauvegardées. Étape suivante : « ANALYSER / VALIDER LE MATCH ».';
@@ -5735,7 +5737,7 @@ async function runFullValidation55(){
  };
 
  const checks=[
-   {label:'3 images maximum',ok:metrics.calibrationImages===3,value:`${metrics.calibrationImages}/3`},
+   {label:'calibrage manuel optionnel (max 3)',ok:Number.isFinite(metrics.calibrationImages)&&metrics.calibrationImages>=0&&metrics.calibrationImages<=3,value:`${metrics.calibrationImages}/3`},
    {label:'terrain',ok:!diag?.error&&metrics.fieldIssues<=V55_RULES.maxFieldIssues,value:diag?.error?'diagnostic partiel':`${metrics.fieldIssues} problème(s)`},
    {label:'diagnostic global',ok:!diag?.error&&metrics.diagnosticFrames>0&&metrics.suspiciousRatio<=V55_RULES.maxSuspiciousRatio,value:diag?.error?'PARTIEL':`${Math.round(metrics.suspiciousRatio*100)} % suspect`},
    {label:'joueurs visibles',ok:!!tracking&&metrics.maxVisible>=V55_RULES.minTrackingMaxVisible,value:tracking?`max ${metrics.maxVisible} CAY`:'tracking absent'},
