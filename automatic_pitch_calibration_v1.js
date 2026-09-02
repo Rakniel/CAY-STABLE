@@ -7,7 +7,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Homography){
   'use strict';
 
-  const finite=n=>Number.isFinite(Number(n));
+  const finite=n=>n!==null&&n!==''&&n!==undefined&&Number.isFinite(Number(n));
   const point=p=>p&&finite(p.x)&&finite(p.y);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -57,7 +57,7 @@
   }
 
   function confidenceSummary(correspondences){
-    const values=correspondences.map(c=>c.confidence).filter(finite);
+    const values=correspondences.map(c=>c.confidence).filter(finite).map(Number);
     if(!values.length)return {available:false,mean:null,min:null};
     return {available:true,mean:+(values.reduce((a,b)=>a+b,0)/values.length).toFixed(4),min:+Math.min(...values).toFixed(4)};
   }
