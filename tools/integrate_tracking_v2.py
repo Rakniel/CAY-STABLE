@@ -135,6 +135,17 @@ replace_policy(
     'primary scan flow must scroll to analysis not calibration',
 )
 
+# Tracking must be usable before metric calibration. A grass-segmentation polygon is
+# too fragile to decide whether a person exists on screen: it can exclude every CAY
+# player when the grass mask is wrong. Keep an explicit user polygon when supplied;
+# otherwise track in image space over the full frame and let team evidence / strict
+# 11-player guards decide what is accepted. Metric publication remains separately gated.
+replace_policy(
+    "function trackingPoly(t,c){\n const s=sceneAt(t);\n if(s&&s.manual&&s.manual.length>=3)return s.manual;\n const af=autoField(c);\n if(af.poly&&af.confidence>=.32)return af.poly;\n return s&&s.auto?s.auto:null;\n}",
+    "function trackingPoly(t,c){\n const s=sceneAt(t);\n if(s&&s.manual&&s.manual.length>=3)return s.manual;\n // Tracking image-space : ne jamais exclure des joueurs à cause du masque gazon.\n const w=Math.max(1,c&&c.width||1),h=Math.max(1,c&&c.height||1);\n return [{x:0,y:0},{x:w-1,y:0},{x:w-1,y:h-1},{x:0,y:h-1}];\n}",
+    'tracking must not depend on grass segmentation',
+)
+
 needle = '</body>'
 if needle not in text:
     raise SystemExit('ERROR: </body> not found')
@@ -162,9 +173,11 @@ required_policy = [
     "points=s.manual?[...s.manual]:[];",
     "$('guidedCalibSection').classList.add('hidden');renderGuidedRefs();",
     "$('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});",
+    'Tracking image-space : ne jamais exclure des joueurs à cause du masque gazon.',
+    'return [{x:0,y:0},{x:w-1,y:0},{x:w-1,y:h-1},{x:0,y:h-1}];',
 ]
 if any(item not in text for item in required_policy):
-    raise SystemExit('ERROR: automatic-analysis / scan runtime policy not fully integrated')
+    raise SystemExit('ERROR: automatic-analysis / tracking runtime policy not fully integrated')
 if "label:'3 images maximum',ok:metrics.calibrationImages===3" in text:
     raise SystemExit('ERROR: obsolete mandatory three-reference calibration gate remains')
 if 'Calibrage incomplet : ${calibrated}/3 image(s). Termine d’abord les 3 références.' in text:
@@ -173,6 +186,8 @@ if 'const medS=medianNumber(svals),medV=medianNumber(vvals);' in text:
     raise SystemExit('ERROR: restored pitch model would still reassign const medS/medV')
 if "points=s.manual?[...s.manual]:(s.auto?[...s.auto]:[]);" in text:
     raise SystemExit('ERROR: grass mask would still be exposed as manual calibration polygon')
+if 'const af=autoField(c);\n if(af.poly&&af.confidence>=.32)return af.poly;' in text:
+    raise SystemExit('ERROR: tracking would still depend on automatic grass segmentation')
 
 path.write_text(text, encoding='utf-8')
-print('integrated long-term tracking runtime, auto-first analysis and strict grass-mask/calibration separation')
+print('integrated long-term tracking runtime, auto-first analysis, strict grass/calibration separation and image-space tracking fallback')
