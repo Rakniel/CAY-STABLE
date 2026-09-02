@@ -1,8 +1,12 @@
 (function (root, factory) {
-  const api = factory();
+  let geometryGuard = root && root.CAYPitchGeometryGuard;
+  if (typeof module === 'object' && module.exports) {
+    try { geometryGuard = require('./pitch_geometry_guard_v1.js'); } catch (e) { geometryGuard = null; }
+  }
+  const api = factory(geometryGuard);
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.CAYPitchMembershipGuard = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (geometryGuard) {
   'use strict';
 
   function finite(n) { return Number.isFinite(Number(n)); }
@@ -38,21 +42,34 @@
     return inside;
   }
 
+  function canonicalPitchPolygon(pitchPolygon, options) {
+    if (!Array.isArray(pitchPolygon) || pitchPolygon.length < 3) {
+      return { ok: false, reason: 'PITCH_POLYGON_MISSING', boundary: null };
+    }
+    if (!geometryGuard || typeof geometryGuard.canonicalizeBoundary !== 'function') {
+      return { ok: true, reason: null, boundary: pitchPolygon, geometry: null };
+    }
+    const geometry = geometryGuard.canonicalizeBoundary(pitchPolygon, options && options.pitchGeometry);
+    if (!geometry.ok) return { ok: false, reason: geometry.reason || 'PITCH_GEOMETRY_INVALID', boundary: null, geometry };
+    return { ok: true, reason: null, boundary: geometry.boundary, geometry };
+  }
+
   function evaluateDetection(detection, pitchPolygon, options) {
     const opts = options || {};
     const minConfidence = finite(opts.minConfidence) ? Number(opts.minConfidence) : 0.35;
     const confidence = finite(detection && detection.confidence) ? Number(detection.confidence) : 0;
     const anchor = bottomCenterAnchor(detection && detection.box);
+    const canonical = canonicalPitchPolygon(pitchPolygon, opts);
 
-    if (!Array.isArray(pitchPolygon) || pitchPolygon.length < 3) {
-      return { status: 'INDISPONIBLE', eligible: false, reason: 'PITCH_POLYGON_MISSING', anchor: anchor };
+    if (!canonical.ok) {
+      return { status: 'INDISPONIBLE', eligible: false, reason: canonical.reason, anchor: anchor, pitchGeometry: canonical.geometry || null };
     }
-    if (!anchor) return { status: 'REJETE', eligible: false, reason: 'INVALID_BOX', anchor: null };
-    if (confidence < minConfidence) return { status: 'REJETE', eligible: false, reason: 'LOW_CONFIDENCE', anchor: anchor };
-    if (!pointInPolygon(anchor, pitchPolygon)) {
-      return { status: 'REJETE', eligible: false, reason: 'GROUND_POINT_OUTSIDE_PITCH', anchor: anchor };
+    if (!anchor) return { status: 'REJETE', eligible: false, reason: 'INVALID_BOX', anchor: null, pitchGeometry: canonical.geometry || null };
+    if (confidence < minConfidence) return { status: 'REJETE', eligible: false, reason: 'LOW_CONFIDENCE', anchor: anchor, pitchGeometry: canonical.geometry || null };
+    if (!pointInPolygon(anchor, canonical.boundary)) {
+      return { status: 'REJETE', eligible: false, reason: 'GROUND_POINT_OUTSIDE_PITCH', anchor: anchor, pitchGeometry: canonical.geometry || null };
     }
-    return { status: 'ELIGIBLE', eligible: true, reason: 'GROUND_POINT_INSIDE_PITCH', anchor: anchor };
+    return { status: 'ELIGIBLE', eligible: true, reason: 'GROUND_POINT_INSIDE_PITCH', anchor: anchor, pitchGeometry: canonical.geometry || null };
   }
 
   function filterDetections(detections, pitchPolygon, options) {
@@ -68,10 +85,11 @@
   }
 
   return {
-    VERSION: '1.0.0',
-    POLICY: 'BOTTOM_CENTER_GROUND_ANCHOR_ONLY',
+    VERSION: '1.1.0',
+    POLICY: 'BOTTOM_CENTER_GROUND_ANCHOR_ON_CANONICAL_PITCH_BOUNDARY',
     bottomCenterAnchor: bottomCenterAnchor,
     pointInPolygon: pointInPolygon,
+    canonicalPitchPolygon: canonicalPitchPolygon,
     evaluateDetection: evaluateDetection,
     filterDetections: filterDetections
   };
