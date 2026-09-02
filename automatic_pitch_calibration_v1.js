@@ -42,6 +42,42 @@
     return {ok:true,fit,validation,validationIndices,total:c.length};
   }
 
+  function span(points,key){
+    const values=points.map(p=>Number(p[key])).filter(Number.isFinite);
+    return values.length?Math.max(...values)-Math.min(...values):0;
+  }
+
+  function supportArea(points){
+    if(!Array.isArray(points)||points.length<3)return 0;
+    if(Homography&&typeof Homography.orderInvariantArea==='function')return Homography.orderInvariantArea(points);
+    return 0;
+  }
+
+  function geometricSupport(correspondences,frameSize,pitch,options={}){
+    const c=normalizeCorrespondences(correspondences);
+    const w=Number(frameSize&&frameSize.width),h=Number(frameSize&&frameSize.height);
+    const length=Number(pitch&&pitch.lengthM)||105,width=Number(pitch&&pitch.widthM)||68;
+    if(!(w>0&&h>0&&length>0&&width>0))return {ok:false,reason:'AUTO_CALIBRATION_SUPPORT_DIMENSIONS_INVALID'};
+    const imagePts=c.map(x=>x.image),pitchPts=c.map(x=>x.pitch);
+    const imageAreaRatio=supportArea(imagePts)/(w*h);
+    const pitchAreaRatio=supportArea(pitchPts)/(length*width);
+    const imageSpanX=span(imagePts,'x')/w,imageSpanY=span(imagePts,'y')/h;
+    const pitchSpanX=span(pitchPts,'x')/length,pitchSpanY=span(pitchPts,'y')/width;
+    const minImageArea=finite(options.minImageSupportAreaRatio)?Number(options.minImageSupportAreaRatio):0.015;
+    const minPitchArea=finite(options.minPitchSupportAreaRatio)?Number(options.minPitchSupportAreaRatio):0.05;
+    const minImageSpan=finite(options.minImageSupportSpanRatio)?Number(options.minImageSupportSpanRatio):0.12;
+    const minPitchSpan=finite(options.minPitchSupportSpanRatio)?Number(options.minPitchSupportSpanRatio):0.15;
+    const ok=imageAreaRatio>=minImageArea&&pitchAreaRatio>=minPitchArea&&imageSpanX>=minImageSpan&&imageSpanY>=minImageSpan&&pitchSpanX>=minPitchSpan&&pitchSpanY>=minPitchSpan;
+    return {
+      ok,
+      reason:ok?null:'AUTO_CALIBRATION_GEOMETRIC_SUPPORT_TOO_WEAK',
+      imageAreaRatio:+imageAreaRatio.toFixed(5),pitchAreaRatio:+pitchAreaRatio.toFixed(5),
+      imageSpanX:+imageSpanX.toFixed(5),imageSpanY:+imageSpanY.toFixed(5),
+      pitchSpanX:+pitchSpanX.toFixed(5),pitchSpanY:+pitchSpanY.toFixed(5),
+      thresholds:{minImageArea,minPitchArea,minImageSpan,minPitchSpan}
+    };
+  }
+
   function bottomCornerSanity(projector,frameSize,pitch,options={}){
     if(!projector||typeof projector.project!=='function')return {ok:false,reason:'AUTO_CALIBRATION_PROJECTOR_UNAVAILABLE'};
     const w=Number(frameSize&&frameSize.width),h=Number(frameSize&&frameSize.height);
@@ -64,11 +100,15 @@
 
   function evaluateAutomaticCalibration(options={}){
     if(!Homography||typeof Homography.createProjector!=='function')return {status:'INDISPONIBLE',reason:'HOMOGRAPHY_ENGINE_UNAVAILABLE'};
-    const split=splitFitValidation(options.correspondences);
+    const normalized=normalizeCorrespondences(options.correspondences);
+    const split=splitFitValidation(normalized);
     if(!split.ok)return {status:'INSUFFICIENT_EVIDENCE',reason:split.reason,totalCorrespondences:split.total||0};
 
     const pitchLengthM=finite(options.pitchLengthM)?Number(options.pitchLengthM):105;
     const pitchWidthM=finite(options.pitchWidthM)?Number(options.pitchWidthM):68;
+    const support=geometricSupport(normalized,options.frameSize,{lengthM:pitchLengthM,widthM:pitchWidthM},options);
+    if(!support.ok)return {status:'REJECTED',reason:support.reason,totalCorrespondences:split.total,geometricSupport:support};
+
     const projector=Homography.createProjector({
       correspondences:split.fit,
       validationPoints:split.validation,
@@ -82,45 +122,37 @@
     if(!projector.validated)return {
       status:'REJECTED',reason:projector.reason||'AUTO_CALIBRATION_REPROJECTION_REJECTED',
       totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,
-      validation:projector.validation||null,fit:projector.fit||null
+      validation:projector.validation||null,fit:projector.fit||null,geometricSupport:support
     };
 
     const cornerCheck=bottomCornerSanity(projector,options.frameSize,{lengthM:pitchLengthM,widthM:pitchWidthM},options);
     if(!cornerCheck.ok)return {
       status:'REJECTED',reason:cornerCheck.reason,
       totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,
-      validation:projector.validation||null,fit:projector.fit||null,bottomCornerCheck:cornerCheck
+      validation:projector.validation||null,fit:projector.fit||null,bottomCornerCheck:cornerCheck,geometricSupport:support
     };
 
-    const sourceConfidence=confidenceSummary(normalizeCorrespondences(options.correspondences));
+    const sourceConfidence=confidenceSummary(normalized);
     const minSourceMean=finite(options.minSourceMeanConfidence)?clamp(Number(options.minSourceMeanConfidence),0,1):0;
     if(sourceConfidence.available&&sourceConfidence.mean<minSourceMean)return {
       status:'REJECTED',reason:'AUTO_CALIBRATION_SOURCE_CONFIDENCE_TOO_LOW',sourceConfidence,
-      totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length
+      totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,geometricSupport:support
     };
 
     return {
-      status:'ACCEPTED_AUTOMATIC',
-      reason:null,
-      projector,
-      confidence:projector.confidence,
-      totalCorrespondences:split.total,
-      fitCount:split.fit.length,
-      validationCount:split.validation.length,
-      validationIndices:split.validationIndices,
-      validation:projector.validation,
-      bottomCornerCheck:cornerCheck,
-      sourceConfidence,
-      policy:'AUTO_FIRST_MANUAL_ONLY_ON_FAILURE',
+      status:'ACCEPTED_AUTOMATIC',reason:null,projector,confidence:projector.confidence,
+      totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,
+      validationIndices:split.validationIndices,validation:projector.validation,bottomCornerCheck:cornerCheck,
+      sourceConfidence,geometricSupport:support,policy:'AUTO_FIRST_MANUAL_ONLY_ON_FAILURE',
       provenance:{
         designReference:'rafaelsouza-tech/soccer-tactical-vision',
         auditedRevision:'4c557534c624948f3bfe3db956859c7ea3b442fa',
         license:'MIT',
-        adaptedIdea:'robust homography acceptance with real-footage-tuned ground-plane sanity; only bottom image corners are used for planar sanity because upper broadcast corners may show stands/sky',
+        adaptedIdea:'real-footage calibration must have broad visible keypoint support before RANSAC; reject geometrically starved frames instead of forcing a plausible-looking homography',
         codeCopied:false
       }
     };
   }
 
-  return {VERSION:'1.0.0',splitFitValidation,bottomCornerSanity,evaluateAutomaticCalibration};
+  return {VERSION:'1.1.0',splitFitValidation,geometricSupport,bottomCornerSanity,evaluateAutomaticCalibration};
 });
