@@ -16,8 +16,8 @@ const dets=[
  {cat:'team',x:.27,y:.41,feature:[.10]},{cat:'team',x:.52,y:.53,feature:[.20]},{cat:'team',x:.77,y:.36,feature:[.30]},{cat:'goalkeeper',x:.17,y:.51,feature:[.40]}
 ];
 const e=C.estimateGlobalMotion(state,dets,{cameraMotionScore:.9,fieldGeometryDelta:.05,zoomDelta:.02});
-ok(e.available,'translation caméra cohérente détectée');ok(e.model==='translation','petit déplacement classé translation');near(e.tx,.07,.012,'pan horizontal estimé');near(e.ty,.01,.012,'pan vertical estimé');ok(e.support>=3,'consensus multi-joueurs requis');
-const before=state.active[0].motionHistory[1].x;const changed=C.applyMotionToState(state,e);ok(changed===4,'tous les tracks actifs compensés');near(state.active[0].x,.27,.012,'position courante déplacée dans le repère caméra actuel');near(state.active[0].motionHistory[1].x,before+.07,.012,'historique de mouvement compensé sans toucher fullPath');ok(state.cameraCompensations===1,'provenance compensation enregistrée');ok(state.lastCameraCompensation.model==='translation','modèle enregistré');
+ok(e.available,'translation caméra cohérente détectée');ok(e.model==='translation','petit déplacement classé translation');near(e.tx,.07,.012,'pan horizontal estimé');near(e.ty,.01,.012,'pan vertical estimé');ok(e.support>=3,'consensus multi-joueurs requis');ok(e.supportSpan>=.22,'support caméra réparti spatialement');
+const before=state.active[0].motionHistory[1].x;const changed=C.applyMotionToState(state,e);ok(changed===4,'tous les tracks actifs compensés');near(state.active[0].x,.27,.012,'position courante déplacée dans le repère caméra actuel');near(state.active[0].motionHistory[1].x,before+.07,.012,'historique de mouvement compensé sans toucher fullPath');ok(state.cameraCompensations===1,'provenance compensation enregistrée');ok(state.lastCameraCompensation.model==='translation','modèle enregistré');ok(state.lastCameraCompensation.supportSpan>=.22,'étendue spatiale conservée en provenance');
 
 const zoomState={active:[
  {globalId:1,cat:'team',x:.20,y:.30,seen:12,feature:[.10],motionHistory:[{x:.20,y:.30,time:1}]},
@@ -30,6 +30,19 @@ const zoomDets=zoomState.active.map(tr=>({cat:tr.cat,...zp(tr.x,tr.y),feature:tr
 const z=C.estimateGlobalMotion(zoomState,zoomDets,{cameraMotionScore:.92,fieldGeometryDelta:.08,zoomDelta:.08});
 ok(z.available,'léger zoom cohérent détecté');ok(z.model==='similarity','zoom classé similarity');near(z.scale,1.08,.015,'échelle estimée');near(z.tx,.02,.015,'translation x avec zoom');near(z.ty,-.03,.015,'translation y avec zoom');ok(z.residual<.01,'résidu faible');
 const zx=zoomState.active[0].x,zy=zoomState.active[0].y;C.applyMotionToState(zoomState,z);near(zoomState.active[0].x,scale*zx+tx,.015,'track transformé avec zoom');near(zoomState.active[0].y,scale*zy+ty,.015,'track y transformé avec zoom');ok(zoomState.lastCameraCompensation.model==='similarity','provenance similarity enregistrée');
+
+const clustered={active:[
+ {globalId:11,cat:'team',x:.40,y:.40,seen:10,feature:[.11]},
+ {globalId:12,cat:'team',x:.43,y:.41,seen:10,feature:[.22]},
+ {globalId:13,cat:'team',x:.46,y:.42,seen:10,feature:[.33]}
+]};
+const clusteredDets=[
+ {cat:'team',x:.47,y:.41,feature:[.11]},
+ {cat:'team',x:.50,y:.42,feature:[.22]},
+ {cat:'team',x:.53,y:.43,feature:[.33]}
+];
+const clusteredMotion=C.estimateGlobalMotion(clustered,clusteredDets,{cameraMotionScore:.95,fieldGeometryDelta:.03,zoomDelta:.01});
+ok(!clusteredMotion.available,'trois joueurs regroupés ne suffisent pas à prouver un mouvement caméra global');ok(clusteredMotion.reason==='insufficient_spatial_support','rejet explicite du support spatialement trop localisé');ok(clusteredMotion.supportSpan<.22,'étendue spatiale insuffisante mesurée');
 
 const huge=C.estimateGlobalMotion(zoomState,zoomDets,{cameraMotionScore:.9,fieldGeometryDelta:.05,zoomDelta:.5});ok(!huge.available&&huge.reason==='camera_change_too_large','changement caméra extrême rejeté');
 const weak=C.estimateGlobalMotion({active:zoomState.active.slice(0,2)},zoomDets.slice(0,2),{cameraMotionScore:.9,fieldGeometryDelta:.02,zoomDelta:.01});ok(!weak.available,'moins de trois joueurs: aucune compensation inventée');
