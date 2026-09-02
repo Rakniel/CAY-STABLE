@@ -23,10 +23,10 @@
     if(Stats&&typeof Stats.projectorInfo==='function'){
       const info=Stats.projectorInfo(entry);
       const explicitConfidence=finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):null;
-      return {...info,confidence:explicitConfidence!==null?explicitConfidence:(info?.validated?1:0)};
+      return {...info,confidence:explicitConfidence};
     }
     const validated=!!entry&&entry.validated===true&&typeof entry.project==='function';
-    return {validated,project:validated?entry.project:null,confidence:validated?(finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):1):0};
+    return {validated,project:validated?entry.project:null,confidence:finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):null};
   }
   function robustMetricForTrack(track,projectors){
     const path=track?.fullPath||[];
@@ -54,7 +54,7 @@
         const a=run[i-1],b=run[i],dt=b.time-a.time;
         const d=hypot(a,b),speedKmh=(d/dt)*3.6;
         if(!finite(d)||d<0||!finite(speedKmh)||speedKmh>45){resetSprint();rejectedSpeedPairs++;continue;}
-        const pairConfidence=Math.min(finite(a.calibrationConfidence)?a.calibrationConfidence:1,finite(b.calibrationConfidence)?b.calibrationConfidence:1);
+        const pairConfidence=Math.min(finite(a.calibrationConfidence)?a.calibrationConfidence:0,finite(b.calibrationConfidence)?b.calibrationConfidence:0);
         metricDt+=dt;confidenceDt+=dt*clamp(pairConfidence,0,1);distanceM+=d;maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);speeds.push({time:b.time,segment:b.segment,kmh:speedKmh,calibrationConfidence:+clamp(pairConfidence,0,1).toFixed(3)});
         if(speedKmh>=SPRINT_THRESHOLD_KMH){
           sprintCandidateSeconds+=dt;
@@ -69,7 +69,7 @@
     const avgCalibrationConfidence=metricDt>0?confidenceDt/metricDt:0;
     const defendableScore=coverage*avgCalibrationConfidence;
     const quality=qualityFromEvidenceScore(defendableScore);
-    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintDurationSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',sprintContinuityPolicy:'EPISODE >= 1S A >=25KMH; RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_REJETEE_OU_RUN_METRIQUE'};
+    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintDurationSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',sprintContinuityPolicy:'EPISODE >= 1S A >=25KMH; RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_REJETEE_OU_RUN_METRIQUE'};
   }
   function patchTeamCalibrationEvidence(report){
     const frames=Array.isArray(report?.teamTimeline)?report.teamTimeline:[];
@@ -78,7 +78,7 @@
       if(frame?.valid===false)continue;
       const present=Math.max(0,Number(frame?.presentCount)||0);observedSlots+=present;
       if(frame?.metricProjectionValidated&&present>0){
-        const confidence=finite(frame.metricCalibrationConfidence)?clamp(Number(frame.metricCalibrationConfidence),0,1):1;
+        const confidence=finite(frame.metricCalibrationConfidence)?clamp(Number(frame.metricCalibrationConfidence),0,1):0;
         metricSlots+=present;confidenceSlots+=present*confidence;
         frame.metricEvidenceScore=+confidence.toFixed(4);
         frame.metricQuality=qualityFromEvidenceScore(confidence);
@@ -113,7 +113,7 @@
       const measured=(report.players||[]).filter(p=>p.metric?.metricCoverage>0),all=report.players||[];
       if(report.team){report.team.playersWithMetricData=measured.length;report.team.measuredDistanceM=+measured.reduce((s,p)=>s+(p.metric.distanceM||0),0).toFixed(2);report.team.avgMetricCoverage=+(all.length?all.reduce((s,p)=>s+(p.metric?.metricCoverage||0),0)/all.length:0).toFixed(4);}
       patchTeamCalibrationEvidence(report);
-      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,principle:'filtre médian local avant calcul distance/vitesse, combinaison explicite couverture × confiance calibration et durée minimale avant de compter un sprint'};
+      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,principle:'filtre médian local avant calcul distance/vitesse, combinaison explicite couverture × confiance calibration et durée minimale avant de compter un sprint'};
       return report;
     };
     Stats.__cayMetricQualityGuardPatched=true;return true;

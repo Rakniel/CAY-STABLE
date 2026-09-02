@@ -16,6 +16,15 @@ const decision=Publication.publicationDecision(metric);
 assert.strictEqual(decision.publishable,true,'real quality output must satisfy the publication guard without fixture-only fields');
 assert.strictEqual(decision.status,'FIABLE');
 
+// Missing calibration confidence may keep observable geometry internally, but must never publish physical truth.
+const missingConfidenceMetric=Quality.robustMetricForTrack(continuous,{1:{validated:true,source:'legacy',project:p=>({x:p.x,y:p.y})}});
+assert.strictEqual(missingConfidenceMetric.metricCoverage,1,'projection coverage remains observable');
+assert.strictEqual(missingConfidenceMetric.avgCalibrationConfidence,0,'unknown calibration confidence contributes zero defendability');
+assert.strictEqual(missingConfidenceMetric.quality,'INDISPONIBLE');
+const missingConfidenceDecision=Publication.publicationDecision(missingConfidenceMetric);
+assert.strictEqual(missingConfidenceDecision.publishable,false,'distance/speed/sprints must not publish without explicit calibration confidence');
+assert.strictEqual(missingConfidenceDecision.status,'INDISPONIBLE');
+
 // A tracking hole above the canonical cutoff must never be bridged into distance/speed/sprint evidence.
 const withGap={fullPath:[
   {x:0,y:0,time:0,segment:1},
