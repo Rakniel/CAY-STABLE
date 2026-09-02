@@ -10,11 +10,33 @@
   function findTrack(state,id){
     return [...(state?.archive||[]),...(state?.active||[])].find(t=>Number(t?.globalId)===Number(id))||null;
   }
+  function hasExplicitCalibrationConfidence(track,projectors){
+    const segments=new Set((Array.isArray(track?.fullPath)?track.fullPath:[])
+      .map(p=>Number(p?.segment))
+      .filter(Number.isFinite));
+    for(const segment of segments){
+      const entry=projectors&&projectors[segment];
+      if(!entry||entry.validated!==true||typeof entry.project!=='function')continue;
+      const raw=entry.confidence;
+      if(raw===null||raw===undefined||(typeof raw==='string'&&raw.trim()==='')||!Number.isFinite(Number(raw)))return false;
+    }
+    return true;
+  }
+  function unavailableVisuals(reason){
+    return {
+      status:'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',metricCoverage:0,temporalCoverage:null,
+      avgCalibrationConfidence:null,defendableScore:0,quality:'INDISPONIBLE',
+      pitchHeatmap:{status:'INDISPONIBLE',reason,cols:null,rows:null,normalizedCells:[],basis:null,observations:0,projectedIntervalSeconds:0,policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN'},
+      trajectory:null,
+      provenance:'CAYMetricPitchHeatmap metric pitch coordinates; no image-space fallback'
+    };
+  }
   function attachMetricVisuals(report,state,projectors,options){
     if(!report||!Array.isArray(report.players)||!MetricHeatmap||typeof MetricHeatmap.build!=='function')return report;
     const players=report.players.map(player=>{
       const track=findTrack(state,player.id);
-      if(!track)return {...player,metricVisuals:{status:'INDISPONIBLE',reason:'tracking joueur absent',pitchHeatmap:null,trajectory:null}};
+      if(!track)return {...player,metricVisuals:unavailableVisuals('tracking joueur absent')};
+      if(!hasExplicitCalibrationConfidence(track,projectors||{}))return {...player,metricVisuals:unavailableVisuals('confiance calibration absente : visualisation métrique non défendable')};
       const built=MetricHeatmap.build(track,projectors||{},options||{});
       return {...player,metricVisuals:{
         status:built.status,
@@ -36,7 +58,7 @@
         provenance:'CAYMetricPitchHeatmap metric pitch coordinates; no image-space fallback'
       }};
     });
-    return {...report,players,metricVisualsPolicy:'TRAJECTOIRES_ET_HEATMAPS_TERRAIN_UNIQUEMENT_SUR_PROJECTION_METRIQUE_VALIDEE; SINON INDISPONIBLE'};
+    return {...report,players,metricVisualsPolicy:'TRAJECTOIRES_ET_HEATMAPS_TERRAIN_UNIQUEMENT_SUR_PROJECTION_METRIQUE_VALIDEE_AVEC_CONFIANCE_EXPLICITE; SINON INDISPONIBLE'};
   }
   function patchBridge(){
     if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayMetricVisualsPatched===true)return false;
@@ -52,5 +74,5 @@
     return true;
   }
   patchBridge();
-  return {attachMetricVisuals,patchBridge,findTrack};
+  return {attachMetricVisuals,patchBridge,findTrack,hasExplicitCalibrationConfidence,unavailableVisuals};
 });
