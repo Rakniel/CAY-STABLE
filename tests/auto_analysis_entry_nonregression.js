@@ -2,7 +2,12 @@
 
 const fs=require('fs');
 const assert=require('assert');
+const {execFileSync}=require('child_process');
 
+// The shipped STABLE HTML is produced by the canonical integrator. Every CI that
+// validates this UX contract must first build that same artifact, otherwise it
+// tests the stale source HTML instead of the file users actually receive.
+execFileSync('python3',['tools/integrate_tracking_v2.py'],{stdio:'inherit'});
 const html=fs.readFileSync('CAY_ANALYZER_STABLE.html','utf8');
 
 assert(
