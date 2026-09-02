@@ -5,6 +5,8 @@ const assert=require('assert');
 const vm=require('vm');
 const {execFileSync}=require('child_process');
 
+// Reproduces the exact branch that crashed after the scan reached 100% when a
+// previous CAY/stadium appearance model had been restored from local storage.
 // Always test the exact STABLE artifact produced by the canonical integrator.
 execFileSync('python3',['tools/integrate_tracking_v2.py'],{stdio:'inherit'});
 const html=fs.readFileSync('CAY_ANALYZER_STABLE.html','utf8');
