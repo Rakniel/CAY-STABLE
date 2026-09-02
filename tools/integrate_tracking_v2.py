@@ -17,6 +17,7 @@ canonical_tags = [
     '<script src="./pitch_geometry_guard_v1.js"></script>',
     '<script src="./pitch_membership_guard_v1.js"></script>',
     '<script src="./metric_homography_projector_v1.js"></script>',
+    '<script src="./automatic_pitch_calibration_v1.js"></script>',
     '<script src="./metric_camera_motion_projector_v1.js"></script>',
     '<script src="./metric_segment_registry_v1.js"></script>',
     '<script src="./metric_pitch_heatmap_v1.js"></script>',
