@@ -26,6 +26,14 @@ assert(
   !html.includes("label:'3 images maximum',ok:metrics.calibrationImages===3"),
   'the obsolete exactly-three-reference validation gate must not return'
 );
+assert(
+  !html.includes('Calibrage incomplet : ${calibrated}/3 image(s). Termine d’abord les 3 références.'),
+  'runFullValidation55 must not block analysis when manual pitch calibration is incomplete'
+);
+assert(
+  html.includes('Calibration manuelle optionnelle : conserver le compteur comme preuve de couverture'),
+  'generated runtime must explicitly retain optional calibration as evidence rather than a gate'
+);
 
 const scanMarker="renderReviews();$('reviewSection').classList.add('hidden');";
 const scanPos=html.indexOf(scanMarker);
@@ -38,6 +46,18 @@ assert(
 assert(
   nearby.indexOf("$('validation55Section').classList.remove('hidden');") < nearby.indexOf('if(guidedCalibrationRefs.length===3'),
   'analysis controls must be exposed before checking whether three manual references exist'
+);
+
+const validationPos=html.indexOf('async function runFullValidation55(){');
+assert(validationPos>=0,'runFullValidation55 must exist');
+const validationBlock=html.slice(validationPos,validationPos+1800);
+assert(
+  validationBlock.includes('const calibrated=guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length;'),
+  'manual calibration count must remain observable for coverage reporting'
+);
+assert(
+  !validationBlock.includes('if(calibrated<3)'),
+  'manual pitch calibration count must never be an analysis entry gate'
 );
 
 console.log('auto-analysis entry non-regression: PASS');

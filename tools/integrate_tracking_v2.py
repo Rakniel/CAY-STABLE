@@ -86,9 +86,25 @@ replace_policy(
 )
 
 replace_policy(
+    " const calibrated=guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length;\n if(calibrated<3){\n   status($('v55Status'),`Calibrage incomplet : ${calibrated}/3 image(s). Termine d’abord les 3 références.`,'warning');return;\n }\n if(refsFor('team').length<3){",
+    " const calibrated=guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length;\n // Calibration manuelle optionnelle : conserver le compteur comme preuve de couverture,\n // mais ne jamais bloquer l'analyse. Les métriques terrain restent INDISPONIBLE si\n // l'auto-calibrage / la projection ne fournissent pas une preuve suffisante.\n if(refsFor('team').length<3){",
+    'remove runtime mandatory manual calibration gate',
+)
+
+replace_policy(
     "{label:'3 images maximum',ok:metrics.calibrationImages===3,value:`${metrics.calibrationImages}/3`},",
     "{label:'calibrage manuel optionnel (max 3)',ok:Number.isFinite(metrics.calibrationImages)&&metrics.calibrationImages>=0&&metrics.calibrationImages<=3,value:`${metrics.calibrationImages}/3`},",
     'manual calibration validation policy',
+)
+
+# A restored/cumulative stadium appearance model blends medS/medV after the local
+# frame estimate. These values are intentionally mutable. Declaring them const made
+# the camera scan crash at 100% with "Assignment to constant variable" as soon as a
+# previous CAY calibration session was present.
+replace_policy(
+    ' const medS=medianNumber(svals),medV=medianNumber(vvals);',
+    ' let medS=medianNumber(svals),medV=medianNumber(vvals);',
+    'mutable restored pitch appearance blend',
 )
 
 needle = '</body>'
@@ -112,11 +128,17 @@ required_policy = [
     'Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.',
     "$('validation55Section').classList.remove('hidden');",
     "label:'calibrage manuel optionnel (max 3)'",
+    'Calibration manuelle optionnelle : conserver le compteur comme preuve de couverture',
+    'let medS=medianNumber(svals),medV=medianNumber(vvals);',
 ]
 if any(item not in text for item in required_policy):
-    raise SystemExit('ERROR: automatic-analysis entry policy not fully integrated')
+    raise SystemExit('ERROR: automatic-analysis / scan runtime policy not fully integrated')
 if "label:'3 images maximum',ok:metrics.calibrationImages===3" in text:
     raise SystemExit('ERROR: obsolete mandatory three-reference calibration gate remains')
+if 'Calibrage incomplet : ${calibrated}/3 image(s). Termine d’abord les 3 références.' in text:
+    raise SystemExit('ERROR: obsolete runtime manual-calibration gate remains')
+if 'const medS=medianNumber(svals),medV=medianNumber(vvals);' in text:
+    raise SystemExit('ERROR: restored pitch model would still reassign const medS/medV')
 
 path.write_text(text, encoding='utf-8')
-print('integrated long-term tracking runtime and auto-first analysis policy')
+print('integrated long-term tracking runtime, auto-first analysis and crash-free restored pitch scan')
