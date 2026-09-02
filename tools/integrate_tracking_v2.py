@@ -59,9 +59,9 @@ text = re.sub(
 
 # STABLE UX policy: automatic analysis is the primary path. Manual calibration is a
 # correction/fallback and must never gate tracking or the first result screen.
-def replace_policy(old, new, label):
+def replace_policy(old, new, label, aliases=()):
     global text
-    if new in text:
+    if new in text or any(alias in text for alias in aliases):
         return
     if old not in text:
         raise SystemExit(f'ERROR: expected source for {label} not found')
@@ -83,6 +83,7 @@ replace_policy(
     "renderReviews();$('reviewSection').classList.add('hidden');\n  $('guidedCalibSection').classList.remove('hidden');renderGuidedRefs();\n  if(guidedCalibrationRefs.length===3&&guidedCalibrationRefs.every(r=>r.poly&&r.poly.length>=3)){",
     "renderReviews();$('reviewSection').classList.add('hidden');\n  $('guidedCalibSection').classList.remove('hidden');renderGuidedRefs();\n  $('validation55Section').classList.remove('hidden');\n  $('v55Refs').textContent=`${Math.min(3,guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length)}/3`;\n  if(guidedCalibrationRefs.length===3&&guidedCalibrationRefs.every(r=>r.poly&&r.poly.length>=3)){",
     'remove manual calibration gate before analysis',
+    aliases=("Parcours principal : aucun écran de calibrage tant qu'une vraie géométrie terrain n'est pas disponible.",),
 )
 
 replace_policy(
