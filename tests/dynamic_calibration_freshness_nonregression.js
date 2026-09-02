@@ -11,9 +11,12 @@ let c=r.calibrate(0,{offset:0,createdAt:0,maxCalibrationAgeSec:.25});ok(c.ok,'ca
 let p=r.exportProjectors()[0];ok(!!p,'projecteur statique exporté');eq(p.project({x:10,y:5,time:4}).x,10,'caméra statique conserve la calibration sans âge');
 let d=r.markDynamic(0,0,{maxCalibrationAgeSec:.25});ok(d.ok,'segment marqué caméra dynamique avec ancre initiale');
 p=r.exportProjectors()[0];ok(!!p,'projecteur temporel exporté');eq(p.project({x:10,y:5,time:.10}).x,10,'ancre récente utilisable');eq(p.project({x:10,y:5,time:.40}),null,'calibration périmée explicitement indisponible');
-let k=r.addCalibrationKeyframe(0,.50,{offset:2,confidence:.95});ok(k.ok,'rafraîchissement absolu ajouté');p=r.exportProjectors()[0];eq(p.project({x:10,y:5,time:.60}).x,12,'nouvelle calibration récente sélectionnée');eq(p.project({x:10,y:5,time:.90}),null,'nouvelle calibration devient elle aussi périmée');
+let k=r.addCalibrationKeyframe(0,.50,{offset:2,confidence:.95});ok(k.ok,'rafraîchissement absolu ajouté');p=r.exportProjectors()[0];
+const mid=p.project({x:10,y:5,time:.25});eq(mid.x,11,'entre deux keyframes validés, la projection est interpolée sans saut de 2 m');eq(mid.calibrationKind,'interpolated_validated_keyframes','la provenance signale explicitement le lissage temporel');eq(mid.calibrationBlendAlpha,.5,'poids temporel médian explicite');
+const left=p.project({x:10,y:5,time:.20});const right=p.project({x:10,y:5,time:.30});ok(left.x<mid.x&&mid.x<right.x,'la trajectoire projetée évolue continûment autour du milieu au lieu de basculer brutalement de keyframe');
+eq(p.project({x:10,y:5,time:.60}).x,12,'nouvelle calibration récente sélectionnée hors intervalle interpolable');eq(p.project({x:10,y:5,time:.90}),null,'nouvelle calibration devient elle aussi périmée');
 let bad=r.addCalibrationKeyframe(0,1,{offset:5,valid:false});ok(!bad.ok,'keyframe non validé refusé');p=r.exportProjectors()[0];eq(p.project({x:10,y:5,time:1}),null,'keyframe rejeté ne restaure jamais une métrique');
-const s=r.summary();eq(s.dynamicSegments,1,'segment dynamique comptabilisé');eq(s.calibrationKeyframes,2,'seules les deux calibrations validées conservées');
+const s=r.summary();eq(s.dynamicSegments,1,'segment dynamique comptabilisé');eq(s.calibrationKeyframes,2,'seules les deux calibrations validées conservées');ok(s.dynamicPolicy.includes('INTERPOLATION UNIQUEMENT EN ESPACE PROJETE'),'la politique interdit explicitement l’interpolation brute des coefficients H');
 const rec=r.get(0);ok(rec.dynamicCamera,'provenance caméra dynamique exposée');eq(rec.maxCalibrationAgeSec,.25,'âge maximum explicite conservé');
 ok(rec.calibrationKeyframes.every(x=>x.validated),'aucun keyframe invalide exporté');
 r.invalidate(0,'cut caméra');eq(r.exportProjectors()[0],undefined,'invalidation coupe toute projection métrique');
