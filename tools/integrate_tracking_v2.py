@@ -14,6 +14,7 @@ canonical_tags = [
     '<script src="./tracking_two_stage_adapter_v1.js"></script>',
     '<script src="./tracking_two_stage_runtime_patch_v1.js"></script>',
     '<script src="./reid_evidence_fusion_v1.js"></script>',
+    '<script src="./pitch_geometry_guard_v1.js"></script>',
     '<script src="./pitch_membership_guard_v1.js"></script>',
     '<script src="./metric_homography_projector_v1.js"></script>',
     '<script src="./metric_camera_motion_projector_v1.js"></script>',
