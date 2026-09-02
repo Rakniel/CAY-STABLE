@@ -94,6 +94,18 @@
       continuityPolicy:'COUPE_SUR_POINT_NON_PROJETE_CHANGEMENT_SEGMENT_TIMESTAMP_INVALIDE_OU_GAP_EXCESSIF'
     };
   }
+  function withholdTrajectory(raw,reason){
+    if(!raw)return raw;
+    return {
+      ...raw,
+      status:'INDISPONIBLE',
+      reason:reason||raw.reason||'preuve métrique insuffisante pour publier une trajectoire terrain',
+      runs:[],
+      points:[],
+      quality:'INDISPONIBLE',
+      publicationPolicy:'MEMES_SEUILS_DE_PREUVE_QUE_HEATMAP_TERRAIN; COORDONNEES_DIAGNOSTIQUES_NON_PUBLIEES'
+    };
+  }
   function build(track,projectors,options){
     const opts={pitchLengthM:105,pitchWidthM:68,cols:6,rows:4,minMetricCoverage:.35,minCalibrationConfidence:.5,maxDwellGapSec:1,...(options||{})};
     const path=Array.isArray(track?.fullPath)?track.fullPath:[];
@@ -132,7 +144,8 @@
     const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0),useTimeWeighting=projectedIntervalSeconds>0;
     const normalizedObservationCells=normalizeGrid(cells,projected),normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
     let reason=null;if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':'confiance calibration insuffisante pour une heatmap terrain défendable';
-    const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,maxDwellGapSec);
+    const rawTrajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,maxDwellGapSec);
+    const trajectory=available?{...rawTrajectory,publicationPolicy:'MEMES_SEUILS_DE_PREUVE_QUE_HEATMAP_TERRAIN'}:withholdTrajectory(rawTrajectory,reason);
     return {
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
@@ -144,5 +157,5 @@
       temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
-  return {build,buildTrajectory,projectorInfo,qualityFromEvidenceScore,accumulateLinearDwell};
+  return {build,buildTrajectory,withholdTrajectory,projectorInfo,qualityFromEvidenceScore,accumulateLinearDwell};
 });
