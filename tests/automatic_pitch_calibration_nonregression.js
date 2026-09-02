@@ -15,15 +15,31 @@ assert.strictEqual(r.ok, true);
 assert.strictEqual(r.fit.length, 4);
 assert.strictEqual(r.validation.length, 2);
 
-r = auto.evaluateAutomaticCalibration({
-  correspondences: good,
-  frameSize:{width:105,height:68}
-});
+r = auto.geometricSupport(good,{width:105,height:68},{lengthM:105,widthM:68});
+assert.strictEqual(r.ok,true);
+assert.ok(r.imageAreaRatio>.5);
+assert.ok(r.pitchAreaRatio>.5);
+
+r = auto.evaluateAutomaticCalibration({correspondences:good,frameSize:{width:105,height:68}});
 assert.strictEqual(r.status, 'ACCEPTED_AUTOMATIC');
 assert.strictEqual(r.policy, 'AUTO_FIRST_MANUAL_ONLY_ON_FAILURE');
 assert.strictEqual(r.validationCount, 2);
 assert.strictEqual(r.bottomCornerCheck.checkedCorners, 'BOTTOM_ONLY');
+assert.strictEqual(r.geometricSupport.ok,true);
 assert.ok(r.confidence > 0);
+
+const clustered = [
+  {image:{x:40,y:30},pitch:{x:40,y:30}},
+  {image:{x:42,y:30},pitch:{x:42,y:30}},
+  {image:{x:44,y:31},pitch:{x:44,y:31}},
+  {image:{x:46,y:31},pitch:{x:46,y:31}},
+  {image:{x:45,y:33},pitch:{x:45,y:33}},
+  {image:{x:41,y:33},pitch:{x:41,y:33}}
+];
+r = auto.evaluateAutomaticCalibration({correspondences:clustered,frameSize:{width:105,height:68}});
+assert.strictEqual(r.status,'REJECTED');
+assert.strictEqual(r.reason,'AUTO_CALIBRATION_GEOMETRIC_SUPPORT_TOO_WEAK');
+assert.ok(r.geometricSupport.imageSpanX<.12 || r.geometricSupport.imageSpanY<.12);
 
 const insufficient = good.slice(0,5);
 r = auto.evaluateAutomaticCalibration({correspondences:insufficient,frameSize:{width:105,height:68}});
@@ -32,7 +48,7 @@ assert.strictEqual(r.reason, 'AUTO_CALIBRATION_NEEDS_SIX_CORRESPONDENCES');
 
 const badValidation = good.map(x=>JSON.parse(JSON.stringify(x)));
 badValidation[2].pitch = {x:10,y:10};
-r = auto.evaluateAutomaticCalibration({correspondences:badValidation,frameSize:{width:105,height:68}});
+r = auto.evaluateAutomaticCalibration({correspondences:badValidation,frameSize:{width:105,height:68},minPitchSupportAreaRatio:0,minPitchSupportSpanRatio:0});
 assert.strictEqual(r.status, 'REJECTED');
 assert.ok(/reprojection|erreur/i.test(r.reason));
 
@@ -42,19 +58,11 @@ r = auto.bottomCornerSanity(fakeProjector,{width:1920,height:1080},{lengthM:105,
 assert.strictEqual(r.ok,true);
 assert.deepStrictEqual(seen,[{x:0,y:1080},{x:1920,y:1080}]);
 
-r = auto.evaluateAutomaticCalibration({
-  correspondences:good.map(c=>({...c,confidence:.2})),
-  frameSize:{width:105,height:68},
-  minSourceMeanConfidence:.5
-});
+r = auto.evaluateAutomaticCalibration({correspondences:good.map(c=>({...c,confidence:.2})),frameSize:{width:105,height:68},minSourceMeanConfidence:.5});
 assert.strictEqual(r.status,'REJECTED');
 assert.strictEqual(r.reason,'AUTO_CALIBRATION_SOURCE_CONFIDENCE_TOO_LOW');
 
-r = auto.evaluateAutomaticCalibration({
-  correspondences:good.map(c=>({image:c.image,pitch:c.pitch})),
-  frameSize:{width:105,height:68},
-  minSourceMeanConfidence:.5
-});
+r = auto.evaluateAutomaticCalibration({correspondences:good.map(c=>({image:c.image,pitch:c.pitch})),frameSize:{width:105,height:68},minSourceMeanConfidence:.5});
 assert.strictEqual(r.status,'ACCEPTED_AUTOMATIC');
 assert.strictEqual(r.sourceConfidence.available,false);
 assert.strictEqual(r.sourceConfidence.mean,null);
