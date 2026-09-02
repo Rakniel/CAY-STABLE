@@ -68,13 +68,13 @@ def replace_policy(old, new, label):
     text = text.replace(old, new, 1)
 
 replace_policy(
-    '<div class="status" id="v55Status">Termine les 3 images de calibrage puis lance ce test unique.</div>',
+    '<div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.</div>',
     '<div class="status" id="v55Status">Charge la vidéo, choisis l’équipe puis lance l’analyse. Les métriques terrain restent INDISPONIBLE tant qu’une vraie calibration géométrique n’est pas défendable.</div>',
     'automatic analysis status',
 )
 
 replace_policy(
-    "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Étape suivante : 3 images de référence maximum.`,'success');",
+    "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.`,'success');",
     "status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s). Analyse disponible immédiatement. La segmentation de pelouse sert uniquement de masque spatial ; elle n’est jamais utilisée comme calibration terrain.`,'success');",
     'scan completion automatic-analysis message',
 )
