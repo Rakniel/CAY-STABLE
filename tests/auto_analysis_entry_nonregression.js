@@ -11,12 +11,12 @@ execFileSync('python3',['tools/integrate_tracking_v2.py'],{stdio:'inherit'});
 const html=fs.readFileSync('CAY_ANALYZER_STABLE.html','utf8');
 
 assert(
-  html.includes('Le terrain est calibré automatiquement ; correction manuelle seulement si nécessaire.'),
-  'the primary validation UI must explain automatic calibration with manual fallback'
+  html.includes('Les métriques terrain restent INDISPONIBLE tant qu’une vraie calibration géométrique n’est pas défendable.'),
+  'the primary validation UI must never claim that a grass mask is an automatic pitch calibration'
 );
 assert(
-  html.includes('Tu peux lancer l’analyse immédiatement ; correction terrain manuelle seulement si nécessaire.'),
-  'scene scan completion must allow immediate analysis'
+  html.includes('Analyse disponible immédiatement. La segmentation de pelouse sert uniquement de masque spatial ; elle n’est jamais utilisée comme calibration terrain.'),
+  'scene scan completion must allow immediate analysis while separating grass mask from calibration'
 );
 assert(
   html.includes("label:'calibrage manuel optionnel (max 3)',ok:Number.isFinite(metrics.calibrationImages)&&metrics.calibrationImages>=0&&metrics.calibrationImages<=3"),
@@ -38,10 +38,14 @@ assert(
 const scanMarker="renderReviews();$('reviewSection').classList.add('hidden');";
 const scanPos=html.indexOf(scanMarker);
 assert(scanPos>=0,'scan completion block must exist');
-const nearby=html.slice(scanPos,scanPos+700);
+const nearby=html.slice(scanPos,scanPos+900);
 assert(
   nearby.includes("$('validation55Section').classList.remove('hidden');"),
   'analysis controls must be exposed as soon as scene scanning completes'
+);
+assert(
+  nearby.includes("$('guidedCalibSection').classList.add('hidden');"),
+  'legacy guided calibration must stay out of the primary flow'
 );
 assert(
   nearby.indexOf("$('validation55Section').classList.remove('hidden');") < nearby.indexOf('if(guidedCalibrationRefs.length===3'),
