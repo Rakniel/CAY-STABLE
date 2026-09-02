@@ -858,7 +858,7 @@ function pitchAppearanceModel(c){
  if(cluster.length<50)cluster=cand;
 
  const hvals=cluster.map(p=>p.h),svals=cluster.map(p=>p.s),vvals=cluster.map(p=>p.v);
- const medS=medianNumber(svals),medV=medianNumber(vvals);
+ let medS=medianNumber(svals),medV=medianNumber(vvals);
 
  // moyenne circulaire de la teinte
  let sxh=0,syh=0;
@@ -5643,9 +5643,9 @@ async function runFullValidation55(){
  sanitizeJerseyReferences58(true);
 
  const calibrated=guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length;
- if(calibrated<3){
-   status($('v55Status'),`Calibrage incomplet : ${calibrated}/3 image(s). Termine d’abord les 3 références.`,'warning');return;
- }
+ // Calibration manuelle optionnelle : conserver le compteur comme preuve de couverture,
+ // mais ne jamais bloquer l'analyse. Les métriques terrain restent INDISPONIBLE si
+ // l'auto-calibrage / la projection ne fournissent pas une preuve suffisante.
  if(refsFor('team').length<3){
    status($('v55Status'),`Seulement ${refsFor('team').length} référence(s) CAY. Il en faut au moins 3.`,'warning');return;
  }
