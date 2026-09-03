@@ -73,6 +73,49 @@
     if(bench.some(x=>statusById.get(x)==='INACTIVE'))errors.push('INACTIVE_PLAYER_ON_BENCH');
     return {valid:errors.length===0,errors,maxActive:11,minActive:1};
   }
+  function validateMatchParticipants(team,activePlayerIds,benchPlayerIds){
+    const rosterIds=new Set((team.roster||[]).map(p=>String(p.id)));
+    const inactiveIds=new Set((team.roster||[]).filter(p=>p.status==='INACTIVE').map(p=>String(p.id)));
+    const active=(activePlayerIds||[]).map(String),bench=(benchPlayerIds||[]).map(String);
+    const errors=[];
+    if(active.length<1)errors.push('ACTIVE_EMPTY');
+    if(active.length>11)errors.push('ACTIVE_OVER_11');
+    if(new Set(active).size!==active.length)errors.push('DUPLICATE_ACTIVE_ID');
+    if(new Set(bench).size!==bench.length)errors.push('DUPLICATE_MATCH_BENCH_ID');
+    if(active.some(x=>!rosterIds.has(x))||bench.some(x=>!rosterIds.has(x)))errors.push('UNKNOWN_MATCH_ROSTER_ID');
+    if(active.some(x=>bench.includes(x)))errors.push('PLAYER_ACTIVE_AND_BENCH');
+    if(active.some(x=>inactiveIds.has(x)))errors.push('INACTIVE_PLAYER_ACTIVE');
+    if(bench.some(x=>inactiveIds.has(x)))errors.push('INACTIVE_PLAYER_MATCH_BENCH');
+    return {valid:errors.length===0,errors,maxActive:11};
+  }
+  function createMatchState(team,raw={}){
+    const activePlayerIds=Array.isArray(raw.activePlayerIds)?raw.activePlayerIds.map(String):(team.defaultLineup||[]).map(String);
+    const benchPlayerIds=Array.isArray(raw.benchPlayerIds)?raw.benchPlayerIds.map(String):(team.bench||[]).map(String);
+    const validation=validateMatchParticipants(team,activePlayerIds,benchPlayerIds);
+    if(!validation.valid)throw new Error(`INVALID_MATCH_STATE:${validation.errors.join(',')}`);
+    const substitutions=Array.isArray(raw.substitutions)?raw.substitutions.map(event=>({
+      outPlayerId:String(event.outPlayerId),inPlayerId:String(event.inPlayerId),atMs:Number(event.atMs),reason:clean(event.reason)||'UNKNOWN'
+    })):[];
+    return {teamId:String(team.id),activePlayerIds,benchPlayerIds,substitutions,source:'ROSTER_MATCH_STATE_V1'};
+  }
+  function applySubstitution(team,state,raw={}){
+    const current=createMatchState(team,state||{});
+    const outPlayerId=clean(raw.outPlayerId),inPlayerId=clean(raw.inPlayerId);
+    const atMs=Number(raw.atMs);
+    if(!outPlayerId||!inPlayerId)throw new Error('SUBSTITUTION_PLAYER_REQUIRED');
+    if(outPlayerId===inPlayerId)throw new Error('SUBSTITUTION_SAME_PLAYER');
+    if(!current.activePlayerIds.includes(outPlayerId))throw new Error('SUBSTITUTION_OUT_NOT_ACTIVE');
+    if(!current.benchPlayerIds.includes(inPlayerId))throw new Error('SUBSTITUTION_IN_NOT_BENCH');
+    if(!Number.isFinite(atMs)||atMs<0)throw new Error('SUBSTITUTION_INVALID_TIME');
+    const last=current.substitutions[current.substitutions.length-1];
+    if(last&&Number.isFinite(last.atMs)&&atMs<last.atMs)throw new Error('SUBSTITUTION_TIME_REGRESSION');
+    const activePlayerIds=current.activePlayerIds.map(playerId=>playerId===outPlayerId?inPlayerId:playerId);
+    const benchPlayerIds=current.benchPlayerIds.filter(playerId=>playerId!==inPlayerId).concat(outPlayerId);
+    const validation=validateMatchParticipants(team,activePlayerIds,benchPlayerIds);
+    if(!validation.valid)throw new Error(`INVALID_MATCH_STATE_AFTER_SUB:${validation.errors.join(',')}`);
+    const event={outPlayerId,inPlayerId,atMs,reason:clean(raw.reason)||'UNKNOWN'};
+    return {...current,activePlayerIds,benchPlayerIds,substitutions:current.substitutions.concat(event)};
+  }
   function createAnalysisProfile(raw={}){
     const settings=raw.settings||{};
     const trackingSensitivity=settings.trackingSensitivity==null?.7:settings.trackingSensitivity;
@@ -106,5 +149,5 @@
     const complete=checks.filter(x=>x[1]).length;
     return {ready:complete===checks.length,completion:+(complete/checks.length).toFixed(3),missing:checks.filter(x=>!x[1]).map(x=>x[0]),lineup,kitSelection,selectedKitId:kitSelection.selectedKitId,uxRule:'MINIMUM_REQUIRED_FIELDS_ONLY',targetSetupMinutes:20};
   }
-  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,createAnalysisProfile,createPreferences,resolveActiveKit,setupReadiness};
+  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,validateMatchParticipants,createMatchState,applySubstitution,createAnalysisProfile,createPreferences,resolveActiveKit,setupReadiness};
 });
