@@ -21,6 +21,10 @@ for(const confidence of [undefined,null,'','   ','not-a-number']){
   assert.equal(result.calibrationConfidenceCoverage,0);
   assert(/confiance calibration indisponible/.test(result.reason));
   assert.equal(result.projectedPoints.length,0,'unpublishable heatmap must not expose pitch points as publishable evidence');
+  assert.equal(result.trajectory.status,'INDISPONIBLE','metric trajectory must fail closed when calibration confidence is unavailable');
+  assert(/confiance calibration indisponible/.test(result.trajectory.reason));
+  assert.equal(result.trajectory.points.length,0,'unpublishable trajectory must not expose pitch points');
+  assert.equal(result.trajectory.runs.length,0,'unpublishable trajectory must not expose pitch runs');
   assert.equal(result.trajectory.avgCalibrationConfidence,null);
   assert.equal(result.trajectory.quality,'INDISPONIBLE');
 }
@@ -30,6 +34,11 @@ assert.equal(explicitZero.status,'INDISPONIBLE');
 assert.equal(explicitZero.avgCalibrationConfidence,0);
 assert.equal(explicitZero.calibrationConfidenceCoverage,1);
 assert(/confiance calibration insuffisante/.test(explicitZero.reason));
+assert.equal(explicitZero.trajectory.status,'INDISPONIBLE','known but insufficient calibration confidence must not publish a metric trajectory');
+assert(/confiance calibration insuffisante/.test(explicitZero.trajectory.reason));
+assert.equal(explicitZero.trajectory.points.length,0);
+assert.equal(explicitZero.trajectory.runs.length,0);
+assert.equal(explicitZero.trajectory.quality,'INDISPONIBLE');
 
 const explicitStringZero=Heat.projectorInfo({validated:true,confidence:'0',project});
 assert.equal(explicitStringZero.confidence,0);
@@ -39,5 +48,8 @@ assert.equal(explicitGood.status,'DISPONIBLE');
 assert.equal(explicitGood.avgCalibrationConfidence,.8);
 assert.equal(explicitGood.calibrationConfidenceCoverage,1);
 assert.equal(explicitGood.defendableScore,.8);
+assert.equal(explicitGood.trajectory.status,'DISPONIBLE');
+assert.equal(explicitGood.trajectory.points.length,2);
+assert.equal(explicitGood.trajectory.runs.length,1);
 
 console.log('metric_pitch_heatmap_missing_confidence_nonregression: OK');
