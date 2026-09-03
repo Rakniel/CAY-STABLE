@@ -28,33 +28,37 @@
     return +best.toFixed(3);
   }
 
-  function publicationDecision(metric){
+  function publicationDecision(metric,context={}){
+    const identityQuality=context&&context.identityQuality!==undefined&&context.identityQuality!==null?String(context.identityQuality):null;
+    if(identityQuality&&identityQuality!=='FIABLE'){
+      return {publishable:false,status:'INDISPONIBLE',reason:'identité joueur insuffisamment fiable pour attribuer des métriques physiques individuelles',identityQuality};
+    }
     if(!metric||!finite(metric.metricCoverage)||Number(metric.metricCoverage)<=0){
-      return {publishable:false,status:'INDISPONIBLE',reason:'aucune couverture métrique validée'};
+      return {publishable:false,status:'INDISPONIBLE',reason:'aucune couverture métrique validée',identityQuality};
     }
     if(!finite(metric.metricCoveredSeconds)||Number(metric.metricCoveredSeconds)<MIN_PUBLISHABLE_COVERED_SECONDS){
-      return {publishable:false,status:'INDISPONIBLE',reason:`moins de ${MIN_PUBLISHABLE_COVERED_SECONDS}s de trajectoire métrique valide`};
+      return {publishable:false,status:'INDISPONIBLE',reason:`moins de ${MIN_PUBLISHABLE_COVERED_SECONDS}s de trajectoire métrique valide`,identityQuality};
     }
     const continuousSpeedSeconds=longestContinuousSpeedEvidenceSeconds(metric.speedSamples);
     if(continuousSpeedSeconds<MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS){
-      return {publishable:false,status:'INDISPONIBLE',reason:`moins de ${MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS}s continus de preuve vitesse fiable`,continuousSpeedSeconds};
+      return {publishable:false,status:'INDISPONIBLE',reason:`moins de ${MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS}s continus de preuve vitesse fiable`,continuousSpeedSeconds,identityQuality};
     }
     if(!finite(metric.defendableScore)||Number(metric.defendableScore)<MIN_PUBLISHABLE_EVIDENCE_SCORE||metric.quality!=='FIABLE'){
-      return {publishable:false,status:'INDISPONIBLE',reason:`preuve métrique insuffisante (score < ${MIN_PUBLISHABLE_EVIDENCE_SCORE.toFixed(2)})`,continuousSpeedSeconds};
+      return {publishable:false,status:'INDISPONIBLE',reason:`preuve métrique insuffisante (score < ${MIN_PUBLISHABLE_EVIDENCE_SCORE.toFixed(2)})`,continuousSpeedSeconds,identityQuality};
     }
     const invalidPhysicalField=PHYSICAL_FIELDS.find(field=>!finite(metric[field])||Number(metric[field])<0);
     if(invalidPhysicalField){
-      return {publishable:false,status:'INDISPONIBLE',reason:`métrique physique invalide ou absente (${invalidPhysicalField})`,continuousSpeedSeconds};
+      return {publishable:false,status:'INDISPONIBLE',reason:`métrique physique invalide ou absente (${invalidPhysicalField})`,continuousSpeedSeconds,identityQuality};
     }
     if(!Number.isInteger(Number(metric.sprintCount))){
-      return {publishable:false,status:'INDISPONIBLE',reason:'compteur de sprints invalide',continuousSpeedSeconds};
+      return {publishable:false,status:'INDISPONIBLE',reason:'compteur de sprints invalide',continuousSpeedSeconds,identityQuality};
     }
-    return {publishable:true,status:'FIABLE',reason:null,continuousSpeedSeconds};
+    return {publishable:true,status:'FIABLE',reason:null,continuousSpeedSeconds,identityQuality};
   }
 
-  function applyPublicationPolicy(metric){
+  function applyPublicationPolicy(metric,context={}){
     if(!metric)return metric;
-    const decision=publicationDecision(metric);
+    const decision=publicationDecision(metric,context);
     const diagnostic={};
     for(const field of PHYSICAL_FIELDS)diagnostic[field]=metric[field]===undefined?null:metric[field];
     const diagnosticMetricCoverage=finite(metric.metricCoverage)?Number(metric.metricCoverage):0;
@@ -70,11 +74,13 @@
       publication:{
         status:decision.status,
         reason:decision.reason,
+        identityQuality:decision.identityQuality??null,
+        requiresReliableIdentity:true,
         minEvidenceScore:MIN_PUBLISHABLE_EVIDENCE_SCORE,
         minCoveredSeconds:MIN_PUBLISHABLE_COVERED_SECONDS,
         minContinuousSpeedEvidenceSeconds:MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,
         maxContinuousSpeedGapSeconds:MAX_CONTINUOUS_SPEED_GAP_SECONDS,
-        policy:'NE_PUBLIE_DISTANCE_VITESSE_SPRINT_QUE_SI_PREUVE_METRIQUE_FIABLE_ET_FENETRE_TEMPORELLE_CONTINUE'
+        policy:'NE_PUBLIE_DISTANCE_VITESSE_SPRINT_QUE_SI_IDENTITE_JOUEUR_FIABLE_PREUVE_METRIQUE_FIABLE_ET_FENETRE_TEMPORELLE_CONTINUE'
       }
     };
   }
@@ -87,7 +93,8 @@
       let publishablePlayers=0,publishedDistanceM=0;
       for(const player of report.players||[]){
         if(!player.metric)continue;
-        player.metric=applyPublicationPolicy(player.metric);
+        const identityQuality=player.identityQuality||player.quality?.identity||null;
+        player.metric=applyPublicationPolicy(player.metric,{identityQuality});
         const published=player.metric.publication?.status==='FIABLE';
         if(player.quality){
           player.quality.metricDistance=published?'FIABLE':'INDISPONIBLE';
@@ -102,7 +109,7 @@
       if(report.team){
         report.team.playersWithPublishedPhysicalMetrics=publishablePlayers;
         report.team.measuredDistanceM=+publishedDistanceM.toFixed(2);
-        report.team.physicalMetricPublicationPolicy='SOMME UNIQUEMENT DES JOUEURS AVEC METRIQUES FIABLES ET PREUVE VITESSE CONTINUE';
+        report.team.physicalMetricPublicationPolicy='SOMME UNIQUEMENT DES JOUEURS AVEC IDENTITE FIABLE ET METRIQUES FIABLES ET PREUVE VITESSE CONTINUE';
       }
       report.metricPublicationGuard={
         version:'CAY_METRIC_PUBLICATION_GUARD_V1',
@@ -110,7 +117,8 @@
         minCoveredSeconds:MIN_PUBLISHABLE_COVERED_SECONDS,
         minContinuousSpeedEvidenceSeconds:MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,
         maxContinuousSpeedGapSeconds:MAX_CONTINUOUS_SPEED_GAP_SECONDS,
-        principle:'les valeurs partielles restent auditables dans diagnosticMetricCoverage/diagnosticPhysicalMetrics mais les statistiques physiques affichables deviennent INDISPONIBLE tant que la preuve nest pas FIABLE et temporellement continue'
+        requiresReliablePlayerIdentity:true,
+        principle:'les valeurs partielles restent auditables dans diagnosticMetricCoverage/diagnosticPhysicalMetrics mais les statistiques physiques affichables deviennent INDISPONIBLE tant que lidentite joueur et la preuve metrique ne sont pas FIABLES et temporellement continues'
       };
       return report;
     };
