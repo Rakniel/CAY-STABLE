@@ -1,8 +1,8 @@
 (function(root,factory){
-  const api=factory(typeof module==='object'&&module.exports?require('./stable_tracking_bridge_v1.js'):root.CAYStableTrackingBridge);
+  const api=factory(typeof module==='object'&&module.exports?require('./stable_tracking_bridge_v1.js'):root.CAYStableTrackingBridge,root);
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYPlayerCardViewModel=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Bridge){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Bridge,root){
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const pct=v=>finite(v)?Math.max(0,Math.min(100,Math.round(Number(v)*100))):0;
@@ -40,6 +40,18 @@
     Bridge.__cayPlayerCardViewModelPatched=true;
     return true;
   }
+  function loadRenderer(){
+    if(typeof document==='undefined'||root.CAYPlayerCardRenderer)return false;
+    if(document.querySelector('script[data-cay-player-card-renderer="v1"]'))return true;
+    const script=document.createElement('script');
+    script.src='./player_card_renderer_v1.js';
+    script.async=false;
+    script.dataset.cayPlayerCardRenderer='v1';
+    script.onload=()=>{try{root.CAYPlayerCardRenderer?.install?.();}catch(_){}};
+    (document.head||document.documentElement).appendChild(script);
+    return true;
+  }
   patchBridge();
-  return {buildCard,build,attach,patchBridge,metricValue};
+  loadRenderer();
+  return {buildCard,build,attach,patchBridge,metricValue,loadRenderer};
 });
