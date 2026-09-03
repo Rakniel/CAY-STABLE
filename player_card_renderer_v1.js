@@ -13,23 +13,30 @@ function metricText(metric,unit){
 }
 function badge(status){
   const s=String(status||'INDISPONIBLE').toUpperCase();
-  const bg=s==='FIABLE'?'#20663d':s==='PARTIEL'?'#7a571c':s==='DISPONIBLE'?'#8d1018':'#4b4b52';
+  const bg=s==='FIABLE'?'#20663d':s==='PARTIEL'?'#7a571c':s==='DISPONIBLE'||s==='LIÉ'?'#8d1018':'#4b4b52';
   return '<span style="padding:3px 8px;border-radius:999px;background:'+bg+';font-size:10px;font-weight:900;letter-spacing:.03em">'+esc(s)+'</span>';
 }
 function heatmapHtml(h){
   if(!h||!Array.isArray(h.cells)||!h.cells.length)return '<div style="opacity:.62">Heatmap indisponible</div>';
-  const rows=h.cells.length,cols=Number(h.cols)||h.cells[0]?.length||1,max=Math.max(1,...h.cells.flat().map(Number).filter(Number.isFinite));
+  const cols=Number(h.cols)||h.cells[0]?.length||1,max=Math.max(1,...h.cells.flat().map(Number).filter(Number.isFinite));
   let out='<div aria-label="heatmap joueur" style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;background:#09090b;padding:5px;border-radius:8px;border:1px solid rgba(255,255,255,.08)">';
   for(const row of h.cells)for(const n of row){const a=.08+.82*Math.max(0,Number(n)||0)/max;out+='<span style="height:10px;border-radius:2px;background:rgba(205,31,45,'+a.toFixed(2)+')" title="'+esc(n)+'"></span>';}
   return out+'</div>';
 }
+function rosterHeader(card){
+  const r=card?.roster||null,linked=r&&r.status==='LIÉ';
+  const fallback=(card?.category==='goalkeeper'?'GK':'J')+' • track '+esc(card?.id??'—');
+  if(!linked)return '<div><strong style="font-size:16px">'+fallback+'</strong><div style="font-size:10px;opacity:.58;margin-top:2px">Roster non lié — aucune identité déduite automatiquement</div></div>';
+  const name=esc(r.displayName||('Joueur '+(r.number??''))||fallback),num=r.number==null?'':' #'+esc(r.number),position=[r.primaryPosition,r.secondaryPosition].filter(Boolean).map(esc).join(' / ');
+  const img=r.photoUrl?'<img src="'+esc(r.photoUrl)+'" alt="portrait '+name+'" style="width:44px;height:44px;object-fit:cover;border-radius:10px;border:1px solid rgba(205,31,45,.55);background:#111">':'<div aria-hidden="true" style="width:44px;height:44px;border-radius:10px;border:1px solid rgba(205,31,45,.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:#111">CAY</div>';
+  return '<div style="display:flex;align-items:center;gap:9px">'+img+'<div><strong style="font-size:16px">'+name+num+'</strong><div style="font-size:10px;opacity:.66;margin-top:2px">'+(position||'Poste non renseigné')+' • track '+esc(card?.id??'—')+'</div></div></div>';
+}
 function cardHtml(card){
   const p=card?.presence||{},obs=card?.observedVisuals||{},pitch=card?.pitchVisuals||{},m=card?.metrics||{};
-  const who=(card?.category==='goalkeeper'?'GK':'J')+' #'+esc(card?.id??'—');
   const obsLabel=obs.status==='DISPONIBLE'?'CAMÉRA • '+(p.trackingCoverage||0)+' %':'CAMÉRA INDISPONIBLE';
   const pitchLabel=pitch.status==='DISPONIBLE'?'TERRAIN • '+(pitch.metricCoverage||0)+' %':'TERRAIN INDISPONIBLE';
   return '<article class="cay-player-card-v1" style="padding:14px;border-radius:14px;background:linear-gradient(145deg,#151518,#09090b);border:1px solid rgba(205,31,45,.42);box-shadow:0 8px 24px rgba(0,0,0,.22);color:#fff">'+
-    '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><strong style="font-size:16px">'+who+'</strong>'+badge(card?.identity?.status)+'</div>'+
+    '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center">'+rosterHeader(card)+badge(card?.identity?.status)+'</div>'+
     '<div style="margin-top:5px;font-size:11px;opacity:.72">'+esc(obsLabel)+' • '+esc(pitchLabel)+'</div>'+
     '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;font-size:12px">'+
       '<div><span style="opacity:.65">Temps observé</span><br><b>'+(finite(p.observedDuration)?Number(p.observedDuration).toFixed(1)+' s':'—')+'</b></div>'+
@@ -67,5 +74,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,heatmapHtml,metricText,render,install};
+return {cardHtml,rosterHeader,heatmapHtml,metricText,render,install};
 });
