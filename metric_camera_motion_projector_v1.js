@@ -68,14 +68,30 @@
 
     const frameWidth=finite(options.frameWidth)?Math.max(1,Number(options.frameWidth)):null;
     const frameHeight=finite(options.frameHeight)?Math.max(1,Number(options.frameHeight)):null;
+    let centerDisplacementRatio=null;
     if(frameWidth&&frameHeight){
       const perspectiveMagnitude=Math.abs(g/i)*frameWidth+Math.abs(h/i)*frameHeight;
       const maxPerspectiveAtFrame=finite(options.maxPerspectiveAtFrame)?Math.max(0,Number(options.maxPerspectiveAtFrame)):.35;
       if(perspectiveMagnitude>maxPerspectiveAtFrame){
         return {ok:false,reason:'MOTION_PERSPECTIVE_TOO_HIGH',perspectiveMagnitude,maxPerspectiveAtFrame};
       }
+
+      // A cut-like translation can have perfect RANSAC/support statistics while being
+      // impossible for the very short propagation window. Measure the actual motion of
+      // the image centre, normalized by frame diagonal, instead of trusting tx/ty alone.
+      const center={x:frameWidth*.5,y:frameHeight*.5};
+      const movedCenter=projectMatrix(M,center);
+      if(!movedCenter)return {ok:false,reason:'MOTION_CENTER_PROJECTION_INVALID'};
+      const diagonal=Math.max(1,Math.hypot(frameWidth,frameHeight));
+      centerDisplacementRatio=Math.hypot(movedCenter.x-center.x,movedCenter.y-center.y)/diagonal;
+      const maxFrameDisplacementRatio=finite(options.maxFrameDisplacementRatio)
+        ?clamp(options.maxFrameDisplacementRatio,.02,2)
+        :.45;
+      if(centerDisplacementRatio>maxFrameDisplacementRatio){
+        return {ok:false,reason:'MOTION_DISPLACEMENT_TOO_HIGH',centerDisplacementRatio,maxFrameDisplacementRatio};
+      }
     }
-    return {ok:true,scaleX:sx,scaleY:sy,anisotropy,shearCos,orientation};
+    return {ok:true,scaleX:sx,scaleY:sy,anisotropy,shearCos,orientation,centerDisplacementRatio};
   }
 
   function validateMotion(motion,options={}){
