@@ -16,12 +16,34 @@ function badge(status){
   const bg=s==='FIABLE'?'#20663d':s==='PARTIEL'?'#7a571c':s==='DISPONIBLE'||s==='LIÉ'?'#8d1018':'#4b4b52';
   return '<span style="padding:3px 8px;border-radius:999px;background:'+bg+';font-size:10px;font-weight:900;letter-spacing:.03em">'+esc(s)+'</span>';
 }
+function heatmapCells(h){
+  if(Array.isArray(h?.cells)&&h.cells.length)return h.cells;
+  if(Array.isArray(h?.normalizedCells)&&h.normalizedCells.length)return h.normalizedCells;
+  return null;
+}
 function heatmapHtml(h){
-  if(!h||!Array.isArray(h.cells)||!h.cells.length)return '<div style="opacity:.62">Heatmap indisponible</div>';
-  const cols=Number(h.cols)||h.cells[0]?.length||1,max=Math.max(1,...h.cells.flat().map(Number).filter(Number.isFinite));
+  const cells=heatmapCells(h);
+  if(!cells)return '<div style="opacity:.62">Heatmap indisponible</div>';
+  const cols=Number(h.cols)||cells[0]?.length||1,max=Math.max(1e-12,...cells.flat().map(Number).filter(Number.isFinite));
   let out='<div aria-label="heatmap joueur" style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;background:#09090b;padding:5px;border-radius:8px;border:1px solid rgba(255,255,255,.08)">';
-  for(const row of h.cells)for(const n of row){const a=.08+.82*Math.max(0,Number(n)||0)/max;out+='<span style="height:10px;border-radius:2px;background:rgba(205,31,45,'+a.toFixed(2)+')" title="'+esc(n)+'"></span>';}
+  for(const row of cells)for(const n of row){const a=.08+.82*Math.max(0,Number(n)||0)/max;out+='<span style="height:10px;border-radius:2px;background:rgba(205,31,45,'+a.toFixed(2)+')" title="'+esc(n)+'"></span>';}
   return out+'</div>';
+}
+function trajectoryHtml(t,pitchLengthM,pitchWidthM){
+  if(!t||t.status!=='DISPONIBLE'||!Array.isArray(t.runs)||!t.runs.length||!finite(pitchLengthM)||!finite(pitchWidthM)||Number(pitchLengthM)<=0||Number(pitchWidthM)<=0)return '<div style="opacity:.62">Trajectoire terrain indisponible</div>';
+  const length=Number(pitchLengthM),width=Number(pitchWidthM),runs=t.runs.map(run=>(Array.isArray(run)?run:[]).filter(p=>finite(p?.x)&&finite(p?.y)&&Number(p.x)>=0&&Number(p.x)<=length&&Number(p.y)>=0&&Number(p.y)<=width)).filter(run=>run.length);
+  if(!runs.length)return '<div style="opacity:.62">Trajectoire terrain indisponible</div>';
+  const polylines=runs.map(run=>'<polyline points="'+run.map(p=>Number(p.x).toFixed(3)+','+Number(p.y).toFixed(3)).join(' ')+'" fill="none" stroke="#cd1f2d" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>').join('');
+  const first=runs[0][0],last=runs[runs.length-1][runs[runs.length-1].length-1];
+  const markerRadius=Math.max(.45,Math.min(length,width)*.009);
+  return '<svg aria-label="trajectoire terrain joueur" viewBox="0 0 '+esc(length)+' '+esc(width)+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;aspect-ratio:'+esc(length)+'/'+esc(width)+';background:#09090b;border-radius:8px;border:1px solid rgba(255,255,255,.08)">'+
+    '<rect x="0.5" y="0.5" width="'+esc(Math.max(0,length-1))+'" height="'+esc(Math.max(0,width-1))+'" fill="none" stroke="rgba(255,255,255,.48)" stroke-width="0.5" vector-effect="non-scaling-stroke"/>'+
+    '<line x1="'+esc((length/2).toFixed(3))+'" y1="0" x2="'+esc((length/2).toFixed(3))+'" y2="'+esc(width)+'" stroke="rgba(255,255,255,.28)" stroke-width="0.5" vector-effect="non-scaling-stroke"/>'+
+    '<circle cx="'+esc((length/2).toFixed(3))+'" cy="'+esc((width/2).toFixed(3))+'" r="'+esc(Math.min(length,width)*.135)+'" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.5" vector-effect="non-scaling-stroke"/>'+
+    polylines+
+    '<circle cx="'+esc(Number(first.x).toFixed(3))+'" cy="'+esc(Number(first.y).toFixed(3))+'" r="'+esc(markerRadius)+'" fill="#fff"/>'+
+    '<circle cx="'+esc(Number(last.x).toFixed(3))+'" cy="'+esc(Number(last.y).toFixed(3))+'" r="'+esc(markerRadius)+'" fill="#cd1f2d" stroke="#fff" stroke-width="0.25" vector-effect="non-scaling-stroke"/>'+
+    '</svg>';
 }
 function rosterHeader(card){
   const r=card?.roster||null,linked=r&&r.status==='LIÉ';
@@ -47,7 +69,7 @@ function cardHtml(card){
       '<div><span style="opacity:.65">Sprints</span><br><b>'+esc(metricText(m.sprintCount,'sprint'))+'</b></div>'+
     '</div>'+
     '<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin-bottom:5px">PRÉSENCE CAMÉRA — PAS UNE CARTE TACTIQUE</div>'+heatmapHtml(obs.heatmap)+'</div>'+
-    (pitch.status==='DISPONIBLE'?'<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin-bottom:5px">OCCUPATION TERRAIN VALIDÉE</div>'+heatmapHtml(pitch.heatmap)+'</div>':'')+
+    (pitch.status==='DISPONIBLE'?'<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin-bottom:5px">OCCUPATION TERRAIN VALIDÉE</div>'+heatmapHtml(pitch.heatmap)+'<div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin:9px 0 5px">TRAJECTOIRE TERRAIN VALIDÉE</div>'+trajectoryHtml(pitch.trajectory,pitch.pitchLengthM,pitch.pitchWidthM)+'</div>':'')+
     '<div style="margin-top:8px;font-size:10px;opacity:.58">Stats physiques publiées uniquement sur projection terrain validée.</div></article>';
 }
 function render(model,target){
@@ -74,5 +96,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,rosterHeader,heatmapHtml,metricText,render,install};
+return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,render,install};
 });
