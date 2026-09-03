@@ -46,6 +46,19 @@ const extremePerspective=M.createPropagatedProjector(anchor,{matrix:[1,0,0,0,1,0
 assert.strictEqual(extremePerspective.validated,false);
 assert.strictEqual(extremePerspective.reason,'MOTION_PERSPECTIVE_TOO_HIGH');
 
+// Regression: a cut-like translation used to pass every confidence/support/residual
+// guard because translation magnitude was not part of geometric plausibility.
+const normalPan=M.createPropagatedProjector(anchor,{matrix:[1,0,320,0,1,80],confidence:.99,support:100,inlierRatio:.98,residual:.001},{ageSec:.05,frameWidth:1920,frameHeight:1080});
+assert.strictEqual(normalPan.validated,true);
+assert.ok(normalPan.validation.motionPlausibility.centerDisplacementRatio<.2);
+const cutLikeTranslation=M.createPropagatedProjector(anchor,{matrix:[1,0,1200,0,1,450],confidence:.99,support:100,inlierRatio:.98,residual:.001},{ageSec:.05,frameWidth:1920,frameHeight:1080});
+assert.strictEqual(cutLikeTranslation.validated,false);
+assert.strictEqual(cutLikeTranslation.reason,'MOTION_DISPLACEMENT_TOO_HIGH');
+assert.ok(cutLikeTranslation.motion.plausibility.centerDisplacementRatio>.45);
+const customLimit=M.validateTransformPlausibility([1,0,320,0,1,80],{frameWidth:1920,frameHeight:1080,maxFrameDisplacementRatio:.10});
+assert.strictEqual(customLimit.ok,false);
+assert.strictEqual(customLimit.reason,'MOTION_DISPLACEMENT_TOO_HIGH');
+
 const unavailable=M.createPropagatedProjector({validated:false}, {matrix:[1,0,0,0,1,0],confidence:1,support:100,inlierRatio:1,residual:0},{ageSec:.1});
 assert.strictEqual(unavailable.validated,false);
 assert.strictEqual(unavailable.reason,'ANCHOR_CALIBRATION_UNAVAILABLE');
