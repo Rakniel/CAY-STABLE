@@ -5,8 +5,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const qualityFromEvidenceScore=score=>Number.isFinite(Number(score))?(score>=.8?'FIABLE':score>0?'PARTIEL':'INDISPONIBLE'):'INDISPONIBLE';
   const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const qualityFromEvidenceScore=score=>isPresentFinite(score)?(Number(score)>=.8?'FIABLE':Number(score)>0?'PARTIEL':'INDISPONIBLE'):'INDISPONIBLE';
   function projectorInfo(entry){
     if(!entry||entry.validated!==true||typeof entry.project!=='function')return {validated:false,project:null,confidence:null};
     const rawConfidence=entry.confidence;
@@ -67,7 +67,7 @@
     for(let i=0;i<prepared.length;i++){
       const row=prepared[i],p=row?.p,q=row?.projected;
       if(!p||!q||!Number.isFinite(Number(p.time))){flush();continue;}
-      const point={time:+Number(p.time).toFixed(3),segment:Number(p.segment),x:+q.x.toFixed(3),y:+q.y.toFixed(3),calibrationConfidence:Number.isFinite(Number(q.confidence))?+Number(q.confidence).toFixed(3):null};
+      const point={time:+Number(p.time).toFixed(3),segment:Number(p.segment),x:+q.x.toFixed(3),y:+q.y.toFixed(3),calibrationConfidence:isPresentFinite(q.confidence)?+Number(q.confidence).toFixed(3):null};
       if(current.length){
         const prev=current[current.length-1],dt=point.time-prev.time;
         if(point.segment!==prev.segment||!(dt>0)||(maxGapSec>0&&dt>maxGapSec))flush();
@@ -116,8 +116,8 @@
       const projectedPoint=projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows);
       if(!projectedPoint){rejected++;prepared.push({p,projected:null});continue;}
       cells[projectedPoint.cy][projectedPoint.cx]++;projected++;
-      if(Number.isFinite(Number(projectedPoint.confidence))){confidenceSum+=Number(projectedPoint.confidence);confidenceKnown++;}
-      projectedPoints.push({time:Number.isFinite(Number(p.time))?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:Number.isFinite(Number(projectedPoint.confidence))?+Number(projectedPoint.confidence).toFixed(3):null});
+      if(isPresentFinite(projectedPoint.confidence)){confidenceSum+=Number(projectedPoint.confidence);confidenceKnown++;}
+      projectedPoints.push({time:Number.isFinite(Number(p.time))?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:isPresentFinite(projectedPoint.confidence)?+Number(projectedPoint.confidence).toFixed(3):null});
       prepared.push({p,projected:projectedPoint});
     }
     for(let i=0;i+1<prepared.length;i++){
