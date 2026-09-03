@@ -1,0 +1,104 @@
+name: CAY calibration V2 integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cay-calibration-v2.yml'
+      - 'CAY_ANALYZER_STABLE.html'
+      - 'pitch_semantic_calibration_v2.js'
+      - 'player_candidate_recovery_v1.js'
+      - 'automatic_pitch_calibration_v1.js'
+      - 'pitch_geometry_guard_v1.js'
+      - 'tools/integrate_tracking_v2.py'
+      - 'tools/integrate_calibration_v2.py'
+      - 'tests/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/cay-calibration-v2.yml'
+      - 'CAY_ANALYZER_STABLE.html'
+      - 'pitch_semantic_calibration_v2.js'
+      - 'player_candidate_recovery_v1.js'
+      - 'automatic_pitch_calibration_v1.js'
+      - 'pitch_geometry_guard_v1.js'
+      - 'tools/integrate_tracking_v2.py'
+      - 'tools/integrate_calibration_v2.py'
+      - 'tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  integrate-calibration-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build shipped STABLE HTML
+        run: |
+          python3 tools/integrate_tracking_v2.py
+          python3 tools/integrate_calibration_v2.py
+      - name: Verify both integrators are idempotent
+        run: |
+          cp CAY_ANALYZER_STABLE.html /tmp/cay-stable-v2.html
+          python3 tools/integrate_tracking_v2.py
+          python3 tools/integrate_calibration_v2.py
+          cmp --silent /tmp/cay-stable-v2.html CAY_ANALYZER_STABLE.html || {
+            echo 'ERROR: STABLE calibration V2 integration is not idempotent'
+            diff -u /tmp/cay-stable-v2.html CAY_ANALYZER_STABLE.html || true
+            exit 1
+          }
+          echo 'Calibration V2 integrator idempotency: PASS'
+      - name: Syntax checks
+        run: |
+          node --check pitch_semantic_calibration_v2.js
+          node --check player_candidate_recovery_v1.js
+          node --check automatic_pitch_calibration_v1.js
+          node --check pitch_geometry_guard_v1.js
+      - name: Full JavaScript non-regression suite
+        run: |
+          set -e
+          for test in tests/*.js; do
+            echo "== $test =="
+            node "$test"
+          done
+      - name: Verify shipped V2 contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('CAY_ANALYZER_STABLE.html').read_text(encoding='utf-8')
+          required=[
+            '<!-- CALIBRATION_V2_SEMANTIC_PITCH -->',
+            './pitch_semantic_calibration_v2.js',
+            './player_candidate_recovery_v1.js',
+            'Calibration terrain V2 — repères football',
+            'Ancien calibrage V1 retiré',
+            'CAYPlayerCandidateRecovery'
+          ]
+          missing=[x for x in required if x not in s]
+          if missing: raise SystemExit('missing V2 contract: '+', '.join(missing))
+          if "$('prepareGuidedCalib').onclick=chooseThreeReferenceImages" in s:
+            raise SystemExit('legacy 3-image calibration can still be launched')
+          if s.count('CALIBRATION_V2_SEMANTIC_PITCH') != 1:
+            raise SystemExit('V2 integration marker duplicated')
+          print('Shipped calibration V2 contract: PASS')
+          PY
+      - name: Commit validated STABLE HTML
+        if: github.event_name != 'pull_request'
+        run: |
+          if git diff --quiet -- CAY_ANALYZER_STABLE.html; then
+            echo 'HTML already integrated; nothing to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CAY_ANALYZER_STABLE.html
+          git commit -m 'feat(stable): ship semantic pitch calibration v2'
+          git pull --rebase origin main
+          git push origin HEAD:main
