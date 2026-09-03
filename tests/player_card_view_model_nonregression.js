@@ -16,18 +16,22 @@ assert.equal(card.observedVisuals.status,'DISPONIBLE');
 assert.equal(card.observedVisuals.physicalMetricsAllowed,false);
 assert.equal(card.observedVisuals.trajectory.coordinateSystem,'IMAGE_NORMALIZED');
 assert.equal(card.pitchVisuals.status,'INDISPONIBLE');
+assert.equal(card.pitchVisuals.pitchLengthM,null);
+assert.equal(card.pitchVisuals.pitchWidthM,null);
 assert.equal(card.metrics.distanceM.status,'INDISPONIBLE');
 assert.equal(card.metrics.avgSpeedKmh.status,'INDISPONIBLE');
 assert.equal(card.metrics.maxSpeedKmh.status,'INDISPONIBLE');
 assert.equal(card.metrics.sprintCount.status,'INDISPONIBLE');
 assert.equal(card.presence.trackingCoverage,100);
 
-const metricCard=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',metricCoverage:.8,trajectory:{status:'DISPONIBLE'},pitchHeatmap:{status:'DISPONIBLE'}},metric:{metricCoverage:.8,distanceM:1234.5,avgSpeedKmh:7.2,maxSpeedKmh:28.1,sprintCount:2,quality:'FIABLE'}});
+const metricCard=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',pitchLengthM:105,pitchWidthM:68,metricCoverage:.8,trajectory:{status:'DISPONIBLE'},pitchHeatmap:{status:'DISPONIBLE'}},metric:{metricCoverage:.8,distanceM:1234.5,avgSpeedKmh:7.2,maxSpeedKmh:28.1,sprintCount:2,quality:'FIABLE'}});
 assert.equal(metricCard.metrics.distanceM.status,'FIABLE');
 assert.equal(metricCard.metrics.distanceM.value,1234.5);
 assert.equal(metricCard.metrics.sprintCount.value,2);
 assert.equal(metricCard.pitchVisuals.coordinateSystem,'PITCH_METERS');
 assert.equal(metricCard.pitchVisuals.metricCoverage,80);
+assert.equal(metricCard.pitchVisuals.pitchLengthM,105);
+assert.equal(metricCard.pitchVisuals.pitchWidthM,68);
 
 const zeroValue=VM.metricValue({metricCoverage:.5,sprintCount:0,quality:'PARTIEL'},'sprintCount','Sprints');
 assert.equal(zeroValue.status,'PARTIEL');
