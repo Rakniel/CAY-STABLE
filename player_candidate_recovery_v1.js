@@ -93,7 +93,8 @@ function recoverFromImageData(imageData,width,height,existing=[],options={}){
   const grown=dilate(fg,sw,sh,Number.isInteger(options.dilatePasses)?options.dilatePasses:1);
   const comps=connectedComponents(grown,sw,sh),candidates=[];
   const minHR=finite(options.minHeightRatio)?Number(options.minHeightRatio):.024;
-  const maxHR=finite(options.maxHeightRatio)?Number(options.maxHeightRatio):.24;
+  const maxHR=finite(options.maxHeightRatio)?Number(options.maxHeightRatio):.32;
+  const minHeightPx=finite(options.minHeightPx)?Math.max(3,Number(options.minHeightPx)):6;
   const minAspect=finite(options.minAspect)?Number(options.minAspect):.12;
   const maxAspect=finite(options.maxAspect)?Number(options.maxAspect):1.05;
   const minGrass=finite(options.minGrassSupport)?Number(options.minGrassSupport):.22;
@@ -101,7 +102,9 @@ function recoverFromImageData(imageData,width,height,existing=[],options={}){
   for(const c of comps){
     const bw=(c.maxX-c.minX+1)*stride,bh=(c.maxY-c.minY+1)*stride;
     const hRatio=bh/H,aspect=bw/Math.max(1,bh),fill=c.count/Math.max(1,(c.maxX-c.minX+1)*(c.maxY-c.minY+1));
-    if(hRatio<minHR||hRatio>maxHR||aspect<minAspect||aspect>maxAspect||fill<.16)continue;
+    // Keep real near/medium players up to roughly one third of frame height, but
+    // reject isolated socks/jersey details before appearance can create a candidate.
+    if(bh<minHeightPx||hRatio<minHR||hRatio>maxHR||aspect<minAspect||aspect>maxAspect||fill<.16)continue;
     const support=grassSupport(grass,sw,sh,c,Math.max(2,Math.round((c.maxY-c.minY+1)*.35)));
     if(support<minGrass)continue;
     const padX=bw*.22,padTop=bh*.18,padBottom=bh*.08;
@@ -137,7 +140,7 @@ function recoverFromCanvas(canvas,existing=[],options={}){
 }
 
 return {
-  VERSION:'1.0.0',
+  VERSION:'1.0.1',
   POLICY:'RECOVER_GENERIC_PLAYER_CANDIDATES_NEVER_PROVE_CAY',
   pixelStats,
   recoverFromImageData,
