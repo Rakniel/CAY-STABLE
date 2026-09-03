@@ -13,16 +13,22 @@ const projectors={
  2:{validated:false,confidence:0,project:null}
 };
 const report={players:[{id:7,name:'Joueur 7'},{id:99,name:'Sans track'}]};
-const out=Runtime.attachMetricVisuals(report,{active:[track],archive:[]},projectors,{minMetricCoverage:.5,minCalibrationConfidence:.5,maxDwellGapSec:1});
+const out=Runtime.attachMetricVisuals(report,{active:[track],archive:[]},projectors,{pitchLengthM:105,pitchWidthM:68,minMetricCoverage:.5,minCalibrationConfidence:.5,maxDwellGapSec:1});
 const p=out.players[0];
 assert.ok(p.metricVisuals);
 assert.strictEqual(p.metricVisuals.coordinateSystem,'PITCH_METERS');
+assert.strictEqual(p.metricVisuals.pitchLengthM,105);
+assert.strictEqual(p.metricVisuals.pitchWidthM,68);
 assert.ok(p.metricVisuals.metricCoverage>0&&p.metricVisuals.metricCoverage<1);
 assert.strictEqual(p.metricVisuals.pitchHeatmap.status,'DISPONIBLE');
 assert.ok(p.metricVisuals.pitchHeatmap.normalizedCells.length>0);
 assert.ok(p.metricVisuals.trajectory.points.length===3);
 assert.strictEqual(p.metricVisuals.trajectory.runs.length,1);
 assert.strictEqual(out.players[1].metricVisuals.status,'INDISPONIBLE');
+assert.strictEqual(out.players[1].metricVisuals.pitchLengthM,null);
+const custom=Runtime.attachMetricVisuals({players:[{id:7}]},{active:[track]},projectors,{pitchLengthM:100,pitchWidthM:64,minMetricCoverage:.5,minCalibrationConfidence:.5,maxDwellGapSec:1});
+assert.strictEqual(custom.players[0].metricVisuals.pitchLengthM,100,'custom pitch length must propagate to player visuals');
+assert.strictEqual(custom.players[0].metricVisuals.pitchWidthM,64,'custom pitch width must propagate to player visuals');
 const strict=Runtime.attachMetricVisuals({players:[{id:7}]},{active:[track]},projectors,{minMetricCoverage:.9,minCalibrationConfidence:.5});
 assert.strictEqual(strict.players[0].metricVisuals.status,'INDISPONIBLE');
 assert.deepStrictEqual(strict.players[0].metricVisuals.pitchHeatmap.normalizedCells,[]);
