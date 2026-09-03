@@ -4,7 +4,7 @@ const Core=require('../tracking_core_v1.js');
 const Adapter=require('../tracking_two_stage_adapter_v1.js');
 const Stats=require('../player_stats_v1.js');
 
-function det(x=.30,score=.92){return {x,y:.45,score,cat:'team',feature:[.1,.2,.3]};}
+function det(x=.30,score=.92,extra={}){return {x,y:.45,score,cat:'team',feature:[.1,.2,.3],...extra};}
 
 // Default CAY policy: a single strong detection remains internal-only and must not leak into roster/stats.
 {
@@ -38,6 +38,39 @@ function det(x=.30,score=.92){return {x,y:.45,score,cat:'team',feature:[.1,.2,.3
   assert.strictEqual(afterGap.assigned.length,0,'non-consecutive evidence must not confirm a tentative identity');
   const confirmed=Adapter.assignFrame(state,[det(.304)],1.5,{maxPlayers:11,lostAfter:8});
   assert.strictEqual(confirmed.assigned.length,1);
+}
+
+// SRITrack-inspired conservative boundary policy: repeated partial border fragments
+// may stay internally trackable, but cannot by themselves create a confirmed player.
+{
+  const state=Core.createState();
+  const edge={edgePartial:true,edgeSides:['left'],source:'appearance_candidate',candidateOnly:true,teamEvidence:'NONE'};
+  assert.strictEqual(Adapter.assignFrame(state,[det(.01,.92,edge)],0,{maxPlayers:11,lostAfter:8}).assigned.length,0);
+  const secondEdge=Adapter.assignFrame(state,[det(.012,.92,edge)],.5,{maxPlayers:11,lostAfter:8});
+  assert.strictEqual(secondEdge.assigned.length,0,'two edge-partial frames must not confirm a fresh identity');
+  assert.strictEqual(secondEdge.confirmation.edgePartialSuppressed,1);
+  assert.strictEqual(state.active.length,1,'partial entrant remains available for matching instead of being deleted');
+  assert.strictEqual(state.active[0].cayIdentityConfirmed,false);
+  assert(state.cayEdgePartialConfirmationSuppressed>=2,'edge suppression must be measurable');
+  assert.strictEqual(Core.summary(state).rosterTotal,0,'edge-only evidence must not enter roster/stats');
+
+  const firstComplete=Adapter.assignFrame(state,[det(.025,.92,{edgePartial:false})],1,{maxPlayers:11,lostAfter:8});
+  assert.strictEqual(firstComplete.assigned.length,0,'first complete observation starts fresh confirmation evidence');
+  const secondComplete=Adapter.assignFrame(state,[det(.03,.92,{edgePartial:false})],1.5,{maxPlayers:11,lostAfter:8});
+  assert.strictEqual(secondComplete.assigned.length,1,'two complete consecutive observations may confirm the existing tentative track');
+  assert.strictEqual(secondComplete.assigned[0].trackId,1,'border entrant must keep the same technical track when later confirmed');
+}
+
+// Once an identity is already confirmed, an edge-partial observation can maintain
+// association/continuity; this guard is only against creating a new identity.
+{
+  const state=Core.createState();
+  Adapter.assignFrame(state,[det(.2)],0,{maxPlayers:11,lostAfter:8});
+  Adapter.assignFrame(state,[det(.205)],.5,{maxPlayers:11,lostAfter:8});
+  assert.strictEqual(state.active[0].cayIdentityConfirmed,true);
+  const edgeContinuation=Adapter.assignFrame(state,[det(.01,.92,{edgePartial:true,edgeSides:['left']})],1,{maxPlayers:11,lostAfter:8,baseThreshold:1.2});
+  assert.strictEqual(state.active[0].cayIdentityConfirmed,true,'edge evidence must not revoke an already confirmed identity');
+  assert(edgeContinuation.confirmation.edgePartialSuppressed===0,'confirmed identities do not consume fresh-confirmation suppression');
 }
 
 // Explicit legacy override remains available for diagnostics/controlled tests.
