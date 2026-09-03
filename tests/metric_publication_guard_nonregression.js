@@ -10,14 +10,27 @@ const reliable={
   distanceM:123.4,avgSpeedKmh:18.2,maxSpeedKmh:31.1,sprintCount:2,sprintQualifiedSeconds:4.5,
   speedSamples:continuousSpeedSamples
 };
-const published=Guard.applyPublicationPolicy(reliable);
+const published=Guard.applyPublicationPolicy(reliable,{identityQuality:'FIABLE'});
 assert.equal(published.publication.status,'FIABLE');
+assert.equal(published.publication.identityQuality,'FIABLE');
+assert.equal(published.publication.requiresReliableIdentity,true);
 assert.equal(published.metricCoverage,1);
 assert.equal(published.diagnosticMetricCoverage,1);
 assert.equal(published.distanceM,123.4);
 assert.equal(published.sprintCount,2);
 assert.equal(published.diagnosticPhysicalMetrics.distanceM,123.4);
 assert.equal(published.continuousSpeedEvidenceSeconds,4);
+
+const uncertainIdentity=Guard.applyPublicationPolicy(reliable,{identityQuality:'PARTIEL'});
+assert.equal(uncertainIdentity.publication.status,'INDISPONIBLE','physical player stats must not be attributed to an uncertain identity');
+assert.match(uncertainIdentity.publication.reason,/identité joueur/i);
+assert.equal(uncertainIdentity.metricCoverage,0,'UI-facing coverage must close when player identity is uncertain');
+assert.equal(uncertainIdentity.diagnosticMetricCoverage,1,'metric evidence stays auditable even when identity attribution is rejected');
+assert.equal(uncertainIdentity.distanceM,null);
+assert.equal(uncertainIdentity.avgSpeedKmh,null);
+assert.equal(uncertainIdentity.maxSpeedKmh,null);
+assert.equal(uncertainIdentity.sprintCount,null);
+assert.equal(uncertainIdentity.diagnosticPhysicalMetrics.distanceM,123.4);
 
 const partialCoverage=Guard.applyPublicationPolicy({...reliable,metricCoverage:.55,defendableScore:.55,quality:'PARTIEL'});
 assert.equal(partialCoverage.publication.status,'INDISPONIBLE');
