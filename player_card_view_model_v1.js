@@ -1,8 +1,12 @@
 (function(root,factory){
-  const api=factory(typeof module==='object'&&module.exports?require('./stable_tracking_bridge_v1.js'):root.CAYStableTrackingBridge,root);
+  const api=factory(
+    typeof module==='object'&&module.exports?require('./stable_tracking_bridge_v1.js'):root.CAYStableTrackingBridge,
+    typeof module==='object'&&module.exports?require('./player_card_roster_binding_v1.js'):root.CAYPlayerCardRosterBinding,
+    root
+  );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYPlayerCardViewModel=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Bridge,root){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Bridge,RosterBinding,root){
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const pct=v=>finite(v)?Math.max(0,Math.min(100,Math.round(Number(v)*100))):0;
@@ -27,16 +31,17 @@
       policies:{imageSpace:'VISUEL_OBSERVE_UNIQUEMENT; JAMAIS_UTILISE_POUR_METRES_KMH_SPRINTS',metricSpace:'STATISTIQUES_PHYSIQUES_UNIQUEMENT_SUR_PROJECTION_TERRAIN_VALIDEE'}
     };
   }
-  function build(report){
+  function build(report,rosterContext){
     const players=Array.isArray(report?.players)?report.players:[];
     const cards=players.map(buildCard);
-    return {version:'CAY_PLAYER_CARD_VIEW_MODEL_V1',status:cards.length?'DISPONIBLE':'INDISPONIBLE',players:cards,summary:{players:cards.length,withObservedVisuals:cards.filter(c=>c.observedVisuals.status==='DISPONIBLE').length,withPitchVisuals:cards.filter(c=>c.pitchVisuals.status==='DISPONIBLE').length,withMetricDistance:cards.filter(c=>c.metrics.distanceM.status!=='INDISPONIBLE').length},policy:'FICHE_JOUEUR_CAY_SEPARE_STRICTEMENT_OBSERVATION_CAMERA_ET_METRIQUES_TERRAIN'};
+    const model={version:'CAY_PLAYER_CARD_VIEW_MODEL_V1',status:cards.length?'DISPONIBLE':'INDISPONIBLE',players:cards,summary:{players:cards.length,withObservedVisuals:cards.filter(c=>c.observedVisuals.status==='DISPONIBLE').length,withPitchVisuals:cards.filter(c=>c.pitchVisuals.status==='DISPONIBLE').length,withMetricDistance:cards.filter(c=>c.metrics.distanceM.status!=='INDISPONIBLE').length},policy:'FICHE_JOUEUR_CAY_SEPARE_STRICTEMENT_OBSERVATION_CAMERA_ET_METRIQUES_TERRAIN'};
+    return RosterBinding&&typeof RosterBinding.enrichModel==='function'&&rosterContext?RosterBinding.enrichModel(model,rosterContext):model;
   }
-  function attach(report){return report?{...report,playerCards:build(report)}:report;}
+  function attach(report,rosterContext){return report?{...report,playerCards:build(report,rosterContext)}:report;}
   function patchBridge(){
     if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayPlayerCardViewModelPatched===true)return false;
     const baseCreate=Bridge.create.bind(Bridge);
-    Bridge.create=function(options){const instance=baseCreate(options),baseReport=instance.report.bind(instance);instance.report=function(projectors,visualOptions){return attach(baseReport(projectors,visualOptions));};return instance;};
+    Bridge.create=function(options){const instance=baseCreate(options),baseReport=instance.report.bind(instance);instance.report=function(projectors,visualOptions){const ctx=visualOptions&&visualOptions.rosterContext||null;return attach(baseReport(projectors,visualOptions),ctx);};return instance;};
     Bridge.__cayPlayerCardViewModelPatched=true;
     return true;
   }
