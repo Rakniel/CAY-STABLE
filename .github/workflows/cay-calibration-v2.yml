@@ -92,13 +92,35 @@ jobs:
       - name: Commit validated STABLE HTML
         if: github.event_name != 'pull_request'
         run: |
-          if git diff --quiet -- CAY_ANALYZER_STABLE.html; then
-            echo 'HTML already integrated; nothing to commit.'
-            exit 0
-          fi
+          set -e
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add CAY_ANALYZER_STABLE.html
-          git commit -m 'feat(stable): ship semantic pitch calibration v2'
-          git pull --rebase origin main
-          git push origin HEAD:main
+
+          # Another CAY workflow can regenerate the same HTML at almost the same
+          # time. Always rebuild V2 from the latest remote main before committing;
+          # if a push still races, retry from the new remote instead of overwriting.
+          for attempt in 1 2 3; do
+            echo "V2 delivery attempt ${attempt}/3"
+            git fetch origin main
+            git reset --hard origin/main
+            python3 tools/integrate_tracking_v2.py
+            python3 tools/integrate_calibration_v2.py
+            node tests/calibration_v2_shipped_nonregression.js
+
+            if git diff --quiet -- CAY_ANALYZER_STABLE.html; then
+              echo 'HTML already integrated on latest main; nothing to commit.'
+              exit 0
+            fi
+
+            git add CAY_ANALYZER_STABLE.html
+            git commit -m 'feat(stable): ship semantic pitch calibration v2'
+            if git push origin HEAD:main; then
+              echo 'Calibration V2 HTML delivered to main.'
+              exit 0
+            fi
+            echo 'Concurrent main update detected; rebuilding from latest main.'
+            sleep 1
+          done
+
+          echo 'ERROR: unable to deliver calibration V2 after 3 race-safe attempts'
+          exit 1
