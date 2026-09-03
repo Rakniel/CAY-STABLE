@@ -61,7 +61,7 @@
     }
     return allocated;
   }
-  function buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxGapSec){
+  function buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxGapSec,minCalibrationConfidence){
     const runs=[];let current=[];
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<prepared.length;i++){
@@ -80,19 +80,22 @@
     const confidenceComplete=projected>0&&confidenceKnown===projected;
     const avgConfidence=confidenceComplete?confidenceSum/projected:null;
     const score=confidenceComplete?coverage*avgConfidence:null;
+    const minConfidence=clamp(Number(minCalibrationConfidence)||0,0,1);
+    const confidenceSufficient=confidenceComplete&&avgConfidence>=minConfidence;
+    const evidenceAvailable=projected>0&&confidenceSufficient;
     return {
-      status:projected>0?'DISPONIBLE':'INDISPONIBLE',
-      reason:projected>0?null:'aucun point terrain métrique validé',
+      status:evidenceAvailable?'DISPONIBLE':'INDISPONIBLE',
+      reason:projected===0?'aucun point terrain métrique validé':!confidenceComplete?'confiance calibration indisponible pour une trajectoire terrain défendable':!confidenceSufficient?'confiance calibration insuffisante pour une trajectoire terrain défendable':null,
       coordinateSystem:'PITCH_METERS',
-      runs,
-      points:runs.flat(),
+      runs:evidenceAvailable?runs:[],
+      points:evidenceAvailable?runs.flat():[],
       observations:projected,
       eligibleObservations:eligible,
       metricCoverage:+coverage.toFixed(4),
       calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),
       avgCalibrationConfidence:avgConfidence===null?null:+avgConfidence.toFixed(4),
       defendableScore:score===null?null:+score.toFixed(4),
-      quality:score===null?'INDISPONIBLE':qualityFromEvidenceScore(score),
+      quality:evidenceAvailable?qualityFromEvidenceScore(score):'INDISPONIBLE',
       interpolation:'NONE',
       continuityPolicy:'COUPE_SUR_POINT_NON_PROJETE_CHANGEMENT_SEGMENT_TIMESTAMP_INVALIDE_OU_GAP_EXCESSIF'
     };
@@ -141,7 +144,7 @@
     const normalizedObservationCells=normalizeGrid(cells,projected),normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
     let reason=null;
     if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':!confidenceComplete?'confiance calibration indisponible pour une heatmap terrain défendable':'confiance calibration insuffisante pour une heatmap terrain défendable';
-    const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxDwellGapSec);
+    const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxDwellGapSec,minCalibrationConfidence);
     return {
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
