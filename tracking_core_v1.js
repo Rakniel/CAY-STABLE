@@ -10,6 +10,27 @@
     let s=0; for(let i=0;i<a.length;i++){ const d=(Number(a[i])||0)-(Number(b[i])||0); s+=d*d; }
     return Math.min(1.2,Math.sqrt(s/a.length));
   }
+  function validFeature(feature){
+    return Array.isArray(feature)&&feature.length>0&&feature.every(v=>Number.isFinite(Number(v)));
+  }
+  function smoothAppearance(previous,next,alpha=.9){
+    if(!validFeature(next))return validFeature(previous)?[...previous]:null;
+    if(!validFeature(previous)||previous.length!==next.length)return next.map(Number);
+    const a=Math.max(0,Math.min(.999,Number.isFinite(Number(alpha))?Number(alpha):.9));
+    return previous.map((v,i)=>a*Number(v)+(1-a)*Number(next[i]));
+  }
+  function updateTrackAppearance(track,feature,score,opts={}){
+    if(!track||!validFeature(feature))return false;
+    const minScore=Number.isFinite(opts.appearanceUpdateMinScore)?clamp01(opts.appearanceUpdateMinScore):.50;
+    if(validFeature(track.feature)&&Number.isFinite(score)&&Number(score)<minScore){
+      track.appearanceUpdatesRejectedLowScore=(track.appearanceUpdatesRejectedLowScore||0)+1;
+      return false;
+    }
+    const alpha=Number.isFinite(opts.appearanceSmoothingAlpha)?opts.appearanceSmoothingAlpha:.90;
+    track.feature=smoothAppearance(track.feature,feature,alpha);
+    track.appearanceUpdates=(track.appearanceUpdates||0)+1;
+    return true;
+  }
   function velocity(track){
     const h=track.motionHistory;
     if(h.length<2)return {x:0,y:0};
@@ -56,14 +77,15 @@
       tr.presenceIntervals.push({segment:p.segment,start:p.time,end:p.time,observations:1});
     }
   }
-  function newTrack(state,d,t){
+  function newTrack(state,d,t,opts={}){
     const p=pointFor(state,d,t);
     const tr={
-      globalId:state.nextGlobalId++,segment:state.segment,segmentsSeen:[state.segment],cat:d.cat||'team',feature:d.feature||null,
+      globalId:state.nextGlobalId++,segment:state.segment,segmentsSeen:[state.segment],cat:d.cat||'team',feature:null,
       x:p.x,y:p.y,missed:0,seen:0,firstTime:t,lastTime:t,archived:false,exitReason:null,
       motionHistory:[],fullPath:[],confidenceSamples:[],presenceIntervals:[],observedDuration:0,
-      reidentifications:0,mergedFrom:[]
+      reidentifications:0,mergedFrom:[],appearanceUpdates:0,appearanceUpdatesRejectedLowScore:0
     };
+    updateTrackAppearance(tr,d.feature,d.score,opts);
     recordObservation(tr,p,d.score);
     state.active.push(tr); state.created++; return tr;
   }
@@ -115,11 +137,11 @@
     const p=pointFor(state,d,t);
     tr.archived=false; tr.exitReason=null; tr.segment=state.segment;
     if(!tr.segmentsSeen.includes(state.segment))tr.segmentsSeen.push(state.segment);
-    tr.feature=d.feature||tr.feature; tr.motionHistory=[];
+    updateTrackAppearance(tr,d.feature,d.score,opts); tr.motionHistory=[];
     recordObservation(tr,p,d.score);
     tr.reidentifications=(tr.reidentifications||0)+1;
     tr.lastReidScore=best.score;
-    tr.lastReidEvidence={appearance:+best.appearance.toFixed(6),gap:+best.gap.toFixed(3),score:+best.score.toFixed(4),segment:state.segment};
+    tr.lastReidEvidence={appearance:+best.appearance.toFixed(6),gap:+best.gap.toFixed(3),score:+best.score.toFixed(4),segment:state.segment,appearanceModel:'EMA'};
     state.active.push(tr); state.reidentified++;
     return tr;
   }
@@ -146,7 +168,7 @@
       if(usedT.has(p.ti)||usedD.has(p.di))continue;
       const tr=state.active[p.ti],d=dets[p.di]; usedT.add(p.ti);usedD.add(p.di);
       const point=pointFor(state,d,t);
-      tr.cat=d.cat||tr.cat;tr.feature=d.feature||tr.feature;
+      tr.cat=d.cat||tr.cat; updateTrackAppearance(tr,d.feature,d.score,opts);
       recordObservation(tr,point,d.score);
       assigned.push({...d,trackId:tr.globalId,track:tr,reidentified:false}); state.totalMatches++;
     }
@@ -154,7 +176,7 @@
     if(opts.allowNew!==false){
       for(let di=0;di<dets.length;di++)if(!usedD.has(di)){
         const d=dets[di];
-        const tr=reidentifyArchived(state,d,t,opts)||newTrack(state,d,t);
+        const tr=reidentifyArchived(state,d,t,opts)||newTrack(state,d,t,opts);
         assigned.push({...d,trackId:tr.globalId,track:tr,reidentified:(tr.reidentifications||0)>0});
       }
     } else state.skippedWeak+=dets.filter((_,i)=>!usedD.has(i)).length;
@@ -194,6 +216,8 @@
     target.firstTime=Math.min(target.firstTime,source.firstTime); target.lastTime=Math.max(target.lastTime,source.lastTime);
     target.seen=(target.seen||0)+(source.seen||0); target.observedDuration=(target.observedDuration||0)+(source.observedDuration||0);
     target.reidentifications=(target.reidentifications||0)+(source.reidentifications||0);
+    target.appearanceUpdates=(target.appearanceUpdates||0)+(source.appearanceUpdates||0);
+    target.appearanceUpdatesRejectedLowScore=(target.appearanceUpdatesRejectedLowScore||0)+(source.appearanceUpdatesRejectedLowScore||0);
     target.mergedFrom=[...new Set([...(target.mergedFrom||[]),source.globalId,...(source.mergedFrom||[])])];
     target.x=freshest.x; target.y=freshest.y; target.segment=freshest.segment; target.feature=freshest.feature||target.feature;
     target.missed=freshest.missed||0; target.motionHistory=target.fullPath.filter(p=>p.segment===target.segment).slice(-30);
@@ -229,6 +253,7 @@
       observedDuration:+(tr.observedDuration||0).toFixed(3),presenceIntervals:(tr.presenceIntervals||[]).map(x=>({...x})),segmentStats:segmentStats(tr),
       normalizedTravel:+travel.toFixed(6),identityConfidence:avg===null?null:+avg.toFixed(4),exitReason:tr.exitReason||null,
       reidentifications:tr.reidentifications||0,lastReidScore:Number.isFinite(tr.lastReidScore)?+tr.lastReidScore.toFixed(4):null,lastReidEvidence:tr.lastReidEvidence?{...tr.lastReidEvidence}:null,
+      appearanceModel:'EMA',appearanceUpdates:tr.appearanceUpdates||0,appearanceUpdatesRejectedLowScore:tr.appearanceUpdatesRejectedLowScore||0,
       mergedFrom:[...(tr.mergedFrom||[])],quality,
       dataQuality:{identity:quality,normalizedMovement:tr.fullPath.length>=2?quality:'INDISPONIBLE',metricDistance:'INDISPONIBLE',metricSpeed:'INDISPONIBLE'},
       unavailableReasons:{metricDistance:'projection terrain métrique non fournie au tracking core',metricSpeed:'projection terrain métrique non fournie au tracking core'}
@@ -239,5 +264,5 @@
     const tracks=allUniqueTracks(state).filter(tr=>tr.cayIdentityConfirmed!==false).map(summarizeTrack).sort((a,b)=>a.id-b.id);
     return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,reidRejectedLowScore:state.reidRejectedLowScore||0,tracks};
   }
-  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,reidCandidateScore};
+  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,reidCandidateScore,smoothAppearance,updateTrackAppearance};
 });
