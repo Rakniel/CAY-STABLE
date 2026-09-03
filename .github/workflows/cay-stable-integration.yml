@@ -6,37 +6,7 @@ on:
     paths:
       - '.github/workflows/cay-stable-integration.yml'
       - 'CAY_ANALYZER_STABLE.html'
-      - 'app_domain_models_v1.js'
-      - 'detector_license_guard_v1.js'
-      - 'detector_candidate_registry_v1.js'
-      - 'detector_benchmark_v1.js'
-      - 'rfdetr_onnx_adapter_v1.js'
-      - 'rfdetr_onnx_runtime_v1.js'
-      - 'tracking_backend_candidate_registry_v1.js'
-      - 'tracking_core_v1.js'
-      - 'tracking_confidence_cascade_v1.js'
-      - 'tracking_two_stage_adapter_v1.js'
-      - 'tracking_two_stage_runtime_patch_v1.js'
-      - 'reid_evidence_fusion_v1.js'
-      - 'pitch_membership_guard_v1.js'
-      - 'metric_homography_projector_v1.js'
-      - 'metric_segment_registry_v1.js'
-      - 'metric_pitch_heatmap_v1.js'
-      - 'ball_event_state_v1.js'
-      - 'player_stats_v1.js'
-      - 'metric_quality_guard_v1.js'
-      - 'metric_publication_guard_v1.js'
-      - 'tracker_state_v1.js'
-      - 'replacement_events_v1.js'
-      - 'observed_presence_v1.js'
-      - 'observed_presence_report_v1.js'
-      - 'observed_presence_runtime_bridge_v1.js'
-      - 'manual_identity_merge_guard_v1.js'
-      - 'segment_reid_guard_v1.js'
-      - 'validated_report_bridge_v1.js'
-      - 'stable_tracking_bridge_v1.js'
-      - 'strict_tracking_frame_guard_v1.js'
-      - 'stable_runtime_tracking_v2.js'
+      - '*.js'
       - 'tools/integrate_tracking_v2.py'
       - 'tests/**'
   pull_request:
@@ -44,37 +14,7 @@ on:
     paths:
       - '.github/workflows/cay-stable-integration.yml'
       - 'CAY_ANALYZER_STABLE.html'
-      - 'app_domain_models_v1.js'
-      - 'detector_license_guard_v1.js'
-      - 'detector_candidate_registry_v1.js'
-      - 'detector_benchmark_v1.js'
-      - 'rfdetr_onnx_adapter_v1.js'
-      - 'rfdetr_onnx_runtime_v1.js'
-      - 'tracking_backend_candidate_registry_v1.js'
-      - 'tracking_core_v1.js'
-      - 'tracking_confidence_cascade_v1.js'
-      - 'tracking_two_stage_adapter_v1.js'
-      - 'tracking_two_stage_runtime_patch_v1.js'
-      - 'reid_evidence_fusion_v1.js'
-      - 'pitch_membership_guard_v1.js'
-      - 'metric_homography_projector_v1.js'
-      - 'metric_segment_registry_v1.js'
-      - 'metric_pitch_heatmap_v1.js'
-      - 'ball_event_state_v1.js'
-      - 'player_stats_v1.js'
-      - 'metric_quality_guard_v1.js'
-      - 'metric_publication_guard_v1.js'
-      - 'tracker_state_v1.js'
-      - 'replacement_events_v1.js'
-      - 'observed_presence_v1.js'
-      - 'observed_presence_report_v1.js'
-      - 'observed_presence_runtime_bridge_v1.js'
-      - 'manual_identity_merge_guard_v1.js'
-      - 'segment_reid_guard_v1.js'
-      - 'validated_report_bridge_v1.js'
-      - 'stable_tracking_bridge_v1.js'
-      - 'strict_tracking_frame_guard_v1.js'
-      - 'stable_runtime_tracking_v2.js'
+      - '*.js'
       - 'tools/integrate_tracking_v2.py'
       - 'tests/**'
   schedule:
@@ -108,37 +48,11 @@ jobs:
           echo 'Runtime integrator idempotency: PASS'
       - name: Syntax check JavaScript modules
         run: |
-          node --check app_domain_models_v1.js
-          node --check detector_license_guard_v1.js
-          node --check detector_candidate_registry_v1.js
-          node --check detector_benchmark_v1.js
-          node --check rfdetr_onnx_adapter_v1.js
-          node --check rfdetr_onnx_runtime_v1.js
-          node --check tracking_backend_candidate_registry_v1.js
-          node --check tracking_core_v1.js
-          node --check tracking_confidence_cascade_v1.js
-          node --check tracking_two_stage_adapter_v1.js
-          node --check tracking_two_stage_runtime_patch_v1.js
-          node --check reid_evidence_fusion_v1.js
-          node --check pitch_membership_guard_v1.js
-          node --check metric_homography_projector_v1.js
-          node --check metric_segment_registry_v1.js
-          node --check metric_pitch_heatmap_v1.js
-          node --check ball_event_state_v1.js
-          node --check player_stats_v1.js
-          node --check metric_quality_guard_v1.js
-          node --check metric_publication_guard_v1.js
-          node --check tracker_state_v1.js
-          node --check replacement_events_v1.js
-          node --check observed_presence_v1.js
-          node --check observed_presence_report_v1.js
-          node --check observed_presence_runtime_bridge_v1.js
-          node --check manual_identity_merge_guard_v1.js
-          node --check segment_reid_guard_v1.js
-          node --check validated_report_bridge_v1.js
-          node --check stable_tracking_bridge_v1.js
-          node --check strict_tracking_frame_guard_v1.js
-          node --check stable_runtime_tracking_v2.js
+          set -e
+          for file in ./*.js; do
+            echo "== syntax: $file =="
+            node --check "$file"
+          done
       - name: Run non-regression tests
         run: |
           set -e
@@ -150,43 +64,39 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p=Path('CAY_ANALYZER_STABLE.html')
-          s=p.read_text(encoding='utf-8')
-          required=[
-            '<!-- STABLE_LONG_TERM_TRACKING_V2 -->',
-            './detector_license_guard_v1.js',
-            './detector_candidate_registry_v1.js',
-            './rfdetr_onnx_adapter_v1.js',
-            './rfdetr_onnx_runtime_v1.js',
-            './tracking_core_v1.js',
-            './tracking_confidence_cascade_v1.js',
-            './tracking_two_stage_adapter_v1.js',
-            './tracking_two_stage_runtime_patch_v1.js',
-            './reid_evidence_fusion_v1.js',
-            './pitch_membership_guard_v1.js',
-            './metric_homography_projector_v1.js',
-            './metric_segment_registry_v1.js',
-            './metric_pitch_heatmap_v1.js',
-            './ball_event_state_v1.js',
-            './player_stats_v1.js',
-            './metric_quality_guard_v1.js',
-            './metric_publication_guard_v1.js',
-            './tracker_state_v1.js',
-            './stable_tracking_bridge_v1.js',
-            './strict_tracking_frame_guard_v1.js',
-            './manual_identity_merge_guard_v1.js',
-            './segment_reid_guard_v1.js',
-            './observed_presence_v1.js',
-            './observed_presence_report_v1.js',
-            './observed_presence_runtime_bridge_v1.js',
-            './stable_runtime_tracking_v2.js'
-          ]
-          missing=[x for x in required if x not in s]
-          if missing: raise SystemExit('missing integration markers: '+', '.join(missing))
-          if s.count('STABLE_LONG_TERM_TRACKING_V2') != 1: raise SystemExit('integration marker duplicated')
-          order=[s.index('./detector_license_guard_v1.js'),s.index('./detector_candidate_registry_v1.js'),s.index('./rfdetr_onnx_adapter_v1.js'),s.index('./rfdetr_onnx_runtime_v1.js'),s.index('./tracking_core_v1.js'),s.index('./tracking_confidence_cascade_v1.js'),s.index('./tracking_two_stage_adapter_v1.js'),s.index('./tracking_two_stage_runtime_patch_v1.js'),s.index('./reid_evidence_fusion_v1.js'),s.index('./pitch_membership_guard_v1.js'),s.index('./metric_homography_projector_v1.js'),s.index('./metric_segment_registry_v1.js'),s.index('./metric_pitch_heatmap_v1.js'),s.index('./ball_event_state_v1.js'),s.index('./player_stats_v1.js'),s.index('./metric_quality_guard_v1.js'),s.index('./metric_publication_guard_v1.js'),s.index('./tracker_state_v1.js'),s.index('./stable_tracking_bridge_v1.js'),s.index('./strict_tracking_frame_guard_v1.js'),s.index('./manual_identity_merge_guard_v1.js'),s.index('./segment_reid_guard_v1.js'),s.index('./observed_presence_v1.js'),s.index('./observed_presence_report_v1.js'),s.index('./observed_presence_runtime_bridge_v1.js'),s.index('./stable_runtime_tracking_v2.js')]
-          if order != sorted(order): raise SystemExit('tracking runtime scripts loaded in unsafe order')
-          print('HTML integration guards: PASS')
+          import re
+
+          html_path = Path('CAY_ANALYZER_STABLE.html')
+          integrator_path = Path('tools/integrate_tracking_v2.py')
+          html = html_path.read_text(encoding='utf-8')
+          integrator = integrator_path.read_text(encoding='utf-8')
+          marker = '<!-- STABLE_LONG_TERM_TRACKING_V2 -->'
+
+          canonical_srcs = re.findall(
+              r'^\s*[\'\"]<script src=[\'\"](\./[^\'\"]+\.js)[\'\"]></script>[\'\"],\s*$',
+              integrator,
+              re.MULTILINE,
+          )
+          if not canonical_srcs:
+              raise SystemExit('canonical runtime manifest could not be parsed from integrator')
+          if len(canonical_srcs) != len(set(canonical_srcs)):
+              raise SystemExit('duplicate script in integrator canonical runtime manifest')
+
+          tags = [f'<script src="{src}"></script>' for src in canonical_srcs]
+          missing = [src for src, tag in zip(canonical_srcs, tags) if tag not in html]
+          duplicated = [src for src, tag in zip(canonical_srcs, tags) if html.count(tag) != 1]
+          if missing:
+              raise SystemExit('missing integration scripts: ' + ', '.join(missing))
+          if duplicated:
+              raise SystemExit('runtime script duplicated in HTML: ' + ', '.join(duplicated))
+          if html.count(marker) != 1:
+              raise SystemExit('integration marker must appear exactly once')
+
+          positions = [html.index(tag) for tag in tags]
+          if positions != sorted(positions):
+              raise SystemExit('tracking runtime scripts loaded in unsafe order')
+
+          print(f'HTML integration guards: PASS ({len(tags)} canonical runtime scripts)')
           PY
       - name: Commit validated HTML integration
         if: github.event_name != 'pull_request'
