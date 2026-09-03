@@ -22,10 +22,26 @@ assert(found.some(b=>b.x<45&&b.x+b.w>34&&b.y<35&&b.y+b.h>40),'yellow player shou
 assert(found.some(b=>b.x<85&&b.x+b.w>78&&b.y<38&&b.y+b.h>43),'red player should be recovered');
 assert(!found.some(b=>b.h<7),'tiny coloured detail must not become a player');
 assert(found.every(b=>b.candidateOnly===true&&b.teamEvidence==='NONE'));
+assert(found.every(b=>b.edgePartial===false),'central players must not be marked as partial');
 
 const existing=[{x:31,y:24,w:12,h:23,score:.8,source:'full'}];
 const deduped=R.recoverFromImageData(data,W,H,existing,{stride:1,minYRatio:.15,maxCandidates:6,dilatePasses:1,minGrassSupport:.18});
 assert(!deduped.some(b=>b.x<45&&b.x+b.w>34),'existing detector box must suppress duplicate yellow recovery');
 assert(deduped.some(b=>b.x<90&&b.x+b.w>78),'other missed player should remain recoverable');
+
+// A legitimate player entering from the left edge must remain recoverable, but the
+// appearance-only evidence must be explicitly weakened rather than promoted as a
+// normal complete observation.
+fill(48,128,52);
+rect(0,31,5,16,185,38,35);
+const edge=R.recoverFromImageData(data,W,H,[],{stride:1,minYRatio:.15,maxCandidates:6,dilatePasses:1,minGrassSupport:.10});
+assert(edge.length>=1,JSON.stringify(edge));
+const entrant=edge.find(b=>b.x<=2);
+assert(entrant,'edge entrant must not be dropped');
+assert.strictEqual(entrant.edgePartial,true);
+assert(entrant.edgeSides.includes('left'));
+assert(entrant.score<=.14,'edge appearance confidence must be capped');
+assert.strictEqual(entrant.teamEvidence,'NONE');
+assert.strictEqual(entrant.candidateOnly,true);
 
 console.log('player candidate recovery non-regression: PASS');

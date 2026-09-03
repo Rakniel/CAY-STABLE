@@ -72,6 +72,17 @@ function grassSupport(grass,w,h,b,margin=2){
   return total?g/total:0;
 }
 
+function edgePartialMetadata(b,W,H,options={}){
+  const ratio=finite(options.edgeMarginRatio)?clamp(Number(options.edgeMarginRatio),0,.2):.015;
+  const margin=Math.max(1,Math.round(Math.min(W,H)*ratio));
+  const sides=[];
+  if(b.x<=margin)sides.push('left');
+  if(b.y<=margin)sides.push('top');
+  if(b.x+b.w>=W-margin)sides.push('right');
+  if(b.y+b.h>=H-margin)sides.push('bottom');
+  return {edgePartial:sides.length>0,edgeSides:sides,edgeMarginPx:margin};
+}
+
 function recoverFromImageData(imageData,width,height,existing=[],options={}){
   const data=imageData&&imageData.data?imageData.data:imageData;
   const W=Number(width),H=Number(height);
@@ -98,6 +109,8 @@ function recoverFromImageData(imageData,width,height,existing=[],options={}){
   const minAspect=finite(options.minAspect)?Number(options.minAspect):.12;
   const maxAspect=finite(options.maxAspect)?Number(options.maxAspect):1.05;
   const minGrass=finite(options.minGrassSupport)?Number(options.minGrassSupport):.22;
+  const edgeScoreFactor=finite(options.edgeScoreFactor)?clamp(Number(options.edgeScoreFactor),.1,1):.65;
+  const edgeScoreCap=finite(options.edgeScoreCap)?clamp(Number(options.edgeScoreCap),.05,.22):.14;
 
   for(const c of comps){
     const bw=(c.maxX-c.minX+1)*stride,bh=(c.maxY-c.minY+1)*stride;
@@ -117,8 +130,13 @@ function recoverFromImageData(imageData,width,height,existing=[],options={}){
     b.w=Math.min(b.w,W-b.x);b.h=Math.min(b.h,H-b.y);
     if(existing.some(e=>e&&iou(b,e)>.10))continue;
     const shapeScore=1-Math.min(1,Math.abs(aspect-.42)/.7);
-    const score=clamp(.08+.07*support+.05*shapeScore+.03*Math.min(1,fill),.08,.22);
-    candidates.push({...b,score,source:'appearance_candidate',candidateOnly:true,footballClass:'player',teamEvidence:'NONE'});
+    let score=clamp(.08+.07*support+.05*shapeScore+.03*Math.min(1,fill),.08,.22);
+    const edge=edgePartialMetadata(b,W,H,options);
+    // Sports trackers often reject border fragments outright. For amateur football
+    // footage that would lose legitimate players entering the frame, so CAY keeps
+    // the candidate but marks it partial and reduces appearance-only confidence.
+    if(edge.edgePartial)score=Math.min(edgeScoreCap,clamp(score*edgeScoreFactor,.05,.22));
+    candidates.push({...b,score,source:'appearance_candidate',candidateOnly:true,footballClass:'player',teamEvidence:'NONE',...edge});
   }
 
   candidates.sort((a,b)=>b.score-a.score||b.h-a.h);
@@ -140,15 +158,19 @@ function recoverFromCanvas(canvas,existing=[],options={}){
 }
 
 return {
-  VERSION:'1.0.1',
+  VERSION:'1.1.0',
   POLICY:'RECOVER_GENERIC_PLAYER_CANDIDATES_NEVER_PROVE_CAY',
   pixelStats,
+  edgePartialMetadata,
   recoverFromImageData,
   recoverFromCanvas,
   provenance:{
     designReference:'rafaelsouza-tech/soccer-tactical-vision team/color.py',
     license:'MIT',
     adaptedIdea:'use grass-aware appearance evidence only to support generic player candidates; team identity remains a separate stage',
+    secondaryReference:'kaoyuyukao/SRITrack',
+    secondaryLicense:'MIT',
+    adaptedEdgeIdea:'treat border-touching detections as higher-risk partial observations; unlike SRITrack-style filtering, CAY keeps legitimate entrants but caps appearance-only confidence',
     codeCopied:false
   }
 };
