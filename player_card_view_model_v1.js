@@ -56,7 +56,18 @@
     (document.head||document.documentElement).appendChild(script);
     return true;
   }
+  function loadClubRosterIdentityUI(){
+    if(typeof document==='undefined'||root.CAYClubRosterIdentityUI)return false;
+    if(document.querySelector('script[data-cay-club-roster-identity-ui="v1"]'))return true;
+    const script=document.createElement('script');
+    script.src='./club_roster_identity_ui_v1.js';
+    script.async=false;
+    script.dataset.cayClubRosterIdentityUi='v1';
+    (document.head||document.documentElement).appendChild(script);
+    return true;
+  }
   patchBridge();
   loadRenderer();
-  return {buildCard,build,attach,patchBridge,metricValue,loadRenderer};
+  if(typeof setTimeout==='function')setTimeout(loadClubRosterIdentityUI,0);
+  return {buildCard,build,attach,patchBridge,metricValue,loadRenderer,loadClubRosterIdentityUI};
 });
