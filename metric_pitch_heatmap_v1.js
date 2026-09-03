@@ -109,13 +109,23 @@
     const pitchWidthM=Math.max(1,Number(opts.pitchWidthM)||68);
     const minCalibrationConfidence=clamp(Number(opts.minCalibrationConfidence)||0,0,1);
     const maxDwellGapSec=Math.max(0,Number(opts.maxDwellGapSec)||0);
+    const segmentInfos={};
+    for(const p of path){
+      if(!p||!isPresentFinite(p.segment))continue;
+      const key=String(p.segment);
+      if(!(key in segmentInfos))segmentInfos[key]=projectorInfo(projectors&&projectors[p.segment]);
+    }
+    const hasTrustedSegment=Object.values(segmentInfos).some(info=>info.validated&&isPresentFinite(info.confidence)&&Number(info.confidence)>=minCalibrationConfidence);
     const cells=createGrid(cols,rows),timeCells=createGrid(cols,rows);
-    let eligible=0,projected=0,rejected=0,confidenceSum=0,confidenceKnown=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0;
+    let eligible=0,projected=0,rejected=0,lowConfidenceSegmentRejected=0,confidenceSum=0,confidenceKnown=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0;
     const projectedPoints=[],prepared=[];
     for(const p of path){
       const structurallyEligible=!!p&&isPresentFinite(p.x)&&isPresentFinite(p.y)&&isPresentFinite(p.segment);
       if(!structurallyEligible){prepared.push({p,projected:null});continue;}
       eligible++;
+      const info=segmentInfos[String(p.segment)]||projectorInfo(projectors&&projectors[p.segment]);
+      const weakSegmentInsideTrustedMix=hasTrustedSegment&&info.validated&&isPresentFinite(info.confidence)&&Number(info.confidence)<minCalibrationConfidence;
+      if(weakSegmentInsideTrustedMix){rejected++;lowConfidenceSegmentRejected++;prepared.push({p,projected:null});continue;}
       const projectedPoint=projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows);
       if(!projectedPoint){rejected++;prepared.push({p,projected:null});continue;}
       cells[projectedPoint.cy][projectedPoint.cx]++;projected++;
@@ -148,11 +158,11 @@
     return {
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
-      heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',timeAllocation:useTimeWeighting?'LINEAR_PITCH_SEGMENT':'NONE',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,metricCoverage:+coverage.toFixed(4),
+      heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',timeAllocation:useTimeWeighting?'LINEAR_PITCH_SEGMENT':'NONE',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,lowConfidenceSegmentRejected,metricCoverage:+coverage.toFixed(4),
       eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,maxDwellGapSec,
       unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,
       calibrationConfidenceObservations:confidenceKnown,calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),avgCalibrationConfidence:avgCalibrationConfidence===null?null:+avgCalibrationConfidence.toFixed(4),defendableScore:defendableScore===null?null:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
-      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE; CONFIANCE COMPLETE REQUISE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
+      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
       temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
