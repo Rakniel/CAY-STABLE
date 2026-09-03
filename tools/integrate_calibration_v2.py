@@ -1,10 +1,17 @@
 from pathlib import Path
+import re
 
 path=Path('CAY_ANALYZER_STABLE.html')
 text=path.read_text(encoding='utf-8')
 marker='<!-- CALIBRATION_V2_SEMANTIC_PITCH -->'
 player_tag='<script src="./player_candidate_recovery_v1.js"></script>'
 pitch_tag='<script src="./pitch_semantic_calibration_v2.js"></script>'
+
+# `integrate_tracking_v2.py` rebuilds its canonical script block. Remove the V2
+# overlay first, then place each module back beside the dependency it extends.
+# This makes the sequence tracking -> V2 -> tracking -> V2 byte-for-byte stable.
+for token in (marker,player_tag,pitch_tag):
+    text=re.sub(rf'^[ \t]*{re.escape(token)}[ \t]*(?:\r?\n)?','',text,flags=re.MULTILINE)
 
 
 def replace_once(old,new,label):
@@ -15,22 +22,19 @@ def replace_once(old,new,label):
         raise SystemExit(f'ERROR: expected source for {label} not found')
     text=text.replace(old,new,1)
 
-# Load the generic player-recovery helper before tracking modules consume it.
-if player_tag not in text:
-    anchor='<script src="./rfdetr_onnx_runtime_v1.js"></script>'
-    if anchor not in text:
-        raise SystemExit('ERROR: RF-DETR runtime tag missing')
-    text=text.replace(anchor,anchor+'\n'+player_tag,1)
+# Load the generic player-recovery helper after the detector runtimes. It is
+# independent from team identity and only contributes UNKNOWN candidates.
+anchor='<script src="./rfdetr_onnx_runtime_v1.js"></script>'
+if anchor not in text:
+    raise SystemExit('ERROR: RF-DETR runtime tag missing')
+text=text.replace(anchor,anchor+'\n'+marker+'\n'+player_tag,1)
 
-# Semantic pitch calibration extends the existing validated homography engine.
-if pitch_tag not in text:
-    anchor='<script src="./automatic_pitch_calibration_v1.js"></script>'
-    if anchor not in text:
-        raise SystemExit('ERROR: automatic calibration tag missing')
-    text=text.replace(anchor,anchor+'\n'+pitch_tag,1)
-
-if marker not in text:
-    text=text.replace(player_tag,marker+'\n'+player_tag,1)
+# Semantic pitch calibration must load after the existing automatic calibration
+# engine because the browser UMD factory binds that dependency at load time.
+anchor='<script src="./automatic_pitch_calibration_v1.js"></script>'
+if anchor not in text:
+    raise SystemExit('ERROR: automatic calibration tag missing')
+text=text.replace(anchor,anchor+'\n'+pitch_tag,1)
 
 # The old 3-image / free-polygon workflow must no longer be offered to coaches.
 replace_once(
@@ -83,8 +87,12 @@ required=[
 missing=[x for x in required if x not in text]
 if missing:
     raise SystemExit('ERROR: calibration v2 integration incomplete: '+', '.join(missing))
-if text.count(marker)!=1:
-    raise SystemExit('ERROR: calibration v2 marker duplicated')
+if text.count(marker)!=1 or text.count(player_tag)!=1 or text.count(pitch_tag)!=1:
+    raise SystemExit('ERROR: calibration v2 runtime tag duplicated')
+if text.index(player_tag)<text.index('<script src="./rfdetr_onnx_runtime_v1.js"></script>'):
+    raise SystemExit('ERROR: player recovery loaded before detector runtime')
+if text.index(pitch_tag)<text.index('<script src="./automatic_pitch_calibration_v1.js"></script>'):
+    raise SystemExit('ERROR: semantic calibration loaded before automatic calibration dependency')
 if "$('prepareGuidedCalib').onclick=chooseThreeReferenceImages" in text:
     raise SystemExit('ERROR: legacy calibration click path still active')
 
