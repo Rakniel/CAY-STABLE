@@ -80,12 +80,13 @@
     const confidenceComplete=projected>0&&confidenceKnown===projected;
     const avgConfidence=confidenceComplete?confidenceSum/projected:null;
     const score=confidenceComplete?coverage*avgConfidence:null;
+    const evidenceAvailable=projected>0&&confidenceComplete;
     return {
-      status:projected>0?'DISPONIBLE':'INDISPONIBLE',
-      reason:projected>0?null:'aucun point terrain métrique validé',
+      status:evidenceAvailable?'DISPONIBLE':'INDISPONIBLE',
+      reason:projected===0?'aucun point terrain métrique validé':!confidenceComplete?'confiance calibration indisponible pour une trajectoire terrain défendable':null,
       coordinateSystem:'PITCH_METERS',
-      runs,
-      points:runs.flat(),
+      runs:evidenceAvailable?runs:[],
+      points:evidenceAvailable?runs.flat():[],
       observations:projected,
       eligibleObservations:eligible,
       metricCoverage:+coverage.toFixed(4),
