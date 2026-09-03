@@ -116,6 +116,44 @@
     const event={outPlayerId,inPlayerId,atMs,reason:clean(raw.reason)||'UNKNOWN'};
     return {...current,activePlayerIds,benchPlayerIds,substitutions:current.substitutions.concat(event)};
   }
+  function deriveParticipationWindows(team,state,analysisEndMs=null){
+    const current=createMatchState(team,state||{});
+    const events=current.substitutions.slice();
+    for(let i=1;i<events.length;i++)if(!Number.isFinite(events[i].atMs)||events[i].atMs<events[i-1].atMs)throw new Error('SUBSTITUTION_TIME_REGRESSION');
+    let initialActive=current.activePlayerIds.slice(),initialBench=current.benchPlayerIds.slice();
+    for(let i=events.length-1;i>=0;i--){
+      const event=events[i],outId=String(event.outPlayerId),inId=String(event.inPlayerId);
+      if(initialActive.includes(inId))initialActive=initialActive.map(playerId=>playerId===inId?outId:playerId);
+      initialBench=initialBench.filter(playerId=>playerId!==outId);
+      if(!initialBench.includes(inId))initialBench.push(inId);
+    }
+    const initialValidation=validateMatchParticipants(team,initialActive,initialBench);
+    if(!initialValidation.valid)throw new Error(`INVALID_MATCH_INITIAL_STATE:${initialValidation.errors.join(',')}`);
+    const windows=new Map((team.roster||[]).map(player=>[String(player.id),[]]));
+    const open=new Map(initialActive.map(playerId=>[String(playerId),0]));
+    let active=initialActive.slice(),bench=initialBench.slice();
+    for(const event of events){
+      const atMs=Number(event.atMs),outId=String(event.outPlayerId),inId=String(event.inPlayerId);
+      if(!Number.isFinite(atMs)||atMs<0)throw new Error('SUBSTITUTION_INVALID_TIME');
+      if(!active.includes(outId)||!bench.includes(inId))throw new Error('SUBSTITUTION_HISTORY_INCONSISTENT');
+      const start=open.get(outId);
+      if(!Number.isFinite(start))throw new Error('SUBSTITUTION_OUT_WITHOUT_OPEN_WINDOW');
+      windows.get(outId).push({startMs:start,endMs:atMs});
+      open.delete(outId);open.set(inId,atMs);
+      active=active.map(playerId=>playerId===outId?inId:playerId);
+      bench=bench.filter(playerId=>playerId!==inId).concat(outId);
+    }
+    const finiteEnd=Number.isFinite(Number(analysisEndMs))&&Number(analysisEndMs)>=0?Number(analysisEndMs):null;
+    for(const [playerId,startMs] of open.entries())windows.get(playerId).push({startMs,endMs:finiteEnd});
+    const byPlayerId={};
+    for(const [playerId,intervals] of windows.entries())byPlayerId[playerId]=intervals;
+    return {teamId:String(team.id),byPlayerId,initialActivePlayerIds:initialActive,finalActivePlayerIds:active,analysisEndMs:finiteEnd,substitutionCount:events.length,source:'ROSTER_PARTICIPATION_WINDOWS_V1'};
+  }
+  function isPlayerActiveAt(participation,playerId,atMs){
+    const time=Number(atMs);if(!participation||!Number.isFinite(time))return false;
+    const intervals=participation.byPlayerId&&participation.byPlayerId[String(playerId)];
+    return Array.isArray(intervals)&&intervals.some(interval=>time>=Number(interval.startMs)&&(interval.endMs===null||interval.endMs===undefined||time<=Number(interval.endMs)));
+  }
   function createAnalysisProfile(raw={}){
     const settings=raw.settings||{};
     const trackingSensitivity=settings.trackingSensitivity==null?.7:settings.trackingSensitivity;
@@ -149,5 +187,5 @@
     const complete=checks.filter(x=>x[1]).length;
     return {ready:complete===checks.length,completion:+(complete/checks.length).toFixed(3),missing:checks.filter(x=>!x[1]).map(x=>x[0]),lineup,kitSelection,selectedKitId:kitSelection.selectedKitId,uxRule:'MINIMUM_REQUIRED_FIELDS_ONLY',targetSetupMinutes:20};
   }
-  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,validateMatchParticipants,createMatchState,applySubstitution,createAnalysisProfile,createPreferences,resolveActiveKit,setupReadiness};
+  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,validateMatchParticipants,createMatchState,applySubstitution,deriveParticipationWindows,isPlayerActiveAt,createAnalysisProfile,createPreferences,resolveActiveKit,setupReadiness};
 });
