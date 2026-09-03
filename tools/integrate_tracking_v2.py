@@ -37,6 +37,7 @@ canonical_tags = [
     '<script src="./stable_metric_visuals_runtime_v1.js"></script>',
     '<script src="./app_domain_models_v1.js"></script>',
     '<script src="./player_card_roster_binding_v1.js"></script>',
+    '<script src="./player_identity_binding_session_v1.js"></script>',
     '<script src="./player_card_view_model_v1.js"></script>',
     '<script src="./strict_tracking_frame_guard_v1.js"></script>',
     '<script src="./manual_identity_merge_guard_v1.js"></script>',
@@ -86,4 +87,4 @@ if 'const medS=medianNumber(svals),medV=medianNumber(vvals);' in text: raise Sys
 if "points=s.manual?[...s.manual]:(s.auto?[...s.auto]:[]);" in text: raise SystemExit('ERROR: grass mask would still be exposed as manual calibration polygon')
 if 'const af=autoField(c);\n if(af.poly&&af.confidence>=.32)return af.poly;' in text: raise SystemExit('ERROR: tracking would still depend on automatic grass segmentation')
 path.write_text(text,encoding='utf-8')
-print('integrated long-term tracking runtime, roster-bound player cards, observed image visuals, auto-first analysis and guarded metric publication')
+print('integrated long-term tracking runtime, explicit player identity binding, roster-bound player cards, observed image visuals, auto-first analysis and guarded metric publication')
