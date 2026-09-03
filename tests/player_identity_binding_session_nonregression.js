@@ -11,7 +11,7 @@ const team={
   ]
 };
 
-assert.deepStrictEqual(Session.normalizeTrackIds([{id:7},{trackId:'7'},8,8,null]),[7,'7',8], 'typed track IDs remain distinct while exact duplicates are removed');
+assert.deepStrictEqual(Session.normalizeTrackIds([{id:7},{trackId:'7'},8,8,null]),[7,8], 'numeric string track IDs normalize to the same stable numeric ID and duplicates are removed');
 
 const s=Session.createSession({team,tracks:[{id:7},{id:8},{id:9}],bindings:[{trackId:7,playerId:'p1',validated:true,confidence:1,source:'seed'}]});
 assert.deepStrictEqual(s.candidates(8).map(x=>x.number),[5,9], 'claimed roster player is not offered to another track; remaining players sorted by shirt number');
