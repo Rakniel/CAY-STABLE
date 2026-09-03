@@ -19,6 +19,20 @@
     const a=Math.max(0,Math.min(.999,Number.isFinite(Number(alpha))?Number(alpha):.9));
     return previous.map((v,i)=>a*Number(v)+(1-a)*Number(next[i]));
   }
+  function galleryAppearanceDistance(track,feature,opts={}){
+    const fallback=appearanceDistance(track&&track.feature,feature);
+    if(!track||!validFeature(feature))return fallback;
+    const minSamples=Math.max(2,Math.min(8,Number.isFinite(opts.reidGalleryMinSamples)?Math.round(opts.reidGalleryMinSamples):3));
+    const gallery=(track.appearanceGallery||[]).filter(row=>row&&validFeature(row.feature)&&row.feature.length===feature.length);
+    if(gallery.length<minSamples)return fallback;
+    const ranked=gallery.map(row=>({distance:appearanceDistance(row.feature,feature),quality:clamp01(row.quality)})).sort((a,b)=>a.distance-b.distance||b.quality-a.quality);
+    const keep=ranked.slice(0,Math.min(3,ranked.length));
+    let sw=0,sd=0;
+    for(const row of keep){const w=Math.max(.25,row.quality);sw+=w;sd+=row.distance*w;}
+    const galleryDistance=sw?sd/sw:fallback;
+    const emaWeight=Number.isFinite(opts.reidGalleryEmaWeight)?clamp01(opts.reidGalleryEmaWeight):.35;
+    return Math.min(1.2,emaWeight*fallback+(1-emaWeight)*galleryDistance);
+  }
   function updateTrackAppearance(track,feature,score,opts={}){
     if(!track||!validFeature(feature))return false;
     const minScore=Number.isFinite(opts.appearanceUpdateMinScore)?clamp01(opts.appearanceUpdateMinScore):.50;
@@ -28,6 +42,10 @@
     }
     const alpha=Number.isFinite(opts.appearanceSmoothingAlpha)?opts.appearanceSmoothingAlpha:.90;
     track.feature=smoothAppearance(track.feature,feature,alpha);
+    const galleryMax=Math.max(3,Math.min(48,Number.isFinite(opts.reidGalleryMaxSamples)?Math.round(opts.reidGalleryMaxSamples):12));
+    if(!Array.isArray(track.appearanceGallery))track.appearanceGallery=[];
+    track.appearanceGallery.push({feature:feature.map(Number),quality:Number.isFinite(score)?clamp01(score):1});
+    if(track.appearanceGallery.length>galleryMax)track.appearanceGallery.splice(0,track.appearanceGallery.length-galleryMax);
     track.appearanceUpdates=(track.appearanceUpdates||0)+1;
     return true;
   }
@@ -83,7 +101,7 @@
       globalId:state.nextGlobalId++,segment:state.segment,segmentsSeen:[state.segment],cat:d.cat||'team',feature:null,
       x:p.x,y:p.y,missed:0,seen:0,firstTime:t,lastTime:t,archived:false,exitReason:null,
       motionHistory:[],fullPath:[],confidenceSamples:[],presenceIntervals:[],observedDuration:0,
-      reidentifications:0,mergedFrom:[],appearanceUpdates:0,appearanceUpdatesRejectedLowScore:0
+      reidentifications:0,mergedFrom:[],appearanceUpdates:0,appearanceUpdatesRejectedLowScore:0,appearanceGallery:[]
     };
     updateTrackAppearance(tr,d.feature,d.score,opts);
     recordObservation(tr,p,d.score);
@@ -119,7 +137,7 @@
       const gap=Math.max(0,t-tr.lastTime);
       if(gap>maxGap){ state.reidRejectedStale++; continue; }
       if(tr.segment===state.segment&&gap<minSameSegmentGap)continue;
-      const appearance=appearanceDistance(tr.feature,d.feature);
+      const appearance=galleryAppearanceDistance(tr,d.feature,opts);
       if(appearance>threshold)continue;
       const score=reidCandidateScore(tr,d,t,{...opts,currentSegment:state.segment},appearance,gap);
       candidates.push({i,tr,appearance,gap,score});
@@ -141,7 +159,7 @@
     recordObservation(tr,p,d.score);
     tr.reidentifications=(tr.reidentifications||0)+1;
     tr.lastReidScore=best.score;
-    tr.lastReidEvidence={appearance:+best.appearance.toFixed(6),gap:+best.gap.toFixed(3),score:+best.score.toFixed(4),segment:state.segment,appearanceModel:'EMA'};
+    tr.lastReidEvidence={appearance:+best.appearance.toFixed(6),gap:+best.gap.toFixed(3),score:+best.score.toFixed(4),segment:state.segment,appearanceModel:'EMA_PLUS_GALLERY',gallerySamples:Array.isArray(tr.appearanceGallery)?tr.appearanceGallery.length:0};
     state.active.push(tr); state.reidentified++;
     return tr;
   }
@@ -218,6 +236,7 @@
     target.reidentifications=(target.reidentifications||0)+(source.reidentifications||0);
     target.appearanceUpdates=(target.appearanceUpdates||0)+(source.appearanceUpdates||0);
     target.appearanceUpdatesRejectedLowScore=(target.appearanceUpdatesRejectedLowScore||0)+(source.appearanceUpdatesRejectedLowScore||0);
+    target.appearanceGallery=[...(target.appearanceGallery||[]),...(source.appearanceGallery||[])].slice(-12);
     target.mergedFrom=[...new Set([...(target.mergedFrom||[]),source.globalId,...(source.mergedFrom||[])])];
     target.x=freshest.x; target.y=freshest.y; target.segment=freshest.segment; target.feature=freshest.feature||target.feature;
     target.missed=freshest.missed||0; target.motionHistory=target.fullPath.filter(p=>p.segment===target.segment).slice(-30);
@@ -253,7 +272,7 @@
       observedDuration:+(tr.observedDuration||0).toFixed(3),presenceIntervals:(tr.presenceIntervals||[]).map(x=>({...x})),segmentStats:segmentStats(tr),
       normalizedTravel:+travel.toFixed(6),identityConfidence:avg===null?null:+avg.toFixed(4),exitReason:tr.exitReason||null,
       reidentifications:tr.reidentifications||0,lastReidScore:Number.isFinite(tr.lastReidScore)?+tr.lastReidScore.toFixed(4):null,lastReidEvidence:tr.lastReidEvidence?{...tr.lastReidEvidence}:null,
-      appearanceModel:'EMA',appearanceUpdates:tr.appearanceUpdates||0,appearanceUpdatesRejectedLowScore:tr.appearanceUpdatesRejectedLowScore||0,
+      appearanceModel:'EMA_PLUS_GALLERY',appearanceUpdates:tr.appearanceUpdates||0,appearanceUpdatesRejectedLowScore:tr.appearanceUpdatesRejectedLowScore||0,appearanceGallerySamples:(tr.appearanceGallery||[]).length,
       mergedFrom:[...(tr.mergedFrom||[])],quality,
       dataQuality:{identity:quality,normalizedMovement:tr.fullPath.length>=2?quality:'INDISPONIBLE',metricDistance:'INDISPONIBLE',metricSpeed:'INDISPONIBLE'},
       unavailableReasons:{metricDistance:'projection terrain métrique non fournie au tracking core',metricSpeed:'projection terrain métrique non fournie au tracking core'}
@@ -264,5 +283,5 @@
     const tracks=allUniqueTracks(state).filter(tr=>tr.cayIdentityConfirmed!==false).map(summarizeTrack).sort((a,b)=>a.id-b.id);
     return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,reidRejectedLowScore:state.reidRejectedLowScore||0,tracks};
   }
-  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,reidCandidateScore,smoothAppearance,updateTrackAppearance};
+  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,galleryAppearanceDistance,reidCandidateScore,smoothAppearance,updateTrackAppearance};
 });
