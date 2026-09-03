@@ -3,7 +3,7 @@ const assert=require('assert');
 const Heat=require('../metric_pitch_heatmap_v1.js');
 
 function projector(segment){
-  return {validated:true,segment,project:p=>({x:p.x*105,y:p.y*68})};
+  return {validated:true,segment,confidence:1,project:p=>({x:p.x*105,y:p.y*68})};
 }
 
 const track={fullPath:[
@@ -36,7 +36,7 @@ assert.equal(none.status,'INDISPONIBLE');
 assert.equal(none.observations,0);
 assert.equal(none.metricCoverage,0);
 
-const outside=Heat.build({fullPath:[{time:0,segment:1,x:.5,y:.5}]},{1:{validated:true,project:()=>({x:999,y:999})}},{});
+const outside=Heat.build({fullPath:[{time:0,segment:1,x:.5,y:.5}]},{1:{validated:true,confidence:1,project:()=>({x:999,y:999})}},{});
 assert.equal(outside.status,'INDISPONIBLE');
 assert.equal(outside.rejectedObservations,1);
 
@@ -57,7 +57,7 @@ const missingProjected=Heat.build({fullPath:[
   {time:0,segment:1,x:.2,y:.2},
   {time:1,segment:1,x:.3,y:.3},
   {time:2,segment:1,x:.4,y:.4}
-]},{1:{validated:true,project:p=>p.time===0?{x:null,y:10}:p.time===1?{x:'',y:10}:{x:'   ',y:10}}},{});
+]},{1:{validated:true,confidence:1,project:p=>p.time===0?{x:null,y:10}:p.time===1?{x:'',y:10}:{x:'   ',y:10}}},{});
 assert.equal(missingProjected.status,'INDISPONIBLE');
 assert.equal(missingProjected.eligibleObservations,3);
 assert.equal(missingProjected.observations,0);
