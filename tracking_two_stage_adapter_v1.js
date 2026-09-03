@@ -71,11 +71,13 @@
     if(minFrames<=1){
       for(const tr of survivors||[])if(tr)tr.cayIdentityConfirmed=true;
       state.cayTentativeSuppressed=state.cayTentativeSuppressed||0;
-      return {minFrames,confirmedIds:new Set((survivors||[]).filter(Boolean).map(tr=>tr.globalId)),suppressed:0};
+      state.cayEdgePartialConfirmationSuppressed=state.cayEdgePartialConfirmationSuppressed||0;
+      return {minFrames,confirmedIds:new Set((survivors||[]).filter(Boolean).map(tr=>tr.globalId)),suppressed:0,edgePartialSuppressed:0};
     }
     const strongItems=[...(highAssigned||[]),...(newAssigned||[])];
     const strongById=new Map(strongItems.filter(x=>x&&x.track).map(x=>[x.track.globalId,x]));
     const confirmedIds=new Set();
+    let edgePartialSuppressed=0;
     for(const tr of survivors||[]){
       if(!tr)continue;
       if(tr.cayIdentityConfirmed===true){confirmedIds.add(tr.globalId);continue;}
@@ -85,6 +87,16 @@
       const item=strongById.get(tr.globalId);
       if(!item){tr.cayStrongStreak=0;continue;}
       if(tr.cayIdentityConfirmed==null)tr.cayIdentityConfirmed=false;
+      // SRITrack-style boundary evidence is treated as partial observation. CAY keeps
+      // it available for association/recovery, but it cannot by itself accumulate
+      // the evidence required to create a newly confirmed player identity.
+      if(item.edgePartial===true){
+        tr.cayStrongStreak=0;
+        tr.cayLastStrongFrame=null;
+        tr.cayLastEdgePartialFrame=frameIndex;
+        edgePartialSuppressed++;
+        continue;
+      }
       const reappeared=item.reidentified===true;
       const consecutive=!reappeared&&Number(tr.cayLastStrongFrame)===frameIndex-1;
       tr.cayStrongStreak=consecutive?Math.max(1,Number(tr.cayStrongStreak)||0)+1:1;
@@ -95,8 +107,9 @@
     }
     const suppressed=strongItems.filter(x=>x&&x.track&&!confirmedIds.has(x.track.globalId)).length;
     state.cayTentativeSuppressed=(state.cayTentativeSuppressed||0)+suppressed;
+    state.cayEdgePartialConfirmationSuppressed=(state.cayEdgePartialConfirmationSuppressed||0)+edgePartialSuppressed;
     state.cayMinimumConsecutiveFrames=minFrames;
-    return {minFrames,confirmedIds,suppressed};
+    return {minFrames,confirmedIds,suppressed,edgePartialSuppressed};
   }
   function assignFrame(state,detections,time,options){
     requireDeps();
@@ -149,7 +162,7 @@
     state.byteTrackWeakDiscarded=(state.byteTrackWeakDiscarded||0)+(split.discarded||[]).length;
     state.byteTrackPreselectionOverflow=(state.byteTrackPreselectionOverflow||0)+Math.max(0,high.length-maxPlayers);
     if(assigned.length>maxPlayers)throw new Error('invariant violé: capacité CAY simultanée dépassée');
-    return {assigned,split,highAssigned:highAssigned.map(stripMarker),lowAssigned:lowAssigned.map(stripMarker),newAssigned:newAssigned.map(stripMarker),confirmation:{minimumConsecutiveFrames:confirmation.minFrames,tentativeSuppressed:confirmation.suppressed}};
+    return {assigned,split,highAssigned:highAssigned.map(stripMarker),lowAssigned:lowAssigned.map(stripMarker),newAssigned:newAssigned.map(stripMarker),confirmation:{minimumConsecutiveFrames:confirmation.minFrames,tentativeSuppressed:confirmation.suppressed,edgePartialSuppressed:confirmation.edgePartialSuppressed}};
   }
   return {assignFrame,uniqueByTrackId,confirmationThreshold,preselectAssociationCandidates};
 });
