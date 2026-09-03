@@ -5,14 +5,14 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const qualityFromEvidenceScore=score=>score>=.8?'FIABLE':score>0?'PARTIEL':'INDISPONIBLE';
+  const qualityFromEvidenceScore=score=>Number.isFinite(Number(score))?(score>=.8?'FIABLE':score>0?'PARTIEL':'INDISPONIBLE'):'INDISPONIBLE';
   const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   function projectorInfo(entry){
-    if(!entry||entry.validated!==true||typeof entry.project!=='function')return {validated:false,project:null,confidence:0};
+    if(!entry||entry.validated!==true||typeof entry.project!=='function')return {validated:false,project:null,confidence:null};
     const rawConfidence=entry.confidence;
     const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
     const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
-    const confidence=Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):1;
+    const confidence=Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null;
     return {validated:true,project:entry.project,confidence};
   }
   function createGrid(cols,rows){ return Array.from({length:rows},()=>Array(cols).fill(0)); }
@@ -61,13 +61,13 @@
     }
     return allocated;
   }
-  function buildTrajectory(prepared,eligible,projected,confidenceSum,maxGapSec){
+  function buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxGapSec){
     const runs=[];let current=[];
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<prepared.length;i++){
       const row=prepared[i],p=row?.p,q=row?.projected;
       if(!p||!q||!Number.isFinite(Number(p.time))){flush();continue;}
-      const point={time:+Number(p.time).toFixed(3),segment:Number(p.segment),x:+q.x.toFixed(3),y:+q.y.toFixed(3),calibrationConfidence:+q.confidence.toFixed(3)};
+      const point={time:+Number(p.time).toFixed(3),segment:Number(p.segment),x:+q.x.toFixed(3),y:+q.y.toFixed(3),calibrationConfidence:Number.isFinite(Number(q.confidence))?+Number(q.confidence).toFixed(3):null};
       if(current.length){
         const prev=current[current.length-1],dt=point.time-prev.time;
         if(point.segment!==prev.segment||!(dt>0)||(maxGapSec>0&&dt>maxGapSec))flush();
@@ -76,8 +76,10 @@
     }
     flush();
     const coverage=eligible>0?projected/eligible:0;
-    const avgConfidence=projected>0?confidenceSum/projected:0;
-    const score=coverage*avgConfidence;
+    const confidenceCoverage=projected>0?confidenceKnown/projected:0;
+    const confidenceComplete=projected>0&&confidenceKnown===projected;
+    const avgConfidence=confidenceComplete?confidenceSum/projected:null;
+    const score=confidenceComplete?coverage*avgConfidence:null;
     return {
       status:projected>0?'DISPONIBLE':'INDISPONIBLE',
       reason:projected>0?null:'aucun point terrain métrique validé',
@@ -87,9 +89,10 @@
       observations:projected,
       eligibleObservations:eligible,
       metricCoverage:+coverage.toFixed(4),
-      avgCalibrationConfidence:+avgConfidence.toFixed(4),
-      defendableScore:+score.toFixed(4),
-      quality:projected>0?qualityFromEvidenceScore(score):'INDISPONIBLE',
+      calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),
+      avgCalibrationConfidence:avgConfidence===null?null:+avgConfidence.toFixed(4),
+      defendableScore:score===null?null:+score.toFixed(4),
+      quality:score===null?'INDISPONIBLE':qualityFromEvidenceScore(score),
       interpolation:'NONE',
       continuityPolicy:'COUPE_SUR_POINT_NON_PROJETE_CHANGEMENT_SEGMENT_TIMESTAMP_INVALIDE_OU_GAP_EXCESSIF'
     };
@@ -104,7 +107,7 @@
     const minCalibrationConfidence=clamp(Number(opts.minCalibrationConfidence)||0,0,1);
     const maxDwellGapSec=Math.max(0,Number(opts.maxDwellGapSec)||0);
     const cells=createGrid(cols,rows),timeCells=createGrid(cols,rows);
-    let eligible=0,projected=0,rejected=0,confidenceSum=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0;
+    let eligible=0,projected=0,rejected=0,confidenceSum=0,confidenceKnown=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0;
     const projectedPoints=[],prepared=[];
     for(const p of path){
       const structurallyEligible=!!p&&isPresentFinite(p.x)&&isPresentFinite(p.y)&&isPresentFinite(p.segment);
@@ -112,8 +115,9 @@
       eligible++;
       const projectedPoint=projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows);
       if(!projectedPoint){rejected++;prepared.push({p,projected:null});continue;}
-      cells[projectedPoint.cy][projectedPoint.cx]++;projected++;confidenceSum+=projectedPoint.confidence;
-      projectedPoints.push({time:Number.isFinite(Number(p.time))?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:+projectedPoint.confidence.toFixed(3)});
+      cells[projectedPoint.cy][projectedPoint.cx]++;projected++;
+      if(Number.isFinite(Number(projectedPoint.confidence))){confidenceSum+=Number(projectedPoint.confidence);confidenceKnown++;}
+      projectedPoints.push({time:Number.isFinite(Number(p.time))?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:Number.isFinite(Number(projectedPoint.confidence))?+Number(projectedPoint.confidence).toFixed(3):null});
       prepared.push({p,projected:projectedPoint});
     }
     for(let i=0;i+1<prepared.length;i++){
@@ -127,20 +131,25 @@
       if(Math.abs(allocated-dt)>1e-7)continue;
       projectedIntervalSeconds+=dt;
     }
-    const coverage=eligible>0?projected/eligible:0,avgCalibrationConfidence=projected>0?confidenceSum/projected:0,defendableScore=coverage*avgCalibrationConfidence;
-    const coverageOk=coverage>=clamp(Number(opts.minMetricCoverage)||0,0,1),confidenceOk=avgCalibrationConfidence>=minCalibrationConfidence,available=projected>0&&coverageOk&&confidenceOk;
+    const coverage=eligible>0?projected/eligible:0;
+    const confidenceCoverage=projected>0?confidenceKnown/projected:0;
+    const confidenceComplete=projected>0&&confidenceKnown===projected;
+    const avgCalibrationConfidence=confidenceComplete?confidenceSum/projected:null;
+    const defendableScore=confidenceComplete?coverage*avgCalibrationConfidence:null;
+    const coverageOk=coverage>=clamp(Number(opts.minMetricCoverage)||0,0,1),confidenceOk=confidenceComplete&&avgCalibrationConfidence>=minCalibrationConfidence,available=projected>0&&coverageOk&&confidenceOk;
     const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0),useTimeWeighting=projectedIntervalSeconds>0;
     const normalizedObservationCells=normalizeGrid(cells,projected),normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
-    let reason=null;if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':'confiance calibration insuffisante pour une heatmap terrain défendable';
-    const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,maxDwellGapSec);
+    let reason=null;
+    if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':!confidenceComplete?'confiance calibration indisponible pour une heatmap terrain défendable':'confiance calibration insuffisante pour une heatmap terrain défendable';
+    const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxDwellGapSec);
     return {
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
       heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',timeAllocation:useTimeWeighting?'LINEAR_PITCH_SEGMENT':'NONE',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,metricCoverage:+coverage.toFixed(4),
       eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,maxDwellGapSec,
       unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,
-      avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
-      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
+      calibrationConfidenceObservations:confidenceKnown,calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),avgCalibrationConfidence:avgCalibrationConfidence===null?null:+avgCalibrationConfidence.toFixed(4),defendableScore:defendableScore===null?null:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
+      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE; CONFIANCE COMPLETE REQUISE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
       temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
