@@ -28,7 +28,9 @@ function normalizeStoredTeam(raw={}){
   }
   const ids=new Set(),deduped=[];
   for(const p of roster){if(ids.has(p.id))continue;ids.add(p.id);deduped.push(p);}
-  return Domain.createTeam({id:clean(raw.id)||'cay_team',name:clean(raw.name)||'C.A. Yenne',category:clean(raw.category)||'SENIOR',roster:deduped,kits:Array.isArray(raw.kits)?raw.kits:[]});
+  const defaultLineup=Array.isArray(raw.defaultLineup)?raw.defaultLineup.map(clean).filter(Boolean):[];
+  const bench=Array.isArray(raw.bench)?raw.bench.map(clean).filter(Boolean):[];
+  return Domain.createTeam({id:clean(raw.id)||'cay_team',name:clean(raw.name)||'C.A. Yenne',category:clean(raw.category)||'SENIOR',roster:deduped,kits:Array.isArray(raw.kits)?raw.kits:[],defaultLineup,bench});
 }
 function createStore(storage){
   const s=storage||null;
@@ -59,7 +61,7 @@ function removePlayer(playerId){
   const id=clean(playerId),team=currentTeam();
   const before=team.roster.length,nextRoster=team.roster.filter(p=>p.id!==id);
   if(nextRoster.length===before)return {removed:false,reason:'UNKNOWN_ROSTER_PLAYER'};
-  const next=store.saveTeam({...team,roster:nextRoster});
+  const next=store.saveTeam({...team,roster:nextRoster,defaultLineup:(team.defaultLineup||[]).filter(x=>String(x)!==id),bench:(team.bench||[]).filter(x=>String(x)!==id)});
   const kept=store.bindings().filter(b=>clean(b.playerId)!==id);store.saveBindings(kept);
   return {removed:true,team:next};
 }
