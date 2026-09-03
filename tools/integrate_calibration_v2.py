@@ -6,12 +6,15 @@ text=path.read_text(encoding='utf-8')
 marker='<!-- CALIBRATION_V2_SEMANTIC_PITCH -->'
 player_tag='<script src="./player_candidate_recovery_v1.js"></script>'
 pitch_tag='<script src="./pitch_semantic_calibration_v2.js"></script>'
+stable_marker='<!-- STABLE_LONG_TERM_TRACKING_V2 -->'
 
 # `integrate_tracking_v2.py` rebuilds its canonical script block. Remove the V2
 # overlay first, then place each module back beside the dependency it extends.
 # This makes the sequence tracking -> V2 -> tracking -> V2 byte-for-byte stable.
 for token in (marker,player_tag,pitch_tag):
     text=re.sub(rf'^[ \t]*{re.escape(token)}[ \t]*(?:\r?\n)?','',text,flags=re.MULTILINE)
+# Removing overlay lines must not accumulate empty lines before the canonical block.
+text=re.sub(rf'\n+(?={re.escape(stable_marker)})','\n\n',text)
 
 
 def replace_once(old,new,label):
@@ -76,6 +79,10 @@ replace_once(
     '<strong>Calibration V2 :</strong> l’ancien polygone libre est retiré. La calibration métrique doit venir de repères sémantiques du terrain ; sinon les métriques terrain restent INDISPONIBLE et le tracking continue.',
     'legacy calibration instructions'
 )
+
+# Canonical spacing: a single blank line before the main runtime marker, regardless
+# of how many times the tracking and V2 integrators are alternated.
+text=re.sub(rf'\n+(?={re.escape(stable_marker)})','\n\n',text)
 
 required=[
     marker,player_tag,pitch_tag,
