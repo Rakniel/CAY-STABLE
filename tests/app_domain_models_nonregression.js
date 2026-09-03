@@ -83,4 +83,19 @@ ok(badPosition,'invalid position rejected');
 let duplicate=false;
 try{app.createTeam({roster:[{id:'1'},{id:'1'}]});}catch(e){duplicate=e.message==='DUPLICATE_PLAYER_ID';}
 ok(duplicate,'duplicate roster ids rejected');
+let matchState=app.createMatchState(team);
+matchState=app.applySubstitution(team,matchState,{outPlayerId:'11',inPlayerId:'12',atMs:30000,reason:'TACTICAL'});
+matchState=app.applySubstitution(team,matchState,{outPlayerId:'12',inPlayerId:'13',atMs:60000,reason:'TACTICAL'});
+const participation=app.deriveParticipationWindows(team,matchState,90000);
+eq(participation.byPlayerId['11'],[{startMs:0,endMs:30000}],'starter participation closes exactly at substitution');
+eq(participation.byPlayerId['12'],[{startMs:30000,endMs:60000}],'substitute participation starts and closes on event times');
+eq(participation.byPlayerId['13'],[{startMs:60000,endMs:90000}],'second substitute remains active through analysis end');
+ok(app.isPlayerActiveAt(participation,'11',29999)===true,'starter active before exit');
+ok(app.isPlayerActiveAt(participation,'11',30001)===false,'starter inactive after exit');
+ok(app.isPlayerActiveAt(participation,'12',45000)===true,'substitute active only inside participation window');
+ok(app.isPlayerActiveAt(participation,'13',59999)===false,'future substitute excluded before entry');
+ok(participation.finalActivePlayerIds.length===11,'participation replay preserves maximum active team state');
+let inconsistentHistory=false;
+try{app.deriveParticipationWindows(team,{...matchState,substitutions:[...matchState.substitutions].reverse()},90000);}catch(e){inconsistentHistory=/SUBSTITUTION_TIME_REGRESSION/.test(e.message);}
+ok(inconsistentHistory,'out-of-order substitution history rejected');
 console.log(`app_domain_models_nonregression: ${checks} checks PASS`);
