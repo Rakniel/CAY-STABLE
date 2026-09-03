@@ -29,15 +29,16 @@ function createSession(input={}){
   const seed=Binding.buildIndex(team,input.bindings||[]);
   bindings=seed.accepted.map(x=>({trackId:x.trackId,playerId:x.playerId,validated:true,confidence:x.confidence,source:x.source||'manual_validation'}));
   function index(){return Binding.buildIndex(team,bindings);}
+  function sameTrack(a,b){return typeof a===typeof b&&String(a)===String(b);}
   function isKnownTrack(trackId){
     const id=Binding.normalizeTrackId(trackId); if(id===null)return false;
-    return trackIds.some(x=>typeof x===typeof id&&String(x)===String(id));
+    return trackIds.some(x=>sameTrack(x,id));
   }
   function candidates(trackId){
     const id=Binding.normalizeTrackId(trackId);
     if(id===null||!isKnownTrack(id))return [];
     const idx=index(),claimed=new Set(idx.accepted.map(x=>x.playerId));
-    const existing=idx.accepted.find(x=>typeof x.trackId===typeof id&&String(x.trackId)===String(id));
+    const existing=idx.accepted.find(x=>sameTrack(x.trackId,id));
     return (team.roster||[])
       .filter(p=>!claimed.has(p.id)||(existing&&existing.playerId===p.id))
       .map(playerSummary)
@@ -48,27 +49,36 @@ function createSession(input={}){
     if(id===null||!isKnownTrack(id))return {accepted:false,reason:'UNKNOWN_TRACK'};
     if(confirmation.confirmed!==true)return {accepted:false,reason:'EXPLICIT_CONFIRMATION_REQUIRED'};
     if(!pid)return {accepted:false,reason:'INVALID_PLAYER_ID'};
-    const retained=bindings.filter(b=>!(typeof b.trackId===typeof id&&String(b.trackId)===String(id))&&b.playerId!==pid);
+    const current=index();
+    const conflict=current.accepted.find(b=>b.playerId===pid&&!sameTrack(b.trackId,id));
+    if(conflict&&confirmation.replaceExisting!==true){
+      return {accepted:false,reason:'PLAYER_ALREADY_BOUND',conflictTrackId:conflict.trackId};
+    }
+    const retained=bindings.filter(b=>{
+      const isSameTrack=sameTrack(b.trackId,id);
+      const replacePlayer=confirmation.replaceExisting===true&&b.playerId===pid;
+      return !isSameTrack&&!replacePlayer;
+    });
     const candidate={trackId:id,playerId:pid,validated:true,confidence:1,source:clean(confirmation.source)||'manual_ui_confirmation'};
     const trial=Binding.buildIndex(team,[...retained,candidate]);
-    const hit=trial.accepted.find(x=>typeof x.trackId===typeof id&&String(x.trackId)===String(id)&&x.playerId===pid);
+    const hit=trial.accepted.find(x=>sameTrack(x.trackId,id)&&x.playerId===pid);
     if(!hit){
       const rejection=trial.rejected.find(x=>x.binding&&String(x.binding.playerId||'')===pid)||trial.rejected[0];
       return {accepted:false,reason:rejection&&rejection.reason||'BINDING_REJECTED'};
     }
     bindings=[...retained,candidate];
-    return {accepted:true,binding:{...candidate}};
+    return {accepted:true,binding:{...candidate},replacedTrackId:conflict&&confirmation.replaceExisting===true?conflict.trackId:null};
   }
   function unassign(trackId){
     const id=Binding.normalizeTrackId(trackId); if(id===null)return {removed:false,reason:'INVALID_TRACK'};
     const before=bindings.length;
-    bindings=bindings.filter(b=>!(typeof b.trackId===typeof id&&String(b.trackId)===String(id)));
+    bindings=bindings.filter(b=>!sameTrack(b.trackId,id));
     return {removed:bindings.length<before,reason:bindings.length<before?null:'NOT_BOUND'};
   }
   function exportBindings(){return index().accepted.map(x=>({trackId:x.trackId,playerId:x.playerId,validated:true,confidence:x.confidence,source:x.source}));}
   function summary(){
     const accepted=exportBindings(),boundTracks=new Set(accepted.map(b=>typeof b.trackId+':'+String(b.trackId)));
-    return {teamId:team.id,tracks:trackIds.length,linked:accepted.length,unlinked:trackIds.length-boundTracks.size,complete:trackIds.length>0&&boundTracks.size===trackIds.length,requiresExplicitConfirmation:true,policy:'AUCUNE_IDENTITÉ_AUTOMATIQUE; VALIDATION_HUMAINE_UN_A_UN_AVANT_AFFICHAGE_DU_NOM'};
+    return {version:1,teamId:team.id,tracks:trackIds.length,linked:accepted.length,unlinked:trackIds.length-boundTracks.size,complete:trackIds.length>0&&boundTracks.size===trackIds.length,requiresExplicitConfirmation:true,policy:'AUCUNE_IDENTITÉ_AUTOMATIQUE; VALIDATION_HUMAINE_UN_A_UN_AVANT_AFFICHAGE_DU_NOM'};
   }
   return {team,trackIds:[...trackIds],candidates,assign,unassign,exportBindings,summary};
 }
