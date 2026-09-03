@@ -39,6 +39,45 @@
     return Number.isFinite(X)&&Number.isFinite(Y)?{x:X,y:Y}:null;
   }
 
+  function validateTransformPlausibility(matrix,options={}){
+    const M=matrix3(matrix);
+    if(!M)return {ok:false,reason:'MOTION_MATRIX_INVALID'};
+    const [a,b,,d,e,,g,h,i]=M;
+    if(!finite(i)||Math.abs(i)<1e-10)return {ok:false,reason:'MOTION_NORMALIZATION_INVALID'};
+
+    // Short-horizon football camera motion should preserve orientation and remain
+    // near a similarity/affine transform. This gate prevents a numerically valid
+    // consensus from turning into a reflection, extreme zoom or pathological warp.
+    const sx=Math.hypot(a,d),sy=Math.hypot(b,e);
+    if(!(sx>1e-8&&sy>1e-8))return {ok:false,reason:'MOTION_SCALE_DEGENERATE',scaleX:sx,scaleY:sy};
+    const orientation=a*e-b*d;
+    if(!(orientation>0))return {ok:false,reason:'MOTION_ORIENTATION_FLIP',orientation};
+
+    const maxScaleChange=finite(options.maxScaleChange)?clamp(options.maxScaleChange,0,.9):.45;
+    const minScale=1-maxScaleChange,maxScale=1+maxScaleChange;
+    if(sx<minScale||sx>maxScale||sy<minScale||sy>maxScale){
+      return {ok:false,reason:'MOTION_SCALE_IMPLAUSIBLE',scaleX:sx,scaleY:sy,minScale,maxScale};
+    }
+    const anisotropy=Math.max(sx,sy)/Math.min(sx,sy);
+    const maxAnisotropy=finite(options.maxAnisotropy)?Math.max(1,Number(options.maxAnisotropy)):1.6;
+    if(anisotropy>maxAnisotropy)return {ok:false,reason:'MOTION_ANISOTROPY_TOO_HIGH',anisotropy,maxAnisotropy};
+
+    const shearCos=Math.abs((a*b+d*e)/(sx*sy));
+    const maxShearCos=finite(options.maxShearCos)?clamp(options.maxShearCos,0,.99):.55;
+    if(shearCos>maxShearCos)return {ok:false,reason:'MOTION_SHEAR_TOO_HIGH',shearCos,maxShearCos};
+
+    const frameWidth=finite(options.frameWidth)?Math.max(1,Number(options.frameWidth)):null;
+    const frameHeight=finite(options.frameHeight)?Math.max(1,Number(options.frameHeight)):null;
+    if(frameWidth&&frameHeight){
+      const perspectiveMagnitude=Math.abs(g/i)*frameWidth+Math.abs(h/i)*frameHeight;
+      const maxPerspectiveAtFrame=finite(options.maxPerspectiveAtFrame)?Math.max(0,Number(options.maxPerspectiveAtFrame)):.35;
+      if(perspectiveMagnitude>maxPerspectiveAtFrame){
+        return {ok:false,reason:'MOTION_PERSPECTIVE_TOO_HIGH',perspectiveMagnitude,maxPerspectiveAtFrame};
+      }
+    }
+    return {ok:true,scaleX:sx,scaleY:sy,anisotropy,shearCos,orientation};
+  }
+
   function validateMotion(motion,options={}){
     const matrix=matrix3(motion?.matrix||motion?.H||motion?.affine);
     if(!matrix)return {ok:false,reason:'MOTION_MATRIX_INVALID'};
@@ -54,8 +93,10 @@
     if(support<minSupport)return {ok:false,reason:'MOTION_SUPPORT_TOO_LOW',confidence,support,inlierRatio,residual};
     if(inlierRatio<minInlierRatio)return {ok:false,reason:'MOTION_INLIER_RATIO_TOO_LOW',confidence,support,inlierRatio,residual};
     if(!(residual<=maxResidual))return {ok:false,reason:'MOTION_RESIDUAL_TOO_HIGH',confidence,support,inlierRatio,residual};
+    const plausibility=validateTransformPlausibility(matrix,options);
+    if(!plausibility.ok)return {ok:false,reason:plausibility.reason,confidence,support,inlierRatio,residual,plausibility};
     const inv=inverse3(matrix);if(!inv)return {ok:false,reason:'MOTION_MATRIX_SINGULAR',confidence,support,inlierRatio,residual};
-    return {ok:true,matrix,inverse:inv,confidence,support,inlierRatio,residual};
+    return {ok:true,matrix,inverse:inv,confidence,support,inlierRatio,residual,plausibility};
   }
 
   function createPropagatedProjector(anchor,motion,options={}){
@@ -88,9 +129,9 @@
     return {
       validated:true,source:'guarded_camera_motion_propagation_cay_v1',confidence:+confidence.toFixed(3),reason:null,
       project:safeProject,homography:H,pitch,
-      validation:{derived:true,ageSec:+age.toFixed(4),maxAgeSec:maxAge,motionConfidence:checked.confidence,motionSupport:checked.support,motionInlierRatio:checked.inlierRatio,motionResidual:checked.residual},
+      validation:{derived:true,ageSec:+age.toFixed(4),maxAgeSec:maxAge,motionConfidence:checked.confidence,motionSupport:checked.support,motionInlierRatio:checked.inlierRatio,motionResidual:checked.residual,motionPlausibility:checked.plausibility},
       provenance:{
-        designReferences:['OpenCV sparse optical flow / affine-homography motion estimation','BoT-SORT global motion compensation'],
+        designReferences:['OpenCV robust affine/homography estimation','BoT-SORT global motion compensation'],
         codeCopied:false,
         licenseDependency:'none',
         referenceLicenses:['OpenCV Apache-2.0 (>=4.5)','BoT-SORT MIT'],
@@ -99,5 +140,5 @@
     };
   }
 
-  return {matrix3,multiply3,inverse3,projectMatrix,validateMotion,createPropagatedProjector};
+  return {matrix3,multiply3,inverse3,projectMatrix,validateTransformPlausibility,validateMotion,createPropagatedProjector};
 });
