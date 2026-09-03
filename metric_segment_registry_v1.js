@@ -9,6 +9,7 @@
     return Number.isInteger(Number(v))&&Number(v)>=0;
   };
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const MIN_DYNAMIC_KEYFRAME_CONFIDENCE=.5;
 
   function createRegistry(projectorApi){
     if(!projectorApi||typeof projectorApi.createProjector!=='function')throw new Error('CAYMetricHomographyProjector requis');
@@ -31,15 +32,22 @@
     }
 
     function temporalProjector(record){
-      const valid=(record.keyframes||[]).filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function').sort((a,b)=>a.time-b.time);
-      if(!valid.length)return null;
+      const allValid=(record.keyframes||[]).filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function').sort((a,b)=>a.time-b.time);
+      if(!allValid.length)return null;
+      // Metric fail-closed policy: when at least one trustworthy absolute keyframe exists,
+      // a weaker keyframe must not become valid merely because averaging keeps the segment
+      // confidence above the publication threshold. If every keyframe is weak, preserve the
+      // historical diagnostic projector/confidence so downstream metric gates can reject it.
+      const reliable=allValid.filter(k=>finite(k.confidence)&&Number(k.confidence)>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE);
+      const valid=reliable.length?reliable:allValid;
+      const lowConfidenceKeyframesRejected=reliable.length?allValid.length-reliable.length:0;
       const maxAge=finite(record.maxCalibrationAgeSec)?Math.max(.02,Number(record.maxCalibrationAgeSec)):.35;
       const avgConfidence=valid.reduce((s,k)=>s+k.confidence,0)/valid.length;
       return {
         validated:true,
         source:'temporal_calibration_keyframes',
         confidence:avgConfidence,
-        validation:{keyframes:valid.length,maxCalibrationAgeSec:maxAge,dynamicCamera:true,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'},
+        validation:{keyframes:valid.length,sourceKeyframes:allValid.length,lowConfidenceKeyframesRejected,minDynamicKeyframeConfidence:MIN_DYNAMIC_KEYFRAME_CONFIDENCE,maxCalibrationAgeSec:maxAge,dynamicCamera:true,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'},
         pitch:record.pitch||valid[0].projector.pitch||null,
         project(point){
           if(!point||!finite(point.time))return null;
@@ -79,11 +87,11 @@
           return {...q,calibrationKeyframeTime:best.time,calibrationAgeSec:+bestAge.toFixed(4),calibrationKind:best.kind};
         },
         provenance:{
-          strategy:'ABSOLUTE_KEYFRAMES_WITH_STRICT_FRESHNESS_GUARD_AND_OUTPUT_SPACE_TEMPORAL_BLEND',
-          designReference:'rafaelsouza-tech/soccer-tactical-vision',
-          auditedRevision:'4c557534c624948f3bfe3db956859c7ea3b442fa',
-          referenceLicense:'MIT',
-          adaptedIdea:'smooth a geometrically meaningful representation across validated frames instead of interpolating raw homography coefficients',
+          strategy:'ABSOLUTE_KEYFRAMES_WITH_STRICT_FRESHNESS_CONFIDENCE_GUARD_AND_OUTPUT_SPACE_TEMPORAL_BLEND',
+          designReferences:['rafaelsouza-tech/soccer-tactical-vision','MM4SPA/tvcalib self-verification'],
+          auditedRevisions:['4c557534c624948f3bfe3db956859c7ea3b442fa','1222c5230af2742395d74918ed6f34eb2b9bf7f9'],
+          referenceLicenses:['MIT','MIT'],
+          adaptedIdea:'smooth only trustworthy geometrically meaningful calibration keyframes; weak keyframes cannot be rescued by confidence averaging',
           codeCopied:false,licenseDependency:'none'
         }
       };
@@ -208,12 +216,12 @@
         calibrationKeyframes:dynamic.reduce((s,r)=>s+r.calibrationKeyframes.length,0),
         avgConfidence:validated.length?+(validated.reduce((s,r)=>s+r.confidence,0)/validated.length).toFixed(3):0,
         policy:'CALIBRATION_EXACTE_PAR_SEGMENT_SANS_REUTILISATION_SILENCIEUSE_ENTRE_PLANS',
-        dynamicPolicy:'CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES_AVEC_AGE_MAX; INTERPOLATION UNIQUEMENT EN ESPACE PROJETE ENTRE DEUX KEYFRAMES VALIDES; SINON_PROJECTION_INDISPONIBLE'
+        dynamicPolicy:'CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES; SI_AU_MOINS_UNE_KEYFRAME_CONFIANCE_GE_0_5_EXISTE_LES_KEYFRAMES_FAIBLES_SONT_EXCLUES; AGE_MAX_STRICT; INTERPOLATION UNIQUEMENT EN ESPACE PROJETE ENTRE KEYFRAMES ELIGIBLES; SINON_PROJECTION_INDISPONIBLE'
       };
     }
 
     return {calibrate,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
-  return {VERSION:'1.1.0',createRegistry};
+  return {VERSION:'1.2.0',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
 });
