@@ -271,7 +271,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:15px;ma
 <section class="card guidedcard hidden" id="guidedCalibSection">
   <div class="stephead">
     <div>
-      <h3><span class="stepnum">3</span>Calibrage guidé — 3 images maximum</h3>
+      <h3><span class="stepnum">3</span>Calibration terrain V2 — repères football</h3>
       <p class="muted small">
         MODE STABLE — les 3 images s'entraînent les unes les autres : ce que tu valides sur 1/3 est immédiatement réutilisé sur 2/3, puis 1/3 + 2/3 sont réutilisées sur 3/3. STABLE choisit d'abord une image riche en joueurs ; après tes premiers clics CAY, les références 2 et 3 sont choisies là où l'application reconnaît le plus de CAY. Zoom jusqu'à 800 %.
         Si 3 bonnes images ne suffisent pas, on corrige le moteur : on ne te demande pas plus d'exemples.
@@ -293,11 +293,11 @@ header{display:flex;justify-content:space-between;align-items:center;gap:15px;ma
   </div>
 
   <div class="nextaction" id="guidedNextAction">
-    <strong>Étape suivante :</strong> démarre le calibrage intelligent. L'application choisit d'abord UNE bonne image pour apprendre ton équipe. Après cette première validation, elle cherchera automatiquement la 2e puis la 3e image avec le plus de CAY reconnus.
+    <strong>Calibration V2 :</strong> l’ancien polygone libre est retiré. La calibration métrique doit venir de repères sémantiques du terrain ; sinon les métriques terrain restent INDISPONIBLE et le tracking continue.
   </div>
 
   <div class="btnrow" style="margin-top:10px">
-    <button id="prepareGuidedCalib" class="primary">🎯 Démarrer le calibrage intelligent</button>
+    <button id="prepareGuidedCalib" class="secondary" disabled style="display:none">Ancien calibrage V1 retiré</button>
     <button id="exportTrainingData" class="secondary" disabled>⬇ Exporter le calibrage d'entraînement</button>
   </div>
 
@@ -1546,7 +1546,7 @@ async function finishGuidedCalibration(){
  $('v55Refs').textContent=`${Math.min(3,guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length)}/3`;
  $('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});
 }
-if($('prepareGuidedCalib'))$('prepareGuidedCalib').onclick=chooseThreeReferenceImages;
+if($('prepareGuidedCalib')){$('prepareGuidedCalib').disabled=true;$('prepareGuidedCalib').onclick=null;}
 if($('exportTrainingData'))$('exportTrainingData').onclick=()=>{
  downloadTextFile('CAY_CALIBRAGE_ENTRAINEMENT_STABLE.json',JSON.stringify(trainingCalibrationObject(),null,2),'application/json');
 };
@@ -4652,7 +4652,14 @@ async function detectCoco(m,c){
    all.push(...await detectPosturePass(m,c,90,.22));
  }catch(_){}
 
- return footballDedupe(nms(all,.30));
+ let appearanceRecovered=[];
+ try{
+   const recovery=globalThis.CAYPlayerCandidateRecovery;
+   if(recovery&&typeof recovery.recoverFromCanvas==='function'){
+     appearanceRecovered=recovery.recoverFromCanvas(c,all,{maxCandidates:6,stride:2,minGrassSupport:.22});
+   }
+ }catch(_){}
+ return footballDedupe(nms(all.concat(appearanceRecovered),.30));
 }
 
 async function detectFootballSpecialized(m,c){
@@ -6100,6 +6107,10 @@ $('analyzeBtn').onclick=async()=>{
  status($('aiStatus'),'Test terminé ✓','success');
 };
 </script>
+
+<!-- CALIBRATION_V2_SEMANTIC_PITCH -->
+<script src="./player_candidate_recovery_v1.js"></script>
+<script src="./pitch_semantic_calibration_v2.js"></script>
 
 <!-- STABLE_LONG_TERM_TRACKING_V2 -->
 <script src="./detector_license_guard_v1.js"></script>
