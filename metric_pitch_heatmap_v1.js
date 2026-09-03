@@ -20,10 +20,12 @@
     if(!(total>0))return cells.map(r=>r.map(()=>0));
     return cells.map(r=>r.map(v=>+(v/total).toFixed(6)));
   }
-  function projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows){
+  function projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows,minCalibrationConfidence=0){
     if(!p||!isPresentFinite(p.x)||!isPresentFinite(p.y)||!isPresentFinite(p.segment))return null;
     const info=projectorInfo(projectors&&projectors[p.segment]);
     if(!info.validated)return null;
+    const minConfidence=clamp(Number(minCalibrationConfidence)||0,0,1);
+    if(isPresentFinite(info.confidence)&&Number(info.confidence)<minConfidence)return null;
     let q=null;
     try{q=info.project(p);}catch(e){q=null;}
     if(!q||!isPresentFinite(q.x)||!isPresentFinite(q.y))return null;
@@ -116,7 +118,7 @@
       const structurallyEligible=!!p&&isPresentFinite(p.x)&&isPresentFinite(p.y)&&isPresentFinite(p.segment);
       if(!structurallyEligible){prepared.push({p,projected:null});continue;}
       eligible++;
-      const projectedPoint=projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows);
+      const projectedPoint=projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows,minCalibrationConfidence);
       if(!projectedPoint){rejected++;prepared.push({p,projected:null});continue;}
       cells[projectedPoint.cy][projectedPoint.cx]++;projected++;
       if(isPresentFinite(projectedPoint.confidence)){confidenceSum+=Number(projectedPoint.confidence);confidenceKnown++;}
@@ -152,7 +154,7 @@
       eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,maxDwellGapSec,
       unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,
       calibrationConfidenceObservations:confidenceKnown,calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),avgCalibrationConfidence:avgCalibrationConfidence===null?null:+avgCalibrationConfidence.toFixed(4),defendableScore:defendableScore===null?null:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
-      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE; CONFIANCE COMPLETE REQUISE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
+      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE; CHAQUE PLAN PROJETE DOIT AUSSI ATTEINDRE LE SEUIL MINIMUM',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
       temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
