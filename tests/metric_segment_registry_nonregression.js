@@ -1,6 +1,7 @@
 const assert=require('assert');
 const projectorApi=require('../metric_homography_projector_v1.js');
 const registryApi=require('../metric_segment_registry_v1.js');
+const bridgeApi=require('../stable_tracking_bridge_v1.js');
 
 const r=registryApi.createRegistry(projectorApi);
 const correspondence=[
@@ -30,6 +31,15 @@ assert.strictEqual(r.projectorFor(1),null,'rejected segment must not provide met
 const projectors=r.exportProjectors();
 assert.deepStrictEqual(Object.keys(projectors),['0'],'only validated exact segment must be exported');
 assert.strictEqual(typeof projectors[0].project,'function');
+assert.strictEqual(projectors[0].segment,0,'exported projector must carry its exact segment binding');
+const bridgeBound=bridgeApi.bindProjectorsToSegments(projectors);
+assert.strictEqual(bridgeBound[0].validated,true,'bridge must accept projector exported by metric registry');
+assert.strictEqual(typeof bridgeBound[0].project,'function','bridge must preserve callable metric projection');
+
+const malicious={0:{...projectors[0],segment:9}};
+const rejected=bridgeApi.bindProjectorsToSegments(malicious);
+assert.strictEqual(rejected[0].validated,false,'bridge must still reject cross-segment calibration reuse');
+assert.strictEqual(rejected[0].project,null,'rejected cross-segment calibration must not project');
 
 assert.strictEqual(r.invalidate(0,'plan changed'),true);
 assert.strictEqual(r.projectorFor(0),null,'explicit invalidation must remove metric eligibility');
