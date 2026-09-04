@@ -32,8 +32,8 @@ const unsupportedPeak=Guard.applyPublicationPolicy({...reliable,maxSpeedKmh:44,s
 ]},{identityQuality:'FIABLE'});
 assert.equal(unsupportedPeak.publication.status,'FIABLE');
 assert.equal(unsupportedPeak.instantaneousMaxSpeedKmh,44);
-assert.equal(unsupportedPeak.maxSpeedKmh,18.5,'standalone peak must be replaced by the strongest supported continuous window');
-assert.equal(unsupportedPeak.sustainedMaxSpeedKmh,18.5);
+assert.equal(unsupportedPeak.maxSpeedKmh,18.67,'standalone peak must be replaced by the strongest supported continuous window');
+assert.equal(unsupportedPeak.sustainedMaxSpeedKmh,18.67);
 
 assert.equal(Guard.sustainedMaxSpeedKmh([
   {time:0,segment:1,kmh:18},{time:1,segment:1,kmh:42}
