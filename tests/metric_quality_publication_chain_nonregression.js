@@ -37,6 +37,7 @@ const withGap={fullPath:[
 const gapMetric=Quality.robustMetricForTrack(withGap,projectors);
 assert.strictEqual(gapMetric.distanceM,16,'2s tracking hole must not add invented cross-gap metres');
 assert.strictEqual(gapMetric.metricCoveredSeconds,2,'only valid <=1s pairs count as covered metric time');
-assert.ok(gapMetric.speedSamples.every((s,i,a)=>i===0||s.time-a[i-1].time<=1||s.time===3.5),'speed evidence must be split at the tracking hole');
+assert.deepStrictEqual(gapMetric.speedSamples.filter(s=>s.sampleRole==='RUN_INTERVAL_ANCHOR').map(s=>s.time),[0,3],'each side of the tracking hole must start an independent speed-evidence run');
+assert.strictEqual(Publication.longestContinuousSpeedEvidenceSeconds(gapMetric.speedSamples),1,'speed evidence must remain split at the tracking hole');
 
 console.log('metric quality -> publication chain non-regression: PASS');
