@@ -27,6 +27,12 @@ assert.strictEqual(starter.windows.length,1);
 assert.strictEqual(starter.metric.distanceM,2);
 assert.strictEqual(starter.metric.metricCoveredSeconds,2);
 assert.strictEqual(starter.metric.participationWindowCount,1);
+assert.strictEqual(starter.spatial.status,'FIABLE');
+assert.strictEqual(starter.spatial.projectedObservations,4);
+assert.strictEqual(starter.spatial.heatmaps.length,1);
+assert.strictEqual(starter.spatial.heatmaps[0].observations,4);
+assert.ok(starter.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.time<=29));
+assert.ok(starter.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.x<=3));
 
 const subTrack={globalId:'t12',fullPath:[
   {time:29,segment:0,x:0,y:0},{time:30,segment:0,x:10,y:0},{time:31,segment:0,x:11,y:0},{time:32,segment:0,x:12,y:0}
@@ -37,18 +43,32 @@ assert.strictEqual(substitute.playerId,'p12');
 assert.strictEqual(substitute.participation.acceptedObservations,3);
 assert.strictEqual(substitute.participation.rejectedObservations,1);
 assert.strictEqual(substitute.metric.distanceM,2);
+assert.strictEqual(substitute.spatial.status,'FIABLE');
+assert.strictEqual(substitute.spatial.projectedObservations,3);
+assert.ok(substitute.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.time>=30));
+assert.ok(substitute.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.x>=10));
 
 const unknown=Pipeline.build({trackId:'missing',trackRaw:starterTrack,bindingState:bindings,participation,projectors});
 assert.strictEqual(unknown.status,'INDISPONIBLE');
 assert.strictEqual(unknown.metric,null);
+assert.strictEqual(unknown.spatial,null);
 
 let weak={bindings:[{trackId:'weak',playerId:'p2',source:'MANUAL',confidence:.7,confirmed:true}]};
 const weakResult=Pipeline.build({trackId:'weak',trackRaw:starterTrack,bindingState:weak,participation,projectors});
 assert.strictEqual(weakResult.status,'INDISPONIBLE');
 assert.strictEqual(weakResult.metric,null);
+assert.strictEqual(weakResult.spatial,null);
 
 const noMetric=Pipeline.build({trackId:'t1',trackRaw:starterTrack,bindingState:bindings,participation,projectors:{}});
 assert.strictEqual(noMetric.status,'INDISPONIBLE');
 assert.strictEqual(noMetric.metric.distanceM,null);
+assert.strictEqual(noMetric.spatial.status,'INDISPONIBLE');
+
+const spatialOnly=Pipeline.build({
+  trackId:'t1',trackRaw:starterTrack,bindingState:bindings,participation,projectors,
+  heatmapOptions:{minMetricCoverage:.5,minCalibrationConfidence:.5,maxDwellGapSec:1}
+});
+assert.strictEqual(spatialOnly.spatial.status,'FIABLE');
+assert.strictEqual(spatialOnly.spatial.trajectory.policy,'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION');
 
 console.log('roster_metric_pipeline_nonregression: ok');
