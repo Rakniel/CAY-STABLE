@@ -127,12 +127,17 @@
       return {ok:record.validated,record:safeRecord(record),reason:record.reason};
     }
 
-    function registerValidatedProjector(segment,projector,options={}){
-      if(!finiteInt(segment))return {ok:false,reason:'segment invalide'};
+    function projectorEligibility(projector){
       if(!projector||projector.validated!==true||typeof projector.project!=='function')return {ok:false,reason:'projecteur validé requis'};
       if(!finite(projector.confidence))return {ok:false,reason:'confiance calibration explicite requise'};
       const confidence=Number(projector.confidence);
       if(confidence<0||confidence>1)return {ok:false,reason:'confiance calibration hors bornes'};
+      return {ok:true,confidence};
+    }
+
+    function registerValidatedProjector(segment,projector,options={}){
+      if(!finiteInt(segment))return {ok:false,reason:'segment invalide'};
+      const eligibility=projectorEligibility(projector);if(!eligibility.ok)return eligibility;
       const seg=Number(segment);
       const record=baseRecord(seg,projector,{
         ...options,
@@ -184,21 +189,35 @@
       return {ok:!!temporal,record:safeRecord(record),reason:temporal?null:'aucun keyframe de calibration avec confiance suffisante'};
     }
 
+    function registerValidatedKeyframe(segment,time,projector,options={}){
+      if(!finiteInt(segment)||!finite(time))return {ok:false,reason:'segment ou temps invalide'};
+      const record=entries.get(Number(segment));if(!record)return {ok:false,reason:'segment non calibré'};
+      const eligibility=projectorEligibility(projector);if(!eligibility.ok)return {...eligibility,record:safeRecord(record)};
+      if(finite(options.maxCalibrationAgeSec))record.maxCalibrationAgeSec=Math.max(.02,Number(options.maxCalibrationAgeSec));
+      if(record.dynamicCamera!==true&&record.projector?.validated===true){
+        const anchorTime=finite(record.createdAt)?Number(record.createdAt):Number(time);
+        record.keyframes.push(calibrationSnapshot(record.projector,anchorTime,'absolute_anchor'));
+      }
+      record.dynamicCamera=true;
+      const snapshot=calibrationSnapshot(projector,Number(time),options.kind||'prevalidated_refresh');
+      const duplicate=(record.keyframes||[]).findIndex(k=>Math.abs(k.time-snapshot.time)<1e-6);
+      if(duplicate>=0)record.keyframes[duplicate]=snapshot;else record.keyframes.push(snapshot);
+      record.keyframes.sort((a,b)=>a.time-b.time);
+      record.source='temporal_calibration_keyframes';
+      record.confidence=record.keyframes.length?record.keyframes.reduce((s,k)=>s+k.confidence,0)/record.keyframes.length:0;
+      record.validation={...(record.validation||{}),dynamicCamera:true,keyframes:record.keyframes.length,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
+      record.provenance={...(record.provenance||{}),registration:'PREVALIDATED_DYNAMIC_KEYFRAME_FAIL_CLOSED',upstreamValidationPreserved:true};
+      const temporal=temporalProjector(record);
+      const eligible=eligibility.confidence>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE;
+      return {ok:true,eligible,projectorAvailable:!!temporal,record:safeRecord(record),reason:temporal?null:'aucun keyframe de calibration avec confiance suffisante'};
+    }
+
     function addCalibrationKeyframe(segment,time,options={}){
       if(!finiteInt(segment)||!finite(time))return {ok:false,reason:'segment ou temps invalide'};
       const record=entries.get(Number(segment));if(!record)return {ok:false,reason:'segment non calibré'};
       const projector=projectorApi.createProjector(options);
       if(projector.validated!==true)return {ok:false,reason:projector.reason||'keyframe de calibration non validé',record:safeRecord(record)};
-      record.dynamicCamera=true;
-      if(finite(options.maxCalibrationAgeSec))record.maxCalibrationAgeSec=Math.max(.02,Number(options.maxCalibrationAgeSec));
-      const snapshot=calibrationSnapshot(projector,Number(time),options.kind||'absolute_refresh');
-      const duplicate=(record.keyframes||[]).findIndex(k=>Math.abs(k.time-snapshot.time)<1e-6);
-      if(duplicate>=0)record.keyframes[duplicate]=snapshot;else record.keyframes.push(snapshot);
-      record.keyframes.sort((a,b)=>a.time-b.time);
-      record.source='temporal_calibration_keyframes';
-      record.confidence=record.keyframes.reduce((s,k)=>s+k.confidence,0)/record.keyframes.length;
-      record.validation={dynamicCamera:true,keyframes:record.keyframes.length,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
-      return {ok:true,record:safeRecord(record),reason:null};
+      return registerValidatedKeyframe(segment,time,projector,{...options,kind:options.kind||'absolute_refresh'});
     }
 
     function invalidate(segment,reason='calibration invalidée explicitement'){
@@ -246,8 +265,8 @@
       };
     }
 
-    return {calibrate,registerValidatedProjector,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
+    return {calibrate,registerValidatedProjector,registerValidatedKeyframe,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
-  return {VERSION:'1.3.1',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
+  return {VERSION:'1.4.0',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
 });
