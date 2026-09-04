@@ -24,7 +24,11 @@ assert.equal(card.metrics.maxSpeedKmh.status,'INDISPONIBLE');
 assert.equal(card.metrics.sprintCount.status,'INDISPONIBLE');
 assert.equal(card.presence.trackingCoverage,100);
 
-const metricCard=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',pitchLengthM:105,pitchWidthM:68,metricCoverage:.8,trajectory:{status:'DISPONIBLE'},pitchHeatmap:{status:'DISPONIBLE'}},metric:{metricCoverage:.8,distanceM:1234.5,avgSpeedKmh:7.2,maxSpeedKmh:28.1,sprintCount:2,quality:'FIABLE'}});
+const unsafeRawMetric=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',pitchLengthM:105,pitchWidthM:68,metricCoverage:.8,trajectory:{status:'DISPONIBLE'},pitchHeatmap:{status:'DISPONIBLE'}},metric:{metricCoverage:.8,distanceM:9999,avgSpeedKmh:99,maxSpeedKmh:99,sprintCount:99,quality:'FIABLE'}});
+assert.equal(unsafeRawMetric.metrics.distanceM.status,'INDISPONIBLE','raw track metric must never be published as a roster player metric');
+assert.match(unsafeRawMetric.metrics.distanceM.reason,/liaison roster/i);
+
+const metricCard=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',pitchLengthM:105,pitchWidthM:68,metricCoverage:.8,trajectory:{status:'DISPONIBLE'},pitchHeatmap:{status:'DISPONIBLE'}},metric:{metricCoverage:.8,distanceM:1234.5,avgSpeedKmh:7.2,maxSpeedKmh:28.1,sprintCount:2,quality:'FIABLE',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'}});
 assert.equal(metricCard.metrics.distanceM.status,'FIABLE');
 assert.equal(metricCard.metrics.distanceM.value,1234.5);
 assert.equal(metricCard.metrics.sprintCount.value,2);
@@ -33,7 +37,7 @@ assert.equal(metricCard.pitchVisuals.metricCoverage,80);
 assert.equal(metricCard.pitchVisuals.pitchLengthM,105);
 assert.equal(metricCard.pitchVisuals.pitchWidthM,68);
 
-const zeroValue=VM.metricValue({metricCoverage:.5,sprintCount:0,quality:'PARTIEL'},'sprintCount','Sprints');
+const zeroValue=VM.metricValue({metricCoverage:.5,sprintCount:0,quality:'PARTIEL',rosterBound:true},'sprintCount','Sprints');
 assert.equal(zeroValue.status,'PARTIEL');
 assert.equal(zeroValue.value,0,'zero is a valid measured metric and must not be treated as missing');
 
