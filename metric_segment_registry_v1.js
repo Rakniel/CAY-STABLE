@@ -34,10 +34,6 @@
     function temporalProjector(record){
       const allValid=(record.keyframes||[]).filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function').sort((a,b)=>a.time-b.time);
       if(!allValid.length)return null;
-      // Metric fail-closed policy: when at least one trustworthy absolute keyframe exists,
-      // a weaker keyframe must not become valid merely because averaging keeps the segment
-      // confidence above the publication threshold. If every keyframe is weak, preserve the
-      // historical diagnostic projector/confidence so downstream metric gates can reject it.
       const reliable=allValid.filter(k=>finite(k.confidence)&&Number(k.confidence)>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE);
       const valid=reliable.length?reliable:allValid;
       const lowConfidenceKeyframesRejected=reliable.length?allValid.length-reliable.length:0;
@@ -57,7 +53,6 @@
             if(k.time<=t)previous=k;
             if(k.time>=t){next=k;break;}
           }
-
           if(previous&&next&&previous!==next){
             const agePrev=t-previous.time,ageNext=next.time-t;
             if(agePrev<=maxAge&&ageNext<=maxAge){
@@ -79,7 +74,6 @@
               }
             }
           }
-
           let best=null,bestAge=Infinity;
           for(const k of valid){const age=Math.abs(t-k.time);if(age<bestAge){bestAge=age;best=k;}}
           if(!best||bestAge>maxAge)return null;
@@ -194,12 +188,18 @@
       return true;
     }
 
+    function bindSegment(projector,segment){
+      if(!projector||projector.validated!==true||typeof projector.project!=='function')return null;
+      return {...projector,segment:Number(segment)};
+    }
+
     function exportProjectors(){
       const out={};
       for(const [segment,record] of entries){
         if(!record.validated)continue;
         const projector=record.dynamicCamera===true?temporalProjector(record):record.projector;
-        if(projector&&projector.validated&&typeof projector.project==='function')out[segment]=projector;
+        const bound=bindSegment(projector,segment);
+        if(bound)out[segment]=bound;
       }
       return out;
     }
@@ -223,5 +223,5 @@
     return {calibrate,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
-  return {VERSION:'1.2.0',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
+  return {VERSION:'1.2.1',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
 });
