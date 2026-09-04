@@ -17,6 +17,7 @@ assert.strictEqual(partial.trajectory.quality,'PARTIEL');
 assert.strictEqual(partial.trajectory.metricCoverage,.5);
 assert.strictEqual(partial.trajectory.points.length,2);
 assert.strictEqual(partial.trajectory.runs.length,1);
+assert.strictEqual(partial.trajectory.continuousObservations,2);
 assert.strictEqual(partial.trajectory.interpolation,'NONE');
 
 // Never connect across camera cuts.
@@ -36,17 +37,39 @@ const hole=Heat.build({fullPath:[
   {time:.8,segment:9,x:.30,y:.30},
   {time:1.2,segment:1,x:.40,y:.40}
 ]},{1:projector},{maxDwellGapSec:1});
-assert.strictEqual(hole.trajectory.points.length,3);
-assert.strictEqual(hole.trajectory.runs.length,2,'unprojectable hole must split trajectory');
+assert.strictEqual(hole.trajectory.points.length,2,'isolated post-hole point is not published as a trajectory run');
+assert.strictEqual(hole.trajectory.runs.length,1,'only continuous metric motion is published');
+assert.strictEqual(hole.trajectory.continuousObservations,2);
 
-// Long temporal gaps are explicit cuts, not invented travel.
+// Long temporal gaps are explicit cuts, not invented travel. A singleton after the cut is diagnostic only.
 const gap=Heat.build({fullPath:[
   {time:0,segment:1,x:.10,y:.10},
   {time:.5,segment:1,x:.20,y:.20},
   {time:4,segment:1,x:.70,y:.70}
 ]},{1:projector},{maxDwellGapSec:1});
-assert.strictEqual(gap.trajectory.runs.length,2);
+assert.strictEqual(gap.trajectory.runs.length,1);
+assert.strictEqual(gap.trajectory.points.length,2);
+assert.strictEqual(gap.trajectory.continuousObservations,2);
 assert.strictEqual(gap.trajectory.interpolation,'NONE');
+
+// A calibrated point by itself is a position observation, not a defendable trajectory.
+const singleton=Heat.build({fullPath:[{time:0,segment:1,x:.1,y:.1}]},{1:projector},{});
+assert.strictEqual(singleton.trajectory.status,'INDISPONIBLE');
+assert.strictEqual(singleton.trajectory.points.length,0);
+assert.strictEqual(singleton.trajectory.observations,1,'raw metric observation remains auditable');
+assert.strictEqual(singleton.trajectory.continuousObservations,0);
+assert.match(singleton.trajectory.reason,/au moins deux positions métriques/);
+
+// Multiple individually calibrated points separated by cuts must not masquerade as motion.
+const isolated=Heat.build({fullPath:[
+  {time:0,segment:1,x:.1,y:.1},
+  {time:.5,segment:2,x:.2,y:.2},
+  {time:1,segment:3,x:.3,y:.3}
+]},{1:projector,2:projector,3:projector},{});
+assert.strictEqual(isolated.trajectory.status,'INDISPONIBLE');
+assert.strictEqual(isolated.trajectory.points.length,0);
+assert.strictEqual(isolated.trajectory.observations,3);
+assert.strictEqual(isolated.trajectory.continuousObservations,0);
 
 const none=Heat.build({fullPath:[{time:0,segment:1,x:.1,y:.1}]},{},{});
 assert.strictEqual(none.trajectory.status,'INDISPONIBLE');
