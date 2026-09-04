@@ -24,6 +24,16 @@
       };
     }
 
+    function reliableKeyframes(record){
+      return (record?.keyframes||[])
+        .filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function'&&finite(k.confidence)&&Number(k.confidence)>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE);
+    }
+
+    function dynamicConfidence(record){
+      const reliable=reliableKeyframes(record);
+      return reliable.length?reliable.reduce((s,k)=>s+Number(k.confidence),0)/reliable.length:0;
+    }
+
     function projectKeyframe(keyframe,point){
       if(!keyframe||!keyframe.projector||typeof keyframe.projector.project!=='function')return null;
       let q=null;try{q=keyframe.projector.project(point);}catch(e){return null;}
@@ -34,12 +44,12 @@
     function temporalProjector(record){
       const allValid=(record.keyframes||[]).filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function').sort((a,b)=>a.time-b.time);
       if(!allValid.length)return null;
-      const reliable=allValid.filter(k=>finite(k.confidence)&&Number(k.confidence)>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE);
+      const reliable=reliableKeyframes(record).sort((a,b)=>a.time-b.time);
       if(!reliable.length)return null;
       const valid=reliable;
       const lowConfidenceKeyframesRejected=allValid.length-reliable.length;
       const maxAge=finite(record.maxCalibrationAgeSec)?Math.max(.02,Number(record.maxCalibrationAgeSec)):.35;
-      const avgConfidence=valid.reduce((s,k)=>s+k.confidence,0)/valid.length;
+      const avgConfidence=dynamicConfidence(record);
       return {
         validated:true,
         source:'temporal_calibration_keyframes',
@@ -99,6 +109,7 @@
         validated:projector.validated===true,
         source:options.source||projector.source||null,
         confidence:finite(projector.confidence)?Number(projector.confidence):0,
+        diagnosticConfidence:finite(projector.confidence)?Number(projector.confidence):0,
         reason:projector.reason||null,
         validation:projector.validation||null,
         pitch:projector.pitch||null,
@@ -153,7 +164,8 @@
       if(!record)return null;
       return {
         segment:record.segment,validated:record.validated,source:record.source,
-        confidence:record.confidence,reason:record.reason,validation:record.validation,
+        confidence:record.confidence,diagnosticConfidence:record.diagnosticConfidence,
+        reason:record.reason,validation:record.validation,
         pitch:record.pitch,createdAt:record.createdAt,shotId:record.shotId,
         dynamicCamera:record.dynamicCamera===true,maxCalibrationAgeSec:record.maxCalibrationAgeSec,
         calibrationKeyframes:(record.keyframes||[]).map(k=>({time:k.time,validated:k.validated,source:k.source,confidence:k.confidence,kind:k.kind})),
@@ -184,6 +196,8 @@
       }
       record.dynamicCamera=true;
       record.source='temporal_calibration_keyframes';
+      record.confidence=dynamicConfidence(record);
+      record.diagnosticConfidence=record.keyframes.length?record.keyframes.reduce((s,k)=>s+k.confidence,0)/record.keyframes.length:0;
       record.validation={...(record.validation||{}),dynamicCamera:true,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
       const temporal=temporalProjector(record);
       return {ok:!!temporal,record:safeRecord(record),reason:temporal?null:'aucun keyframe de calibration avec confiance suffisante'};
@@ -204,8 +218,9 @@
       if(duplicate>=0)record.keyframes[duplicate]=snapshot;else record.keyframes.push(snapshot);
       record.keyframes.sort((a,b)=>a.time-b.time);
       record.source='temporal_calibration_keyframes';
-      record.confidence=record.keyframes.length?record.keyframes.reduce((s,k)=>s+k.confidence,0)/record.keyframes.length:0;
-      record.validation={...(record.validation||{}),dynamicCamera:true,keyframes:record.keyframes.length,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
+      record.confidence=dynamicConfidence(record);
+      record.diagnosticConfidence=record.keyframes.length?record.keyframes.reduce((s,k)=>s+k.confidence,0)/record.keyframes.length:0;
+      record.validation={...(record.validation||{}),dynamicCamera:true,keyframes:record.keyframes.length,reliableKeyframes:reliableKeyframes(record).length,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
       record.provenance={...(record.provenance||{}),registration:'PREVALIDATED_DYNAMIC_KEYFRAME_FAIL_CLOSED',upstreamValidationPreserved:true};
       const temporal=temporalProjector(record);
       const eligible=eligibility.confidence>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE;
@@ -259,7 +274,9 @@
         rejectedSegments:records.length-validated.length,
         dynamicSegments:dynamic.length,
         calibrationKeyframes:dynamic.reduce((s,r)=>s+r.calibrationKeyframes.length,0),
+        reliableCalibrationKeyframes:dynamic.reduce((s,r)=>s+r.calibrationKeyframes.filter(k=>k.validated&&finite(k.confidence)&&Number(k.confidence)>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE).length,0),
         avgConfidence:validated.length?+(validated.reduce((s,r)=>s+r.confidence,0)/validated.length).toFixed(3):0,
+        avgDiagnosticConfidence:validated.length?+(validated.reduce((s,r)=>s+(finite(r.diagnosticConfidence)?r.diagnosticConfidence:r.confidence),0)/validated.length).toFixed(3):0,
         policy:'CALIBRATION_EXACTE_PAR_SEGMENT_SANS_REUTILISATION_SILENCIEUSE_ENTRE_PLANS',
         dynamicPolicy:'CAMERA_DYNAMIQUE=AU_MOINS_UN_KEYFRAME_VALIDE_CONFIANCE_GE_0_5_REQUIS; KEYFRAMES_FAIBLES_EXCLUS; AGE_MAX_STRICT; INTERPOLATION UNIQUEMENT EN ESPACE PROJETE ENTRE KEYFRAMES ELIGIBLES; SINON_PROJECTION_INDISPONIBLE'
       };
@@ -268,5 +285,5 @@
     return {calibrate,registerValidatedProjector,registerValidatedKeyframe,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
-  return {VERSION:'1.4.0',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
+  return {VERSION:'1.5.0',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
 });
