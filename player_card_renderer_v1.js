@@ -53,6 +53,15 @@ function rosterHeader(card){
   const img=r.photoUrl?'<img src="'+esc(r.photoUrl)+'" alt="portrait '+name+'" style="width:44px;height:44px;object-fit:cover;border-radius:10px;border:1px solid rgba(205,31,45,.55);background:#111">':'<div aria-hidden="true" style="width:44px;height:44px;border-radius:10px;border:1px solid rgba(205,31,45,.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:#111">CAY</div>';
   return '<div style="display:flex;align-items:center;gap:9px">'+img+'<div><strong style="font-size:16px">'+name+num+'</strong><div style="font-size:10px;opacity:.66;margin-top:2px">'+(position||'Poste non renseigné')+' • track '+esc(card?.id??'—')+'</div></div></div>';
 }
+function explainUnavailable(card){
+  const reasons=[];
+  const add=reason=>{const s=String(reason||'').trim();if(s&&!reasons.includes(s))reasons.push(s);};
+  if(card?.pitchVisuals?.status==='INDISPONIBLE')add(card.pitchVisuals.reason);
+  const metrics=card?.metrics||{};
+  for(const key of ['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount'])if(metrics[key]?.status==='INDISPONIBLE')add(metrics[key].reason);
+  if(!reasons.length)return '';
+  return '<div aria-label="raison métriques indisponibles" style="margin-top:9px;padding:8px 10px;border-radius:9px;background:rgba(141,16,24,.12);border:1px solid rgba(205,31,45,.28);font-size:10px;line-height:1.35"><b style="letter-spacing:.05em">POUR DÉBLOQUER LES STATS TERRAIN</b><br><span style="opacity:.75">'+reasons.map(esc).join(' • ')+'</span></div>';
+}
 function cardHtml(card){
   const p=card?.presence||{},obs=card?.observedVisuals||{},pitch=card?.pitchVisuals||{},m=card?.metrics||{};
   const obsLabel=obs.status==='DISPONIBLE'?'CAMÉRA • '+(p.trackingCoverage||0)+' %':'CAMÉRA INDISPONIBLE';
@@ -67,7 +76,7 @@ function cardHtml(card){
       '<div><span style="opacity:.65">Vitesse max</span><br><b>'+esc(metricText(m.maxSpeedKmh,'km/h'))+'</b></div>'+
       '<div><span style="opacity:.65">Vitesse moyenne</span><br><b>'+esc(metricText(m.avgSpeedKmh,'km/h'))+'</b></div>'+
       '<div><span style="opacity:.65">Sprints</span><br><b>'+esc(metricText(m.sprintCount,'sprint'))+'</b></div>'+
-    '</div>'+
+    '</div>'+explainUnavailable(card)+
     '<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin-bottom:5px">PRÉSENCE CAMÉRA — PAS UNE CARTE TACTIQUE</div>'+heatmapHtml(obs.heatmap)+'</div>'+
     (pitch.status==='DISPONIBLE'?'<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin-bottom:5px">OCCUPATION TERRAIN VALIDÉE</div>'+heatmapHtml(pitch.heatmap)+'<div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin:9px 0 5px">TRAJECTOIRE TERRAIN VALIDÉE</div>'+trajectoryHtml(pitch.trajectory,pitch.pitchLengthM,pitch.pitchWidthM)+'</div>':'')+
     '<div style="margin-top:8px;font-size:10px;opacity:.58">Stats physiques publiées uniquement sur projection terrain validée.</div></article>';
@@ -96,5 +105,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,render,install};
+return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,render,install};
 });

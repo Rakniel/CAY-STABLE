@@ -1,14 +1,18 @@
 'use strict';
 const assert=require('assert');
 const R=require('../player_card_renderer_v1.js');
-const unavailable={status:'INDISPONIBLE',value:null};
-const card={id:7,category:'player',identity:{status:'FIABLE'},presence:{observedDuration:61.2,observations:44,trackingCoverage:83},observedVisuals:{status:'DISPONIBLE',heatmap:{cols:2,cells:[[1,2],[0,3]]}},pitchVisuals:{status:'INDISPONIBLE'},metrics:{distanceM:unavailable,avgSpeedKmh:unavailable,maxSpeedKmh:unavailable,sprintCount:unavailable}};
+const unavailable={status:'INDISPONIBLE',value:null,reason:'liaison roster fiable et participation confirmée requises'};
+const card={id:7,category:'player',identity:{status:'FIABLE'},presence:{observedDuration:61.2,observations:44,trackingCoverage:83},observedVisuals:{status:'DISPONIBLE',heatmap:{cols:2,cells:[[1,2],[0,3]]}},pitchVisuals:{status:'INDISPONIBLE',reason:'projection terrain métrique non défendable'},metrics:{distanceM:unavailable,avgSpeedKmh:unavailable,maxSpeedKmh:unavailable,sprintCount:unavailable}};
 const html=R.cardHtml(card);
 assert(html.includes('J • track 7'),'unbound technical track identity must remain visible without impersonating a shirt number');
 assert(html.includes('Roster non lié — aucune identité déduite automatiquement'),'unbound track must explicitly state that no roster identity was inferred');
 assert(html.includes('CAMÉRA • 83 %'),'observed tracking coverage must be explicit');
 assert(html.includes('TERRAIN INDISPONIBLE'),'metric-space availability must be explicit');
 assert(html.includes('Distance</span><br><b>INDISPONIBLE'),'distance must never be fabricated without metric evidence');
+assert(html.includes('POUR DÉBLOQUER LES STATS TERRAIN'),'unavailable pitch metrics must explain what evidence is missing');
+assert(html.includes('projection terrain métrique non défendable'),'pitch-space rejection reason must be visible to educators');
+assert(html.includes('liaison roster fiable et participation confirmée requises'),'roster/participation rejection reason must be visible to educators');
+assert((html.match(/liaison roster fiable et participation confirmée requises/g)||[]).length===1,'duplicate metric rejection reasons must be collapsed');
 assert(html.includes('PRÉSENCE CAMÉRA — PAS UNE CARTE TACTIQUE'),'image-space heatmap must not be presented as tactical pitch occupation');
 assert(!html.includes('OCCUPATION TERRAIN VALIDÉE'),'pitch section must stay hidden without defended pitch visuals');
 assert(!html.includes('TRAJECTOIRE TERRAIN VALIDÉE'),'pitch trajectory must stay hidden without defended pitch visuals');
@@ -22,6 +26,7 @@ const metric={...card,pitchVisuals:{status:'DISPONIBLE',metricCoverage:71,pitchL
 const html2=R.cardHtml(metric);
 assert(html2.includes('1234 m'),'defended distance must render');
 assert(html2.includes('0</b>'),'a defended zero sprint count must not become unavailable');
+assert(!html2.includes('POUR DÉBLOQUER LES STATS TERRAIN'),'validated pitch metrics must not show an unavailable-evidence warning');
 assert(html2.includes('OCCUPATION TERRAIN VALIDÉE'),'validated pitch heatmap must render separately');
 assert(!html2.includes('Heatmap indisponible'),'runtime normalizedCells heatmap payload must render without requiring legacy cells');
 assert(html2.includes('TRAJECTOIRE TERRAIN VALIDÉE'),'validated metric trajectory must be visible in the player card');
@@ -30,4 +35,5 @@ assert((html2.match(/<polyline /g)||[]).length===2,'trajectory gaps/runs must re
 assert(html2.includes('viewBox="0 0 105 68"'),'trajectory must use explicit metric pitch dimensions');
 assert(R.trajectoryHtml(trajectory,null,68).includes('Trajectoire terrain indisponible'),'missing pitch dimensions must fail closed');
 assert(R.metricText(null,'m')==='INDISPONIBLE');
+assert(R.explainUnavailable(metric)==='','validated metric card must have no unavailable explanation');
 console.log('player card renderer non-regression: PASS');
