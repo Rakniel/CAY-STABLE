@@ -91,15 +91,12 @@
       };
     }
 
-    function calibrate(segment,options={}){
-      if(!finiteInt(segment))return {ok:false,reason:'segment invalide'};
-      const seg=Number(segment);
-      const projector=projectorApi.createProjector(options);
-      const record={
-        segment:seg,
+    function baseRecord(segment,projector,options={}){
+      return {
+        segment:Number(segment),
         projector,
         validated:projector.validated===true,
-        source:projector.source||null,
+        source:options.source||projector.source||null,
         confidence:finite(projector.confidence)?Number(projector.confidence):0,
         reason:projector.reason||null,
         validation:projector.validation||null,
@@ -111,12 +108,39 @@
         keyframes:[],
         provenance:{
           architectureReferences:['soccer-tactical-vision calibration/validation/project stages','TVCalib','SoccerNet calibration','MatchVision guarded short-horizon calibration propagation'],
+          registration:options.registration||'REGISTRY_CREATED_PROJECTOR',
+          upstreamValidationPreserved:options.upstreamValidationPreserved===true,
+          semanticCalibration:options.semanticCalibration||null,
           codeCopied:false,
           licenseDependency:'none'
         }
       };
+    }
+
+    function calibrate(segment,options={}){
+      if(!finiteInt(segment))return {ok:false,reason:'segment invalide'};
+      const seg=Number(segment);
+      const projector=projectorApi.createProjector(options);
+      const record=baseRecord(seg,projector,options);
       entries.set(seg,record);
       return {ok:record.validated,record:safeRecord(record),reason:record.reason};
+    }
+
+    function registerValidatedProjector(segment,projector,options={}){
+      if(!finiteInt(segment))return {ok:false,reason:'segment invalide'};
+      if(!projector||projector.validated!==true||typeof projector.project!=='function')return {ok:false,reason:'projecteur validé requis'};
+      if(!finite(projector.confidence))return {ok:false,reason:'confiance calibration explicite requise'};
+      const confidence=Number(projector.confidence);
+      if(confidence<0||confidence>1)return {ok:false,reason:'confiance calibration hors bornes'};
+      const seg=Number(segment);
+      const record=baseRecord(seg,projector,{
+        ...options,
+        registration:'PREVALIDATED_PROJECTOR_FAIL_CLOSED',
+        upstreamValidationPreserved:true
+      });
+      record.reason=null;
+      entries.set(seg,record);
+      return {ok:true,record:safeRecord(record),reason:null};
     }
 
     function safeRecord(record){
@@ -220,8 +244,8 @@
       };
     }
 
-    return {calibrate,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
+    return {calibrate,registerValidatedProjector,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
-  return {VERSION:'1.2.1',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
+  return {VERSION:'1.3.0',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
 });
