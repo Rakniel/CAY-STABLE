@@ -18,8 +18,29 @@ assert.equal(published.metricCoverage,1);
 assert.equal(published.diagnosticMetricCoverage,1);
 assert.equal(published.distanceM,123.4);
 assert.equal(published.sprintCount,2);
+assert.equal(published.instantaneousMaxSpeedKmh,31.1,'raw instantaneous peak must remain auditable');
+assert.equal(published.sustainedMaxSpeedKmh,19.5,'published peak must come from sustained continuous speed evidence');
+assert.equal(published.maxSpeedKmh,19.5,'UI-facing max speed must not reuse an unsupported one-sample peak');
 assert.equal(published.diagnosticPhysicalMetrics.distanceM,123.4);
+assert.equal(published.diagnosticPhysicalMetrics.instantaneousMaxSpeedKmh,31.1);
+assert.equal(published.diagnosticPhysicalMetrics.sustainedMaxSpeedKmh,19.5);
 assert.equal(published.continuousSpeedEvidenceSeconds,4);
+
+const unsupportedPeak=Guard.applyPublicationPolicy({...reliable,maxSpeedKmh:44,speedSamples:[
+  {time:0,segment:1,kmh:18},{time:.5,segment:1,kmh:19},{time:1,segment:1,kmh:18},
+  {time:1.5,segment:1,kmh:19},{time:2,segment:1,kmh:18},{time:2.5,segment:1,kmh:19},{time:3,segment:1,kmh:18}
+]},{identityQuality:'FIABLE'});
+assert.equal(unsupportedPeak.publication.status,'FIABLE');
+assert.equal(unsupportedPeak.instantaneousMaxSpeedKmh,44);
+assert.equal(unsupportedPeak.maxSpeedKmh,18.5,'standalone peak must be replaced by the strongest supported continuous window');
+assert.equal(unsupportedPeak.sustainedMaxSpeedKmh,18.5);
+
+assert.equal(Guard.sustainedMaxSpeedKmh([
+  {time:0,segment:1,kmh:18},{time:1,segment:1,kmh:42}
+]),null,'one interval is insufficient evidence for a publishable max speed');
+assert.equal(Guard.sustainedMaxSpeedKmh([
+  {time:0,segment:1,kmh:18},{time:.5,segment:1,kmh:20},{time:1,segment:2,kmh:22},{time:1.5,segment:2,kmh:23}
+]),null,'a segment cut must prevent a max-speed window from crossing camera plans');
 
 const uncertainIdentity=Guard.applyPublicationPolicy(reliable,{identityQuality:'PARTIEL'});
 assert.equal(uncertainIdentity.publication.status,'INDISPONIBLE','physical player stats must not be attributed to an uncertain identity');
@@ -80,4 +101,6 @@ assert.equal(Guard.MIN_PUBLISHABLE_EVIDENCE_SCORE,.8);
 assert.equal(Guard.MIN_PUBLISHABLE_COVERED_SECONDS,3);
 assert.equal(Guard.MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,3);
 assert.equal(Guard.MAX_CONTINUOUS_SPEED_GAP_SECONDS,1);
+assert.equal(Guard.MIN_SUSTAINED_MAX_SPEED_SECONDS,1);
+assert.equal(Guard.MIN_SUSTAINED_MAX_SPEED_INTERVALS,2);
 console.log('metric publication guard non-regression: PASS');
