@@ -61,20 +61,22 @@ function unavailableMetric(reason){
 function attachRosterMetrics(report,state,projectors,rosterContext){
   if(!report||!Array.isArray(report.players)||!rosterContext)return report;
   const ctx=rosterContext||{},canBuild=RosterMetricPipeline&&typeof RosterMetricPipeline.build==='function'&&ctx.bindingState&&ctx.participation;
-  let reliable=0;
+  let publishable=0,reliable=0;
   const players=report.players.map(player=>{
     const track=findTrack(state,player?.id);
     let rosterMetric=null;
     if(canBuild&&track){
       rosterMetric=RosterMetricPipeline.build({trackId:player.id,trackRaw:track,bindingState:ctx.bindingState,participation:ctx.participation,projectors:projectors||{},timeScaleMs:ctx.timeScaleMs==null?1000:ctx.timeScaleMs});
     }
-    const metric=rosterMetric&&rosterMetric.status==='FIABLE'&&rosterMetric.metric
+    const accepted=rosterMetric&&rosterMetric.status==='FIABLE'&&rosterMetric.metric;
+    const metric=accepted
       ?{...rosterMetric.metric,reason:null,rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'}
       :unavailableMetric(rosterMetric?.reason||(track?'association roster/participation non fournie':'tracking joueur absent'));
+    if(accepted)publishable++;
     if(metric.quality==='FIABLE')reliable++;
     return {...player,metric,rosterMetric,quality:{...(player.quality||{}),metricDistance:metric.quality,metricSpeed:metric.quality,sprints:metric.quality}};
   });
-  return {...report,players,rosterMetricRuntime:{status:reliable?'DISPONIBLE':'INDISPONIBLE',reliablePlayers:reliable,totalPlayers:players.length,policy:'FICHES_JOUEURS_METRIQUES_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_ET_FENETRES_DE_PARTICIPATION_CONFIRMEES'}};
+  return {...report,players,rosterMetricRuntime:{status:publishable?'DISPONIBLE':'INDISPONIBLE',publishablePlayers:publishable,reliablePlayers:reliable,totalPlayers:players.length,policy:'FICHES_JOUEURS_METRIQUES_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_ET_FENETRES_DE_PARTICIPATION_CONFIRMEES; QUALITE_FIABLE_RESTE_DISTINCTE_D_UNE_METRIQUE_PARTIELLE_PUBLIABLE'}};
 }
 function patchBridge(){
   if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayPlayerCardRosterMetricPatched===true)return false;
