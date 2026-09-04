@@ -52,6 +52,11 @@ assert.strictEqual(recovered.validation.sourceKeyframes,2);
 assert.strictEqual(recovered.validation.keyframes,1);
 assert.strictEqual(recovered.validation.lowConfidenceKeyframesRejected,1);
 assert.ok(recovered.project({x:1,y:2,time:.2}));
-assert.strictEqual(recovered.project({x:1,y:2,time:0}),null);
+const backfilled=recovered.project({x:1,y:2,time:0});
+assert.ok(backfilled);
+assert.strictEqual(backfilled.x,1);
+assert.strictEqual(backfilled.y,2);
+assert.strictEqual(backfilled.calibrationKeyframeTime,.2);
+assert.strictEqual(recovered.project({x:1,y:2,time:-.2}),null);
 
 console.log('dynamic_keyframe_confidence_gate_nonregression: PASS');
