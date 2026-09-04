@@ -31,6 +31,9 @@ assert.strictEqual(starter.spatial.status,'FIABLE');
 assert.strictEqual(starter.spatial.projectedObservations,4);
 assert.strictEqual(starter.spatial.heatmaps.length,1);
 assert.strictEqual(starter.spatial.heatmaps[0].observations,4);
+assert.strictEqual(starter.spatial.coherentWindowCount,1);
+assert.strictEqual(starter.spatial.excludedGeometryWindowCount,0);
+assert.deepStrictEqual(starter.spatial.heatmap.sourceWindowIndexes,[0]);
 assert.ok(starter.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.time<=29));
 assert.ok(starter.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.x<=3));
 
@@ -69,6 +72,38 @@ const spatialOnly=Pipeline.build({
   heatmapOptions:{minMetricCoverage:.5,minCalibrationConfidence:.5,maxDwellGapSec:1}
 });
 assert.strictEqual(spatialOnly.spatial.status,'FIABLE');
-assert.strictEqual(spatialOnly.spatial.trajectory.policy,'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION');
+assert.strictEqual(spatialOnly.spatial.trajectory.policy,'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN');
+
+function spatialWindow(index,pitchLengthM,pitchWidthM,x,timeValue){
+  return {index,startMs:index*10000,endMs:index*10000+9000,spatial:{
+    status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,rows:2,cols:2,observations:1,
+    cells:[[1,0],[0,0]],timeCells:[[timeValue,0],[0,0]],normalizedCells:[[1,0],[0,0]],
+    trajectory:{runs:[[{x,y:20,time:index*10,segment:index}]]},metricCoverage:1,temporalCoverage:1,quality:'FIABLE'
+  }};
+}
+const mixed=Pipeline.summarizeSpatial([
+  spatialWindow(0,100,64,90,9),
+  spatialWindow(1,105,68,11,1),
+  spatialWindow(2,105,68,41,2)
+]);
+assert.strictEqual(mixed.status,'PARTIEL','mixed pitch geometries must never be published as fully reliable');
+assert.strictEqual(mixed.availableWindowCount,3);
+assert.strictEqual(mixed.coherentWindowCount,2);
+assert.strictEqual(mixed.renderedWindowCount,2);
+assert.strictEqual(mixed.excludedGeometryWindowCount,1);
+assert.strictEqual(mixed.geometry.pitchLengthM,105);
+assert.strictEqual(mixed.geometry.pitchWidthM,68);
+assert.deepStrictEqual(mixed.geometry.sourceWindowIndexes,[1,2]);
+assert.deepStrictEqual(mixed.heatmap.sourceWindowIndexes,[1,2]);
+assert.deepStrictEqual(mixed.heatmap.cells,[[3,0],[0,0]],'only the dominant coherent geometry may contribute to the merged heatmap');
+assert.deepStrictEqual(mixed.trajectory.sourceWindowIndexes,[1,2]);
+assert.strictEqual(mixed.trajectory.runs.length,2);
+assert.ok(!mixed.trajectory.runs.flatMap(run=>run.points).some(point=>point.x===90),'incompatible geometry trajectory must be excluded in the shared pipeline');
+assert.match(mixed.coverageNote,/géométrie est incompatible/i);
+
+const missingGeometry=Pipeline.summarizeSpatial([{index:0,startMs:0,endMs:1000,spatial:{status:'DISPONIBLE',trajectory:{runs:[[{x:1,y:1,time:0}]]},cells:[[1]],timeCells:[[1]],rows:1,cols:1}}]);
+assert.strictEqual(missingGeometry.status,'INDISPONIBLE','pitch dimensions are required before spatial publication');
+assert.strictEqual(missingGeometry.heatmap,null);
+assert.strictEqual(missingGeometry.trajectory.runs.length,0);
 
 console.log('roster_metric_pipeline_nonregression: ok');
