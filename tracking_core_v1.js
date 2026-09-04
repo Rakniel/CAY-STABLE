@@ -66,6 +66,42 @@
     const catPenalty=track.cat===d.cat?0:((track.cat==='goalkeeper'||d.cat==='goalkeeper')?.55:.16);
     return spatial*2.65+appearance*.60+catPenalty+Math.min(.25,track.missed*.05);
   }
+  function assignmentSignature(pairs){
+    return (pairs||[]).map(p=>`${p.ti}:${p.di}`).join('|');
+  }
+  function betterAssignment(candidate,current){
+    if(!current)return candidate;
+    if(candidate.matches!==current.matches)return candidate.matches>current.matches?candidate:current;
+    if(Math.abs(candidate.cost-current.cost)>1e-12)return candidate.cost<current.cost?candidate:current;
+    return assignmentSignature(candidate.pairs)<assignmentSignature(current.pairs)?candidate:current;
+  }
+  function selectGlobalAssignment(pairs,trackCount,detectionCount){
+    const tracks=Math.max(0,Math.floor(Number(trackCount)||0));
+    const detections=Math.max(0,Math.min(11,Math.floor(Number(detectionCount)||0)));
+    if(!tracks||!detections||!Array.isArray(pairs)||!pairs.length)return [];
+    const byTrack=Array.from({length:tracks},()=>[]);
+    for(const p of pairs){
+      if(!p||!Number.isInteger(p.ti)||!Number.isInteger(p.di)||p.ti<0||p.ti>=tracks||p.di<0||p.di>=detections||!Number.isFinite(Number(p.cost)))continue;
+      byTrack[p.ti].push({ti:p.ti,di:p.di,cost:Number(p.cost)});
+    }
+    for(const rows of byTrack)rows.sort((a,b)=>a.di-b.di||a.cost-b.cost);
+    const memo=new Map();
+    function solve(ti,mask){
+      if(ti>=tracks)return {matches:0,cost:0,pairs:[]};
+      const key=`${ti}:${mask}`;
+      if(memo.has(key))return memo.get(key);
+      const skipped=solve(ti+1,mask);
+      let best={matches:skipped.matches,cost:skipped.cost,pairs:skipped.pairs};
+      for(const p of byTrack[ti]){
+        const bit=1<<p.di;if(mask&bit)continue;
+        const tail=solve(ti+1,mask|bit);
+        const candidate={matches:tail.matches+1,cost:tail.cost+p.cost,pairs:[p,...tail.pairs]};
+        best=betterAssignment(candidate,best);
+      }
+      memo.set(key,best);return best;
+    }
+    return solve(0,0).pairs;
+  }
   function createState(){
     return {nextGlobalId:1,segment:1,segments:1,active:[],archive:[],created:0,totalMatches:0,maxVisible:0,skippedWeak:0,reidentified:0,manualMerges:0,reidRejectedAmbiguous:0,reidRejectedStale:0,reidRejectedLowScore:0};
   }
@@ -180,10 +216,9 @@
         if(cost<=threshold)pairs.push({ti,di,cost});
       }
     }
-    pairs.sort((a,b)=>a.cost-b.cost);
+    const selectedPairs=selectGlobalAssignment(pairs,state.active.length,dets.length);
     const usedT=new Set(),usedD=new Set(),assigned=[];
-    for(const p of pairs){
-      if(usedT.has(p.ti)||usedD.has(p.di))continue;
+    for(const p of selectedPairs){
       const tr=state.active[p.ti],d=dets[p.di]; usedT.add(p.ti);usedD.add(p.di);
       const point=pointFor(state,d,t);
       tr.cat=d.cat||tr.cat; updateTrackAppearance(tr,d.feature,d.score,opts);
@@ -283,5 +318,5 @@
     const tracks=allUniqueTracks(state).filter(tr=>tr.cayIdentityConfirmed!==false).map(summarizeTrack).sort((a,b)=>a.id-b.id);
     return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,reidRejectedLowScore:state.reidRejectedLowScore||0,tracks};
   }
-  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,galleryAppearanceDistance,reidCandidateScore,smoothAppearance,updateTrackAppearance};
+  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,galleryAppearanceDistance,reidCandidateScore,smoothAppearance,updateTrackAppearance,selectGlobalAssignment};
 });
