@@ -35,8 +35,9 @@
       const allValid=(record.keyframes||[]).filter(k=>k.validated&&k.projector&&typeof k.projector.project==='function').sort((a,b)=>a.time-b.time);
       if(!allValid.length)return null;
       const reliable=allValid.filter(k=>finite(k.confidence)&&Number(k.confidence)>=MIN_DYNAMIC_KEYFRAME_CONFIDENCE);
-      const valid=reliable.length?reliable:allValid;
-      const lowConfidenceKeyframesRejected=reliable.length?allValid.length-reliable.length:0;
+      if(!reliable.length)return null;
+      const valid=reliable;
+      const lowConfidenceKeyframesRejected=allValid.length-reliable.length;
       const maxAge=finite(record.maxCalibrationAgeSec)?Math.max(.02,Number(record.maxCalibrationAgeSec)):.35;
       const avgConfidence=valid.reduce((s,k)=>s+k.confidence,0)/valid.length;
       return {
@@ -179,7 +180,8 @@
       record.dynamicCamera=true;
       record.source='temporal_calibration_keyframes';
       record.validation={...(record.validation||{}),dynamicCamera:true,maxCalibrationAgeSec:record.maxCalibrationAgeSec,temporalBlend:'PROJECTED_POINT_LINEAR_BLEND_BETWEEN_VALIDATED_KEYFRAMES'};
-      return {ok:!!temporalProjector(record),record:safeRecord(record),reason:temporalProjector(record)?null:'aucun keyframe de calibration validé'};
+      const temporal=temporalProjector(record);
+      return {ok:!!temporal,record:safeRecord(record),reason:temporal?null:'aucun keyframe de calibration avec confiance suffisante'};
     }
 
     function addCalibrationKeyframe(segment,time,options={}){
@@ -240,12 +242,12 @@
         calibrationKeyframes:dynamic.reduce((s,r)=>s+r.calibrationKeyframes.length,0),
         avgConfidence:validated.length?+(validated.reduce((s,r)=>s+r.confidence,0)/validated.length).toFixed(3):0,
         policy:'CALIBRATION_EXACTE_PAR_SEGMENT_SANS_REUTILISATION_SILENCIEUSE_ENTRE_PLANS',
-        dynamicPolicy:'CAMERA_DYNAMIQUE=KEYFRAMES_VALIDES; SI_AU_MOINS_UNE_KEYFRAME_CONFIANCE_GE_0_5_EXISTE_LES_KEYFRAMES_FAIBLES_SONT_EXCLUES; AGE_MAX_STRICT; INTERPOLATION UNIQUEMENT EN ESPACE PROJETE ENTRE KEYFRAMES ELIGIBLES; SINON_PROJECTION_INDISPONIBLE'
+        dynamicPolicy:'CAMERA_DYNAMIQUE=AU_MOINS_UN_KEYFRAME_VALIDE_CONFIANCE_GE_0_5_REQUIS; KEYFRAMES_FAIBLES_EXCLUS; AGE_MAX_STRICT; INTERPOLATION UNIQUEMENT EN ESPACE PROJETE ENTRE KEYFRAMES ELIGIBLES; SINON_PROJECTION_INDISPONIBLE'
       };
     }
 
     return {calibrate,registerValidatedProjector,get,projectorFor,markDynamic,addCalibrationKeyframe,invalidate,exportProjectors,summary};
   }
 
-  return {VERSION:'1.3.0',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
+  return {VERSION:'1.3.1',MIN_DYNAMIC_KEYFRAME_CONFIDENCE,createRegistry};
 });
