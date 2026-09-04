@@ -154,6 +154,29 @@
     const intervals=participation.byPlayerId&&participation.byPlayerId[String(playerId)];
     return Array.isArray(intervals)&&intervals.some(interval=>time>=Number(interval.startMs)&&(interval.endMs===null||interval.endMs===undefined||time<=Number(interval.endMs)));
   }
+  function splitTrackEvidenceByParticipation(participation,playerId,trackRaw={},options={}){
+    const intervals=participation?.byPlayerId?.[String(playerId)];
+    if(!Array.isArray(intervals))throw new Error('PARTICIPATION_PLAYER_UNKNOWN');
+    const scale=options.timeScaleMs==null?1000:Number(options.timeScaleMs);
+    if(!Number.isFinite(scale)||scale<=0)throw new Error('PARTICIPATION_TIME_SCALE_INVALID');
+    const path=Array.isArray(trackRaw?.fullPath)?trackRaw.fullPath:[];
+    const windows=intervals.map((interval,index)=>({
+      index,
+      startMs:Number(interval.startMs),
+      endMs:interval.endMs===null||interval.endMs===undefined?null:Number(interval.endMs),
+      track:{...trackRaw,fullPath:[]}
+    }));
+    let acceptedObservations=0,rejectedObservations=0,invalidTimeObservations=0;
+    for(const point of path){
+      const time=Number(point?.time);
+      if(!Number.isFinite(time)){invalidTimeObservations++;rejectedObservations++;continue;}
+      const atMs=time*scale;
+      const target=windows.find(window=>atMs>=window.startMs&&(window.endMs===null||atMs<=window.endMs));
+      if(!target){rejectedObservations++;continue;}
+      target.track.fullPath.push(point);acceptedObservations++;
+    }
+    return {playerId:String(playerId),windows,acceptedObservations,rejectedObservations,invalidTimeObservations,totalObservations:path.length,timeScaleMs:scale,policy:'SEPARATE_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_METRIC_JOIN',source:'ROSTER_PARTICIPATION_TRACK_FILTER_V1'};
+  }
   function createAnalysisProfile(raw={}){
     const settings=raw.settings||{};
     const trackingSensitivity=settings.trackingSensitivity==null?.7:settings.trackingSensitivity;
@@ -187,5 +210,5 @@
     const complete=checks.filter(x=>x[1]).length;
     return {ready:complete===checks.length,completion:+(complete/checks.length).toFixed(3),missing:checks.filter(x=>!x[1]).map(x=>x[0]),lineup,kitSelection,selectedKitId:kitSelection.selectedKitId,uxRule:'MINIMUM_REQUIRED_FIELDS_ONLY',targetSetupMinutes:20};
   }
-  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,validateMatchParticipants,createMatchState,applySubstitution,deriveParticipationWindows,isPlayerActiveAt,createAnalysisProfile,createPreferences,resolveActiveKit,setupReadiness};
+  return {POSITIONS:[...POSITIONS],PLAYER_STATUS:[...PLAYER_STATUS],rejectSecrets,createUser,createClub,createSeason,createKit,createPlayer,createTeam,validateLineup,validateMatchParticipants,createMatchState,applySubstitution,deriveParticipationWindows,isPlayerActiveAt,splitTrackEvidenceByParticipation,createAnalysisProfile,createPreferences,resolveActiveKit,setupReadiness};
 });

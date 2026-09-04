@@ -95,6 +95,21 @@ ok(app.isPlayerActiveAt(participation,'11',30001)===false,'starter inactive afte
 ok(app.isPlayerActiveAt(participation,'12',45000)===true,'substitute active only inside participation window');
 ok(app.isPlayerActiveAt(participation,'13',59999)===false,'future substitute excluded before entry');
 ok(participation.finalActivePlayerIds.length===11,'participation replay preserves maximum active team state');
+const starterTrack={globalId:11,fullPath:[{time:29.5,segment:1,x:.1,y:.1},{time:30,segment:1,x:.2,y:.2},{time:30.5,segment:1,x:.3,y:.3}]};
+const starterSplit=app.splitTrackEvidenceByParticipation(participation,'11',starterTrack);
+ok(starterSplit.acceptedObservations===2,'starter track keeps only points through confirmed exit');
+ok(starterSplit.rejectedObservations===1,'starter track rejects point after confirmed exit');
+eq(starterSplit.windows[0].track.fullPath.map(p=>p.time),[29.5,30],'starter metric evidence is bounded by participation window');
+const rollingParticipation={...participation,byPlayerId:{...participation.byPlayerId,'12':[{startMs:10000,endMs:20000},{startMs:40000,endMs:50000}]}};
+const rollingTrack={globalId:12,fullPath:[{time:15,segment:1,x:.1,y:.1},{time:25,segment:1,x:.2,y:.2},{time:45,segment:1,x:.3,y:.3}]};
+const rollingSplit=app.splitTrackEvidenceByParticipation(rollingParticipation,'12',rollingTrack);
+ok(rollingSplit.windows.length===2,'separate participation windows remain separate metric inputs');
+eq(rollingSplit.windows.map(w=>w.track.fullPath.map(p=>p.time)),[[15],[45]],'no cross-window track join is created');
+ok(rollingSplit.rejectedObservations===1,'between-window observation is explicitly rejected');
+ok(rollingSplit.policy==='SEPARATE_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_METRIC_JOIN','continuity policy is explicit');
+let invalidScale=false;
+try{app.splitTrackEvidenceByParticipation(participation,'11',starterTrack,{timeScaleMs:0});}catch(e){invalidScale=e.message==='PARTICIPATION_TIME_SCALE_INVALID';}
+ok(invalidScale,'invalid time unit conversion fails closed');
 let inconsistentHistory=false;
 try{app.deriveParticipationWindows(team,{...matchState,substitutions:[...matchState.substitutions].reverse()},90000);}catch(e){inconsistentHistory=/SUBSTITUTION_TIME_REGRESSION/.test(e.message);}
 ok(inconsistentHistory,'out-of-order substitution history rejected');
