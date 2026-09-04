@@ -47,16 +47,44 @@ assert.equal(metricCard.pitchVisuals.coordinateSystem,'PITCH_METERS');
 assert.equal(metricCard.pitchVisuals.metricCoverage,80);
 assert.equal(metricCard.pitchVisuals.pitchLengthM,105,'pitch geometry comes from roster-bound spatial evidence, not legacy raw visuals');
 assert.equal(metricCard.pitchVisuals.pitchWidthM,68);
+assert.equal(metricCard.pitchVisuals.quality,'FIABLE');
+assert.equal(metricCard.pitchVisuals.renderedWindowCount,2);
+assert.equal(metricCard.pitchVisuals.excludedGeometryWindowCount,0);
 assert.equal(metricCard.pitchVisuals.trajectory.runs.length,2,'participation windows remain separate');
 assert.equal(metricCard.pitchVisuals.trajectory.runs[0][0].x,10);
 assert.equal(metricCard.pitchVisuals.trajectory.runs[1][0].x,40);
 assert.deepEqual(metricCard.pitchVisuals.heatmap.cells,[[1,0],[0,2]],'heatmaps aggregate only confirmed participation windows');
 assert.deepEqual(metricCard.pitchVisuals.heatmap.normalizedCells,[[.5,0],[0,1]]);
+assert.deepEqual(metricCard.pitchVisuals.heatmap.sourceWindowIndexes,[0,1]);
 assert.equal(metricCard.pitchVisuals.heatmap.heatmapBasis,'TIME_WEIGHTED_CONFIRMED_PARTICIPATION');
 
 const partial=VM.buildCard({...report.players[0],metric:{metricCoverage:.5,distanceM:10,avgSpeedKmh:4,maxSpeedKmh:8,sprintCount:0,quality:'PARTIEL',rosterBound:true},rosterMetric:{...rosterMetric,spatial:{...rosterMetric.spatial,status:'PARTIEL'}}});
 assert.equal(partial.pitchVisuals.status,'DISPONIBLE','partial but defensible roster spatial evidence remains publishable');
 assert.equal(partial.pitchVisuals.quality,'PARTIEL');
+
+const mixedGeometryMetric={status:'FIABLE',spatial:{status:'FIABLE',participationWindowCount:3,availableWindowCount:3,trajectory:{status:'FIABLE',coordinateSystem:'PITCH_METERS',runs:[
+  {windowIndex:0,startMs:0,endMs:10000,points:[{x:90,y:50,time:5}]},
+  {windowIndex:1,startMs:20000,endMs:30000,points:[{x:11,y:21,time:25}]},
+  {windowIndex:2,startMs:40000,endMs:50000,points:[{x:41,y:31,time:45}]}
+]},heatmaps:[
+  {windowIndex:0,pitchLengthM:100,pitchWidthM:64,rows:2,cols:2,cells:[[9,0],[0,0]],timeCells:[[9,0],[0,0]]},
+  {windowIndex:1,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[1,0],[0,0]],timeCells:[[1,0],[0,0]]},
+  {windowIndex:2,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[0,0],[0,2]],timeCells:[[0,0],[0,2]]}
+]}};
+const mixed=VM.buildCard({...report.players[0],metric:{metricCoverage:.8,distanceM:100,avgSpeedKmh:8,maxSpeedKmh:20,sprintCount:1,quality:'FIABLE',rosterBound:true},rosterMetric:mixedGeometryMetric});
+assert.equal(mixed.pitchVisuals.status,'DISPONIBLE','dominant coherent geometry remains usable');
+assert.equal(mixed.pitchVisuals.quality,'PARTIEL','dropping an incompatible pitch geometry must be explicit');
+assert.equal(mixed.pitchVisuals.pitchLengthM,105,'largest coherent geometry group must win instead of blindly trusting the first window');
+assert.equal(mixed.pitchVisuals.pitchWidthM,68);
+assert.equal(mixed.pitchVisuals.renderedWindowCount,2);
+assert.equal(mixed.pitchVisuals.excludedGeometryWindowCount,1);
+assert.deepEqual(mixed.pitchVisuals.heatmap.sourceWindowIndexes,[1,2]);
+assert.deepEqual(mixed.pitchVisuals.heatmap.cells,[[1,0],[0,2]],'incompatible geometry must not contaminate the heatmap');
+assert.equal(mixed.pitchVisuals.trajectory.runs.length,2,'trajectory must be filtered to the same geometry windows as the heatmap');
+assert.equal(mixed.pitchVisuals.trajectory.runs[0][0].x,11);
+assert.equal(mixed.pitchVisuals.trajectory.runs[1][0].x,41);
+assert(!mixed.pitchVisuals.trajectory.runs.flat().some(p=>p.x===90),'mismatched pitch geometry trajectory point must never be rendered on the dominant pitch');
+assert.match(mixed.pitchVisuals.coverageNote,/géométrie est incompatible/i);
 
 const zeroValue=VM.metricValue({metricCoverage:.5,sprintCount:0,quality:'PARTIEL',rosterBound:true},'sprintCount','Sprints');
 assert.equal(zeroValue.status,'PARTIEL');
