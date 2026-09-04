@@ -1,8 +1,12 @@
 (function(root,factory){
-  const api=factory(typeof module==='object'&&module.exports?require('./app_domain_models_v1.js'):root.CAYAppDomainModels);
+  const api=factory(
+    typeof module==='object'&&module.exports?require('./app_domain_models_v1.js'):root.CAYAppDomainModels,
+    typeof module==='object'&&module.exports?require('./stable_tracking_bridge_v1.js'):root.CAYStableTrackingBridge,
+    typeof module==='object'&&module.exports?require('./roster_metric_pipeline_v1.js'):root.CAYRosterMetricPipeline
+  );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYPlayerCardRosterBinding=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Domain){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Domain,Bridge,RosterMetricPipeline){
 'use strict';
 const clean=v=>String(v==null?'':v).trim();
 const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
@@ -47,5 +51,45 @@ function enrichModel(model,context){
   const players=model.players.map(card=>({...card,roster:cardRoster(card,index,ctx)}));
   return {...model,players,rosterBinding:{quality:index.quality,accepted:index.accepted.length,rejected:index.rejected.length,teamId:index.team&&index.team.id||null,policy:index.policy}};
 }
-return {normalizeTrackId,normalizeBinding,buildIndex,cardRoster,enrichModel};
+function findTrack(state,id){
+  const wanted=clean(id);
+  return [...(state?.archive||[]),...(state?.active||[])].find(track=>clean(track?.globalId??track?.id)===wanted)||null;
+}
+function unavailableMetric(reason){
+  return {metricCoverage:0,metricCoveredSeconds:0,eligibleSeconds:0,distanceM:null,rawDistanceM:null,avgSpeedKmh:null,maxSpeedKmh:null,sprintCount:null,quality:'INDISPONIBLE',reason:reason||'association roster et participation requises',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'};
+}
+function attachRosterMetrics(report,state,projectors,rosterContext){
+  if(!report||!Array.isArray(report.players))return report;
+  const ctx=rosterContext||{},canBuild=RosterMetricPipeline&&typeof RosterMetricPipeline.build==='function'&&ctx.bindingState&&ctx.participation;
+  let reliable=0;
+  const players=report.players.map(player=>{
+    const track=findTrack(state,player?.id);
+    let rosterMetric=null;
+    if(canBuild&&track){
+      rosterMetric=RosterMetricPipeline.build({trackId:player.id,trackRaw:track,bindingState:ctx.bindingState,participation:ctx.participation,projectors:projectors||{},timeScaleMs:ctx.timeScaleMs==null?1000:ctx.timeScaleMs});
+    }
+    const metric=rosterMetric&&rosterMetric.status==='FIABLE'&&rosterMetric.metric
+      ?{...rosterMetric.metric,reason:null,rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'}
+      :unavailableMetric(rosterMetric?.reason||(track?'association roster/participation non fournie':'tracking joueur absent'));
+    if(metric.quality==='FIABLE')reliable++;
+    return {...player,metric,rosterMetric,quality:{...(player.quality||{}),metricDistance:metric.quality,metricSpeed:metric.quality,sprints:metric.quality}};
+  });
+  return {...report,players,rosterMetricRuntime:{status:reliable?'DISPONIBLE':'INDISPONIBLE',reliablePlayers:reliable,totalPlayers:players.length,policy:'FICHES_JOUEURS_METRIQUES_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_ET_FENETRES_DE_PARTICIPATION_CONFIRMEES'}};
+}
+function patchBridge(){
+  if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayPlayerCardRosterMetricPatched===true)return false;
+  const baseCreate=Bridge.create.bind(Bridge);
+  Bridge.create=function(options){
+    const instance=baseCreate(options),baseReport=instance.report.bind(instance);
+    instance.report=function(projectors,visualOptions){
+      const report=baseReport(projectors,visualOptions),ctx=visualOptions&&visualOptions.rosterContext||null;
+      return attachRosterMetrics(report,instance.state,projectors||{},ctx);
+    };
+    return instance;
+  };
+  Bridge.__cayPlayerCardRosterMetricPatched=true;
+  return true;
+}
+patchBridge();
+return {normalizeTrackId,normalizeBinding,buildIndex,cardRoster,enrichModel,findTrack,unavailableMetric,attachRosterMetrics,patchBridge};
 });
