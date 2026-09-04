@@ -46,12 +46,59 @@
     };
   }
 
+  function samePitch(a,b){
+    return finite(a?.pitchLengthM)&&finite(a?.pitchWidthM)&&finite(b?.pitchLengthM)&&finite(b?.pitchWidthM)&&
+      Math.abs(Number(a.pitchLengthM)-Number(b.pitchLengthM))<1e-6&&
+      Math.abs(Number(a.pitchWidthM)-Number(b.pitchWidthM))<1e-6;
+  }
+
+  function matrixOk(matrix,rows,cols){
+    return Array.isArray(matrix)&&matrix.length===rows&&matrix.every(row=>Array.isArray(row)&&row.length===cols&&row.every(finite));
+  }
+
+  function dominantGeometryGroup(windows){
+    const groups=[];
+    for(const window of Array.isArray(windows)?windows:[]){
+      const spatial=window?.spatial;
+      const rows=Number(spatial?.rows),cols=Number(spatial?.cols);
+      if(spatial?.status!=='DISPONIBLE'||!Number.isInteger(rows)||!Number.isInteger(cols)||rows<=0||cols<=0||!finite(spatial?.pitchLengthM)||!finite(spatial?.pitchWidthM))continue;
+      let group=groups.find(item=>item.rows===rows&&item.cols===cols&&samePitch(item.first.spatial,spatial));
+      if(!group){group={first:window,rows,cols,items:[],firstOrder:groups.length};groups.push(group);}
+      group.items.push(window);
+    }
+    groups.sort((a,b)=>b.items.length-a.items.length||a.firstOrder-b.firstOrder);
+    return groups[0]||null;
+  }
+
+  function mergeHeatmaps(heatmaps){
+    const rowsIn=Array.isArray(heatmaps)?heatmaps:[];
+    if(!rowsIn.length)return null;
+    const first=rowsIn[0],rows=Number(first.rows),cols=Number(first.cols);
+    if(!Number.isInteger(rows)||!Number.isInteger(cols)||rows<=0||cols<=0||!finite(first.pitchLengthM)||!finite(first.pitchWidthM))return null;
+    if(!rowsIn.every(h=>Number(h.rows)===rows&&Number(h.cols)===cols&&samePitch(first,h)))return null;
+    const useTime=rowsIn.every(h=>matrixOk(h.timeCells,rows,cols));
+    const key=useTime?'timeCells':'cells';
+    if(!rowsIn.every(h=>matrixOk(h[key],rows,cols)))return null;
+    const cells=Array.from({length:rows},()=>Array(cols).fill(0));
+    for(const h of rowsIn)for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)cells[y][x]+=Number(h[key][y][x]);
+    const max=Math.max(0,...cells.flat());
+    return {
+      status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:Number(first.pitchLengthM),pitchWidthM:Number(first.pitchWidthM),
+      rows,cols,cells,normalizedCells:cells.map(row=>row.map(v=>max>0?v/max:0)),windowCount:rowsIn.length,
+      sourceWindowIndexes:rowsIn.map(h=>h.windowIndex).filter(v=>v!==null&&v!==undefined),
+      heatmapBasis:useTime?'TIME_WEIGHTED_CONFIRMED_PARTICIPATION':'OBSERVATION_COUNT_CONFIRMED_PARTICIPATION',
+      policy:'AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE'
+    };
+  }
+
   function summarizeSpatial(windows){
-    const available=windows.filter(window=>window?.spatial?.status==='DISPONIBLE');
-    const status=available.length===0?'INDISPONIBLE':available.length===windows.length?'FIABLE':'PARTIEL';
+    const all=Array.isArray(windows)?windows:[];
+    const available=all.filter(window=>window?.spatial?.status==='DISPONIBLE');
+    const dominant=dominantGeometryGroup(available);
+    const coherent=dominant?dominant.items:[];
     const trajectoryRuns=[];
     const heatmapWindows=[];
-    for(const window of available){
+    for(const window of coherent){
       const spatial=window.spatial;
       const runs=Array.isArray(spatial?.trajectory?.runs)?spatial.trajectory.runs:[];
       for(const points of runs)trajectoryRuns.push({windowIndex:window.index,startMs:window.startMs,endMs:window.endMs,points});
@@ -63,15 +110,28 @@
         temporalCoverage:spatial.temporalCoverage,quality:spatial.quality
       });
     }
+    const heatmap=mergeHeatmaps(heatmapWindows);
+    const coherentWindowCount=coherent.length;
+    const availableWindowCount=available.length;
+    const excludedGeometryWindowCount=Math.max(0,availableWindowCount-coherentWindowCount);
+    const complete=coherentWindowCount>0&&coherentWindowCount===all.length&&excludedGeometryWindowCount===0;
+    const status=coherentWindowCount===0||!heatmap?'INDISPONIBLE':complete?'FIABLE':'PARTIEL';
+    const geometry=dominant?{
+      coordinateSystem:'PITCH_METERS',pitchLengthM:Number(dominant.first.spatial.pitchLengthM),pitchWidthM:Number(dominant.first.spatial.pitchWidthM),
+      rows:dominant.rows,cols:dominant.cols,sourceWindowIndexes:coherent.map(window=>window.index)
+    }:null;
     return {
       status,
-      reason:status==='INDISPONIBLE'?'aucune trajectoire/heatmap terrain défendable dans les fenêtres de participation confirmées':null,
-      availableWindowCount:available.length,
-      participationWindowCount:windows.length,
-      projectedObservations:available.reduce((acc,window)=>acc+(Number(window?.spatial?.observations)||0),0),
-      trajectory:{status,coordinateSystem:'PITCH_METERS',runs:trajectoryRuns,policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION'},
+      reason:status==='INDISPONIBLE'?'aucune trajectoire/heatmap terrain sur une géométrie cohérente et défendable dans les fenêtres de participation confirmées':null,
+      coverageNote:excludedGeometryWindowCount>0?'certaines fenêtres terrain ont été exclues car leur géométrie est incompatible avec le référentiel dominant':null,
+      availableWindowCount,coherentWindowCount,renderedWindowCount:coherentWindowCount,excludedGeometryWindowCount,
+      participationWindowCount:all.length,
+      projectedObservations:coherent.reduce((acc,window)=>acc+(Number(window?.spatial?.observations)||0),0),
+      geometry,
+      trajectory:{status:coherentWindowCount?status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',runs:trajectoryRuns,sourceWindowIndexes:coherent.map(window=>window.index),policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'},
+      heatmap,
       heatmaps:heatmapWindows,
-      policy:'SPATIAL_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN'
+      policy:'SPATIAL_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_AND_ONE_COHERENT_PITCH_GEOMETRY'
     };
   }
 
@@ -112,5 +172,5 @@
     };
   }
 
-  return {build,aggregateMetrics,summarizeSpatial,unavailable};
+  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,dominantGeometryGroup,mergeHeatmaps};
 });
