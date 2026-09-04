@@ -29,6 +29,10 @@
     if(!registry||typeof registry.registerValidatedProjector!=='function')return {ok:false,reason:'enregistrement projecteur validé indisponible'};
     return registry.registerValidatedProjector(segment,projector,options||{});
   }
+  function registerValidatedKeyframe(segment,time,projector,options){
+    if(!registry||typeof registry.registerValidatedKeyframe!=='function')return {ok:false,reason:'enregistrement keyframe validée indisponible'};
+    return registry.registerValidatedKeyframe(segment,time,projector,options||{});
+  }
   function calibrateSemanticSegment(segment,keypoints,options={}){
     if(!finiteInt(segment))return {ok:false,status:'REJECTED',reason:'segment invalide',registered:false};
     if(!SemanticCalibration||typeof SemanticCalibration.evaluate!=='function')return {ok:false,status:'INDISPONIBLE',reason:'moteur calibration sémantique indisponible',registered:false};
@@ -37,27 +41,48 @@
       return {ok:false,status:result?.status||'INDISPONIBLE',reason:result?.reason||'calibration sémantique non validée',registered:false,visibleKeypoints:result?.visibleKeypoints??0,calibration:result||null};
     }
     if(!finite(result.projector.confidence))return {ok:false,status:'REJECTED',reason:'confiance calibration explicite requise',registered:false,visibleKeypoints:result.visibleKeypoints??0,calibration:result};
-    const registration=registerValidatedProjector(segment,result.projector,{
-      source:'semantic_pitch_keypoints_v2',
-      createdAt:finite(options.time)?Number(options.time):(finite(options.createdAt)?Number(options.createdAt):null),
-      shotId:options.shotId,
-      maxCalibrationAgeSec:options.maxCalibrationAgeSec,
-      semanticCalibration:{
-        version:SemanticCalibration.VERSION||null,
-        visibleKeypoints:result.visibleKeypoints??null,
-        keypointIndices:Array.isArray(result.keypointIndices)?result.keypointIndices.slice():[],
-        calibrationInput:result.calibrationInput||'SEMANTIC_PITCH_KEYPOINTS',
-        legacyFreePolygonUsed:result.legacyFreePolygonUsed===true,
-        sourceConfidence:result.sourceConfidence||null,
-        geometricSupport:result.geometricSupport||null,
-        provenance:result.provenance||null
-      }
-    });
+    const calibrationTime=finite(options.time)?Number(options.time):(finite(options.createdAt)?Number(options.createdAt):null);
+    const semanticCalibration={
+      version:SemanticCalibration.VERSION||null,
+      visibleKeypoints:result.visibleKeypoints??null,
+      keypointIndices:Array.isArray(result.keypointIndices)?result.keypointIndices.slice():[],
+      calibrationInput:result.calibrationInput||'SEMANTIC_PITCH_KEYPOINTS',
+      legacyFreePolygonUsed:result.legacyFreePolygonUsed===true,
+      sourceConfidence:result.sourceConfidence||null,
+      geometricSupport:result.geometricSupport||null,
+      provenance:result.provenance||null
+    };
+    const existing=registry&&typeof registry.get==='function'?registry.get(segment):null;
+    if(existing&&calibrationTime===null){
+      return {ok:false,status:'REJECTED',reason:'temps calibration requis pour rafraîchir un segment existant',registered:false,visibleKeypoints:result.visibleKeypoints??0,calibration:result};
+    }
+    const registration=existing
+      ?registerValidatedKeyframe(segment,calibrationTime,result.projector,{
+        source:'semantic_pitch_keypoints_v2',
+        shotId:options.shotId,
+        maxCalibrationAgeSec:options.maxCalibrationAgeSec,
+        kind:'semantic_pitch_keypoints_v2_refresh',
+        semanticCalibration
+      })
+      :registerValidatedProjector(segment,result.projector,{
+        source:'semantic_pitch_keypoints_v2',
+        createdAt:calibrationTime,
+        shotId:options.shotId,
+        maxCalibrationAgeSec:options.maxCalibrationAgeSec,
+        semanticCalibration
+      });
+    const metricEligible=existing?registration.eligible!==false:registration.ok===true;
+    const status=registration.ok===true
+      ?(existing?(metricEligible?'REGISTERED_VALIDATED_SEMANTIC_KEYFRAME':'REGISTERED_DIAGNOSTIC_SEMANTIC_KEYFRAME'):'REGISTERED_VALIDATED_SEMANTIC_CALIBRATION')
+      :'REJECTED';
     return {
       ok:registration.ok===true,
-      status:registration.ok===true?'REGISTERED_VALIDATED_SEMANTIC_CALIBRATION':'REJECTED',
+      status,
       reason:registration.reason||null,
       registered:registration.ok===true,
+      metricEligible,
+      dynamicRefresh:!!existing,
+      projectorAvailable:existing?registration.projectorAvailable!==false:registration.ok===true,
       visibleKeypoints:result.visibleKeypoints??0,
       confidence:Number(result.projector.confidence),
       record:registration.record||null,
@@ -79,5 +104,5 @@
     return {...report,players,observedVisualsPolicy:'TRAJECTOIRE_ET_HEATMAP_CAMERA_DISPONIBLES_SANS_CALIBRATION; JAMAIS_INTERPRETEES_COMME_COORDONNEES_TERRAIN',metricVisualsPolicy:'TRAJECTOIRES_ET_HEATMAPS_TERRAIN_UNIQUEMENT_SUR_PROJECTION_METRIQUE_VALIDEE_AVEC_CONFIANCE_EXPLICITE; SINON INDISPONIBLE'};
   }
   function patchBridge(){if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayMetricVisualsPatched===true)return false;const baseCreate=Bridge.create.bind(Bridge);Bridge.create=function(options){const instance=baseCreate(options),baseReport=instance.report.bind(instance);instance.report=function(projectors,visualOptions){const resolved=resolveProjectors(projectors);return attachMetricVisuals(baseReport(resolved),instance.state,resolved,visualOptions||{});};return instance;};Bridge.__cayMetricVisualsPatched=true;return true;}
-  patchBridge();return {attachMetricVisuals,patchBridge,findTrack,hasExplicitCalibrationConfidence,unavailableVisuals,observedFor,registry,calibrateSegment,registerValidatedProjector,calibrateSemanticSegment,invalidateSegment,exportProjectors,resolveProjectors,metricRegistrySummary};
+  patchBridge();return {attachMetricVisuals,patchBridge,findTrack,hasExplicitCalibrationConfidence,unavailableVisuals,observedFor,registry,calibrateSegment,registerValidatedProjector,registerValidatedKeyframe,calibrateSemanticSegment,invalidateSegment,exportProjectors,resolveProjectors,metricRegistrySummary};
 });
