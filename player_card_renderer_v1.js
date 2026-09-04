@@ -62,10 +62,15 @@ function explainUnavailable(card){
   if(!reasons.length)return '';
   return '<div aria-label="raison métriques indisponibles" style="margin-top:9px;padding:8px 10px;border-radius:9px;background:rgba(141,16,24,.12);border:1px solid rgba(205,31,45,.28);font-size:10px;line-height:1.35"><b style="letter-spacing:.05em">POUR DÉBLOQUER LES STATS TERRAIN</b><br><span style="opacity:.75">'+reasons.map(esc).join(' • ')+'</span></div>';
 }
+function pitchWindowText(pitch){
+  if(pitch?.status!=='DISPONIBLE'||!finite(pitch?.participationWindowCount)||Number(pitch.participationWindowCount)<=0||!finite(pitch?.renderedWindowCount))return '';
+  const quality=String(pitch.quality||'').toUpperCase();
+  return ' • FENÊTRES '+Math.max(0,Number(pitch.renderedWindowCount))+'/'+Math.max(0,Number(pitch.participationWindowCount))+(quality==='PARTIEL'?' • PARTIEL':'');
+}
 function cardHtml(card){
   const p=card?.presence||{},obs=card?.observedVisuals||{},pitch=card?.pitchVisuals||{},m=card?.metrics||{};
   const obsLabel=obs.status==='DISPONIBLE'?'CAMÉRA • '+(p.trackingCoverage||0)+' %':'CAMÉRA INDISPONIBLE';
-  const pitchLabel=pitch.status==='DISPONIBLE'?'TERRAIN • '+(pitch.metricCoverage||0)+' %':'TERRAIN INDISPONIBLE';
+  const pitchLabel=pitch.status==='DISPONIBLE'?'TERRAIN • '+(pitch.metricCoverage||0)+' %'+pitchWindowText(pitch):'TERRAIN INDISPONIBLE';
   return '<article class="cay-player-card-v1" style="padding:14px;border-radius:14px;background:linear-gradient(145deg,#151518,#09090b);border:1px solid rgba(205,31,45,.42);box-shadow:0 8px 24px rgba(0,0,0,.22);color:#fff">'+
     '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center">'+rosterHeader(card)+badge(card?.identity?.status)+'</div>'+
     '<div style="margin-top:5px;font-size:11px;opacity:.72">'+esc(obsLabel)+' • '+esc(pitchLabel)+'</div>'+
@@ -105,5 +110,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,render,install};
+return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,pitchWindowText,render,install};
 });
