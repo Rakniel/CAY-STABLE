@@ -26,6 +26,7 @@ const accepted=runtime.calibrateSemanticSegment(3,semanticKeypoints(),{
 assert.strictEqual(accepted.ok,true,JSON.stringify({status:accepted.status,reason:accepted.reason,calibrationStatus:accepted.calibration?.status,calibrationReason:accepted.calibration?.reason}));
 assert.strictEqual(accepted.registered,true);
 assert.strictEqual(accepted.status,'REGISTERED_VALIDATED_SEMANTIC_CALIBRATION');
+assert.strictEqual(accepted.dynamicRefresh,false);
 assert.strictEqual(accepted.visibleKeypoints,32);
 assert.ok(Number.isFinite(accepted.confidence));
 
@@ -41,11 +42,45 @@ assert.ok(record,'registered semantic segment must be observable in registry dia
 assert.strictEqual(record.source,'semantic_pitch_keypoints_v2');
 assert.strictEqual(record.shotId,'shot-semantic-3');
 assert.strictEqual(record.createdAt,12.5);
+assert.strictEqual(record.dynamicCamera,false,'first semantic calibration remains the absolute segment anchor');
 assert.strictEqual(record.provenance.registration,'PREVALIDATED_PROJECTOR_FAIL_CLOSED');
 assert.strictEqual(record.provenance.upstreamValidationPreserved,true);
 assert.strictEqual(record.provenance.semanticCalibration.version,semantic.VERSION);
 assert.strictEqual(record.provenance.semanticCalibration.legacyFreePolygonUsed,false);
 assert.strictEqual(record.provenance.semanticCalibration.visibleKeypoints,32);
+
+const refresh=runtime.calibrateSemanticSegment(3,semanticKeypoints(),{
+  frameSize,
+  lengthM:105,
+  widthM:68,
+  minConfidence:.5,
+  time:12.7,
+  shotId:'shot-semantic-3'
+});
+assert.strictEqual(refresh.ok,true,JSON.stringify({status:refresh.status,reason:refresh.reason}));
+assert.strictEqual(refresh.status,'REGISTERED_VALIDATED_SEMANTIC_KEYFRAME','a repeated semantic calibration must extend the existing timeline instead of replacing it');
+assert.strictEqual(refresh.dynamicRefresh,true);
+assert.strictEqual(refresh.metricEligible,true);
+assert.strictEqual(refresh.projectorAvailable,true);
+
+const refreshedRecord=runtime.metricRegistrySummary().segments.find(x=>x.segment===3);
+assert.strictEqual(refreshedRecord.dynamicCamera,true,'semantic refresh must promote the segment to dynamic-camera calibration');
+assert.strictEqual(refreshedRecord.calibrationKeyframes.length,2,'absolute anchor + semantic refresh must both survive');
+assert.strictEqual(refreshedRecord.calibrationKeyframes[0].time,12.5);
+assert.strictEqual(refreshedRecord.calibrationKeyframes[1].time,12.7);
+assert.strictEqual(refreshedRecord.calibrationKeyframes[1].kind,'semantic_pitch_keypoints_v2_refresh');
+assert.strictEqual(runtime.metricRegistrySummary().reliableCalibrationKeyframes,2);
+const dynamicProjector=runtime.exportProjectors()[3];
+assert.strictEqual(dynamicProjector.source,'temporal_calibration_keyframes');
+const interpolated=dynamicProjector.project({x:525,y:340,time:12.6});
+assert.ok(interpolated&&Number.isFinite(interpolated.x)&&Number.isFinite(interpolated.y),'fresh semantic keyframes must provide a metric projection between anchors');
+assert.strictEqual(interpolated.calibrationKind,'interpolated_validated_keyframes');
+
+const beforeNoTime=runtime.metricRegistrySummary().segments.find(x=>x.segment===3).calibrationKeyframes.length;
+const noTimeRefresh=runtime.calibrateSemanticSegment(3,semanticKeypoints(),{frameSize,lengthM:105,widthM:68});
+assert.strictEqual(noTimeRefresh.ok,false,'an existing calibrated segment cannot be silently overwritten by an untimed refresh');
+assert.strictEqual(noTimeRefresh.status,'REJECTED');
+assert.strictEqual(runtime.metricRegistrySummary().segments.find(x=>x.segment===3).calibrationKeyframes.length,beforeNoTime,'rejected untimed refresh must preserve the timeline');
 
 const beforeRejected=runtime.metricRegistrySummary().validatedSegments;
 const weak=runtime.calibrateSemanticSegment(4,semanticKeypoints().slice(0,5),{
