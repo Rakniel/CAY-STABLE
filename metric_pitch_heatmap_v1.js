@@ -75,6 +75,7 @@
       current.push(point);
     }
     flush();
+    const continuousRuns=runs.filter(run=>run.length>=2);
     const coverage=eligible>0?projected/eligible:0;
     const confidenceCoverage=projected>0?confidenceKnown/projected:0;
     const confidenceComplete=projected>0&&confidenceKnown===projected;
@@ -82,22 +83,24 @@
     const score=confidenceComplete?coverage*avgConfidence:null;
     const minConfidence=clamp(Number(minCalibrationConfidence)||0,0,1);
     const confidenceSufficient=confidenceComplete&&avgConfidence>=minConfidence;
-    const evidenceAvailable=projected>0&&confidenceSufficient;
+    const hasContinuousMotion=continuousRuns.length>0;
+    const evidenceAvailable=projected>0&&confidenceSufficient&&hasContinuousMotion;
     return {
       status:evidenceAvailable?'DISPONIBLE':'INDISPONIBLE',
-      reason:projected===0?'aucun point terrain métrique validé':!confidenceComplete?'confiance calibration indisponible pour une trajectoire terrain défendable':!confidenceSufficient?'confiance calibration insuffisante pour une trajectoire terrain défendable':null,
+      reason:projected===0?'aucun point terrain métrique validé':!confidenceComplete?'confiance calibration indisponible pour une trajectoire terrain défendable':!confidenceSufficient?'confiance calibration insuffisante pour une trajectoire terrain défendable':!hasContinuousMotion?'aucun segment temporel continu avec au moins deux positions métriques':null,
       coordinateSystem:'PITCH_METERS',
-      runs:evidenceAvailable?runs:[],
-      points:evidenceAvailable?runs.flat():[],
+      runs:evidenceAvailable?continuousRuns:[],
+      points:evidenceAvailable?continuousRuns.flat():[],
       observations:projected,
       eligibleObservations:eligible,
+      continuousObservations:continuousRuns.reduce((sum,run)=>sum+run.length,0),
       metricCoverage:+coverage.toFixed(4),
       calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),
       avgCalibrationConfidence:avgConfidence===null?null:+avgConfidence.toFixed(4),
       defendableScore:score===null?null:+score.toFixed(4),
       quality:evidenceAvailable?qualityFromEvidenceScore(score):'INDISPONIBLE',
       interpolation:'NONE',
-      continuityPolicy:'COUPE_SUR_POINT_NON_PROJETE_CHANGEMENT_SEGMENT_TIMESTAMP_INVALIDE_OU_GAP_EXCESSIF'
+      continuityPolicy:'COUPE_SUR_POINT_NON_PROJETE_CHANGEMENT_SEGMENT_TIMESTAMP_INVALIDE_OU_GAP_EXCESSIF; RUN_MINIMUM_2_POINTS'
     };
   }
   function build(track,projectors,options){
