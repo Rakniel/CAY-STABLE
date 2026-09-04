@@ -31,15 +31,27 @@ assert.strictEqual(q.calibrationKeyframeTime,0);
 q=dynamic.project({x:10,y:20,time:.4});
 assert.strictEqual(q,null);
 
-// Preserve diagnostics when every available keyframe is weak: the temporal projector remains
-// observable with its real low confidence, and downstream metric publication gates reject it.
+// Fail closed when every available absolute keyframe is below the confidence floor.
+// Diagnostics remain available through registry.get/summary, but no metric projector may leak out.
 const lowOnly=Registry.createRegistry(api);
 assert.strictEqual(lowOnly.calibrate(1,{projector:weak,createdAt:0}).ok,true);
-assert.strictEqual(lowOnly.markDynamic(1,0,{maxCalibrationAgeSec:.35}).ok,true);
-const diagnostic=lowOnly.projectorFor(1);
-assert.ok(diagnostic);
-assert.strictEqual(diagnostic.confidence,.1);
-assert.strictEqual(diagnostic.validation.lowConfidenceKeyframesRejected,0);
-assert.ok(diagnostic.project({x:1,y:2,time:.1}));
+const lowDynamic=lowOnly.markDynamic(1,0,{maxCalibrationAgeSec:.35});
+assert.strictEqual(lowDynamic.ok,false);
+assert.match(lowDynamic.reason,/confiance suffisante/);
+assert.strictEqual(lowOnly.projectorFor(1),null);
+assert.strictEqual(Object.prototype.hasOwnProperty.call(lowOnly.exportProjectors(),'1'),false);
+assert.strictEqual(lowOnly.get(1).calibrationKeyframes.length,1);
+assert.match(lowOnly.summary().dynamicPolicy,/CONFIANCE_GE_0_5_REQUIS/);
+
+// A later trusted absolute refresh restores metric availability without reviving the weak anchor.
+assert.strictEqual(lowOnly.addCalibrationKeyframe(1,.2,{projector:strong}).ok,true);
+const recovered=lowOnly.projectorFor(1);
+assert.ok(recovered);
+assert.strictEqual(recovered.confidence,.9);
+assert.strictEqual(recovered.validation.sourceKeyframes,2);
+assert.strictEqual(recovered.validation.keyframes,1);
+assert.strictEqual(recovered.validation.lowConfidenceKeyframesRejected,1);
+assert.ok(recovered.project({x:1,y:2,time:.2}));
+assert.strictEqual(recovered.project({x:1,y:2,time:0}),null);
 
 console.log('dynamic_keyframe_confidence_gate_nonregression: PASS');
