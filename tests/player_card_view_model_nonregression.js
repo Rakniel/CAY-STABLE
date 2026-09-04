@@ -30,13 +30,19 @@ assert.match(unsafeRawMetric.metrics.distanceM.reason,/liaison roster/i);
 assert.equal(unsafeRawMetric.pitchVisuals.status,'INDISPONIBLE','raw track pitch visuals must never bypass roster participation filtering');
 assert.equal(unsafeRawMetric.pitchVisuals.pitchLengthM,null,'unsafe legacy pitch dimensions must not leak into roster card');
 
-const rosterMetric={status:'FIABLE',spatial:{status:'FIABLE',participationWindowCount:2,availableWindowCount:2,trajectory:{status:'FIABLE',coordinateSystem:'PITCH_METERS',runs:[
-  {windowIndex:0,startMs:0,endMs:30000,points:[{x:10,y:20,time:29}]},
-  {windowIndex:1,startMs:40000,endMs:50000,points:[{x:40,y:30,time:40}]}
-]},heatmaps:[
-  {windowIndex:0,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[1,0],[0,0]],timeCells:[[1,0],[0,0]]},
-  {windowIndex:1,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[0,0],[0,1]],timeCells:[[0,0],[0,2]]}
-]}};
+const rosterMetric={status:'FIABLE',spatial:{
+  status:'FIABLE',participationWindowCount:2,availableWindowCount:2,coherentWindowCount:2,renderedWindowCount:2,excludedGeometryWindowCount:0,coverageNote:null,
+  geometry:{coordinateSystem:'PITCH_METERS',pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,sourceWindowIndexes:[0,1]},
+  trajectory:{status:'FIABLE',coordinateSystem:'PITCH_METERS',sourceWindowIndexes:[0,1],runs:[
+    {windowIndex:0,startMs:0,endMs:30000,points:[{x:10,y:20,time:29}]},
+    {windowIndex:1,startMs:40000,endMs:50000,points:[{x:40,y:30,time:40}]}
+  ],policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'},
+  heatmap:{status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[1,0],[0,2]],normalizedCells:[[.5,0],[0,1]],windowCount:2,sourceWindowIndexes:[0,1],heatmapBasis:'TIME_WEIGHTED_CONFIRMED_PARTICIPATION'},
+  heatmaps:[
+    {windowIndex:0,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[1,0],[0,0]],timeCells:[[1,0],[0,0]]},
+    {windowIndex:1,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[0,0],[0,1]],timeCells:[[0,0],[0,2]]}
+  ]
+}};
 const metricCard=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',pitchLengthM:999,pitchWidthM:999,metricCoverage:1,trajectory:{status:'DISPONIBLE',runs:[[{x:999,y:999}]]},pitchHeatmap:{status:'DISPONIBLE',cells:[[99]]}},metric:{metricCoverage:.8,distanceM:1234.5,avgSpeedKmh:7.2,maxSpeedKmh:28.1,sprintCount:2,quality:'FIABLE',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'},rosterMetric});
 assert.equal(metricCard.metrics.distanceM.status,'FIABLE');
 assert.equal(metricCard.metrics.distanceM.value,1234.5);
@@ -45,7 +51,7 @@ assert.equal(metricCard.pitchVisuals.status,'DISPONIBLE');
 assert.equal(metricCard.pitchVisuals.source,'ROSTER_METRIC_PIPELINE_V1');
 assert.equal(metricCard.pitchVisuals.coordinateSystem,'PITCH_METERS');
 assert.equal(metricCard.pitchVisuals.metricCoverage,80);
-assert.equal(metricCard.pitchVisuals.pitchLengthM,105,'pitch geometry comes from roster-bound spatial evidence, not legacy raw visuals');
+assert.equal(metricCard.pitchVisuals.pitchLengthM,105,'pitch geometry comes from the centralized roster spatial contract');
 assert.equal(metricCard.pitchVisuals.pitchWidthM,68);
 assert.equal(metricCard.pitchVisuals.quality,'FIABLE');
 assert.equal(metricCard.pitchVisuals.renderedWindowCount,2);
@@ -53,38 +59,50 @@ assert.equal(metricCard.pitchVisuals.excludedGeometryWindowCount,0);
 assert.equal(metricCard.pitchVisuals.trajectory.runs.length,2,'participation windows remain separate');
 assert.equal(metricCard.pitchVisuals.trajectory.runs[0][0].x,10);
 assert.equal(metricCard.pitchVisuals.trajectory.runs[1][0].x,40);
-assert.deepEqual(metricCard.pitchVisuals.heatmap.cells,[[1,0],[0,2]],'heatmaps aggregate only confirmed participation windows');
+assert.deepEqual(metricCard.pitchVisuals.heatmap.cells,[[1,0],[0,2]],'player card consumes the already validated centralized heatmap');
 assert.deepEqual(metricCard.pitchVisuals.heatmap.normalizedCells,[[.5,0],[0,1]]);
 assert.deepEqual(metricCard.pitchVisuals.heatmap.sourceWindowIndexes,[0,1]);
 assert.equal(metricCard.pitchVisuals.heatmap.heatmapBasis,'TIME_WEIGHTED_CONFIRMED_PARTICIPATION');
 
-const partial=VM.buildCard({...report.players[0],metric:{metricCoverage:.5,distanceM:10,avgSpeedKmh:4,maxSpeedKmh:8,sprintCount:0,quality:'PARTIEL',rosterBound:true},rosterMetric:{...rosterMetric,spatial:{...rosterMetric.spatial,status:'PARTIEL'}}});
+const partial=VM.buildCard({...report.players[0],metric:{metricCoverage:.5,distanceM:10,avgSpeedKmh:4,maxSpeedKmh:8,sprintCount:0,quality:'PARTIEL',rosterBound:true},rosterMetric:{...rosterMetric,spatial:{...rosterMetric.spatial,status:'PARTIEL',coverageNote:'couverture spatiale partielle'}}});
 assert.equal(partial.pitchVisuals.status,'DISPONIBLE','partial but defensible roster spatial evidence remains publishable');
 assert.equal(partial.pitchVisuals.quality,'PARTIEL');
+assert.equal(partial.pitchVisuals.coverageNote,'couverture spatiale partielle');
 
-const mixedGeometryMetric={status:'FIABLE',spatial:{status:'FIABLE',participationWindowCount:3,availableWindowCount:3,trajectory:{status:'FIABLE',coordinateSystem:'PITCH_METERS',runs:[
-  {windowIndex:0,startMs:0,endMs:10000,points:[{x:90,y:50,time:5}]},
-  {windowIndex:1,startMs:20000,endMs:30000,points:[{x:11,y:21,time:25}]},
-  {windowIndex:2,startMs:40000,endMs:50000,points:[{x:41,y:31,time:45}]}
-]},heatmaps:[
-  {windowIndex:0,pitchLengthM:100,pitchWidthM:64,rows:2,cols:2,cells:[[9,0],[0,0]],timeCells:[[9,0],[0,0]]},
-  {windowIndex:1,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[1,0],[0,0]],timeCells:[[1,0],[0,0]]},
-  {windowIndex:2,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[0,0],[0,2]],timeCells:[[0,0],[0,2]]}
-]}};
-const mixed=VM.buildCard({...report.players[0],metric:{metricCoverage:.8,distanceM:100,avgSpeedKmh:8,maxSpeedKmh:20,sprintCount:1,quality:'FIABLE',rosterBound:true},rosterMetric:mixedGeometryMetric});
-assert.equal(mixed.pitchVisuals.status,'DISPONIBLE','dominant coherent geometry remains usable');
-assert.equal(mixed.pitchVisuals.quality,'PARTIEL','dropping an incompatible pitch geometry must be explicit');
-assert.equal(mixed.pitchVisuals.pitchLengthM,105,'largest coherent geometry group must win instead of blindly trusting the first window');
+const centralizedMixedMetric={status:'FIABLE',spatial:{
+  status:'PARTIEL',participationWindowCount:3,availableWindowCount:3,coherentWindowCount:2,renderedWindowCount:2,excludedGeometryWindowCount:1,
+  coverageNote:'certaines fenêtres terrain ont été exclues car leur géométrie est incompatible avec le référentiel dominant',
+  geometry:{coordinateSystem:'PITCH_METERS',pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,sourceWindowIndexes:[1,2]},
+  trajectory:{status:'PARTIEL',coordinateSystem:'PITCH_METERS',sourceWindowIndexes:[1,2],runs:[
+    {windowIndex:1,startMs:20000,endMs:30000,points:[{x:11,y:21,time:25}]},
+    {windowIndex:2,startMs:40000,endMs:50000,points:[{x:41,y:31,time:45}]}
+  ]},
+  heatmap:{status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[1,0],[0,2]],normalizedCells:[[.5,0],[0,1]],windowCount:2,sourceWindowIndexes:[1,2],heatmapBasis:'TIME_WEIGHTED_CONFIRMED_PARTICIPATION'},
+  // Poisoned diagnostic windows are intentionally retained. UI must never re-evaluate them.
+  heatmaps:[
+    {windowIndex:0,pitchLengthM:100,pitchWidthM:64,rows:2,cols:2,cells:[[999,0],[0,0]],timeCells:[[999,0],[0,0]]},
+    {windowIndex:1,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[7,0],[0,0]],timeCells:[[7,0],[0,0]]},
+    {windowIndex:2,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[0,0],[0,8]],timeCells:[[0,0],[0,8]]}
+  ]
+}};
+const mixed=VM.buildCard({...report.players[0],metric:{metricCoverage:.8,distanceM:100,avgSpeedKmh:8,maxSpeedKmh:20,sprintCount:1,quality:'FIABLE',rosterBound:true},rosterMetric:centralizedMixedMetric});
+assert.equal(mixed.pitchVisuals.status,'DISPONIBLE','centralized partial spatial evidence remains usable');
+assert.equal(mixed.pitchVisuals.quality,'PARTIEL');
+assert.equal(mixed.pitchVisuals.pitchLengthM,105);
 assert.equal(mixed.pitchVisuals.pitchWidthM,68);
 assert.equal(mixed.pitchVisuals.renderedWindowCount,2);
 assert.equal(mixed.pitchVisuals.excludedGeometryWindowCount,1);
 assert.deepEqual(mixed.pitchVisuals.heatmap.sourceWindowIndexes,[1,2]);
-assert.deepEqual(mixed.pitchVisuals.heatmap.cells,[[1,0],[0,2]],'incompatible geometry must not contaminate the heatmap');
-assert.equal(mixed.pitchVisuals.trajectory.runs.length,2,'trajectory must be filtered to the same geometry windows as the heatmap');
+assert.deepEqual(mixed.pitchVisuals.heatmap.cells,[[1,0],[0,2]],'player card must not recompute from poisoned diagnostic heatmap windows');
+assert.equal(mixed.pitchVisuals.trajectory.runs.length,2);
 assert.equal(mixed.pitchVisuals.trajectory.runs[0][0].x,11);
 assert.equal(mixed.pitchVisuals.trajectory.runs[1][0].x,41);
-assert(!mixed.pitchVisuals.trajectory.runs.flat().some(p=>p.x===90),'mismatched pitch geometry trajectory point must never be rendered on the dominant pitch');
+assert(!mixed.pitchVisuals.trajectory.runs.flat().some(p=>p.x===90),'card must consume the already filtered centralized trajectory');
 assert.match(mixed.pitchVisuals.coverageNote,/géométrie est incompatible/i);
+assert.match(mixed.pitchVisuals.policy,/CONTRAT_SPATIAL_CENTRALISE/);
+
+const missingCentralHeatmap=VM.buildCard({...report.players[0],metric:{metricCoverage:.8,distanceM:100,avgSpeedKmh:8,maxSpeedKmh:20,sprintCount:1,quality:'FIABLE',rosterBound:true},rosterMetric:{status:'FIABLE',spatial:{status:'PARTIEL',participationWindowCount:1,availableWindowCount:1,renderedWindowCount:0,excludedGeometryWindowCount:0,heatmap:null,trajectory:{runs:[]},heatmaps:[{windowIndex:0,pitchLengthM:105,pitchWidthM:68,rows:1,cols:1,cells:[[999]],timeCells:[[999]]}]}}});
+assert.equal(missingCentralHeatmap.pitchVisuals.status,'INDISPONIBLE','diagnostic heatmap windows cannot bypass a missing centralized spatial publication');
 
 const zeroValue=VM.metricValue({metricCoverage:.5,sprintCount:0,quality:'PARTIEL',rosterBound:true},'sprintCount','Sprints');
 assert.equal(zeroValue.status,'PARTIEL');
