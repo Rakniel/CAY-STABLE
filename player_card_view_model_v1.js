@@ -16,50 +16,34 @@
     if(!finite(metric.metricCoverage)||Number(metric.metricCoverage)<=0||!finite(metric[key]))return unavailable('projection terrain métrique non défendable');
     return {status:metric.quality==='FIABLE'?'FIABLE':'PARTIEL',value:Number(metric[key]),label,coverage:pct(metric.metricCoverage),reason:null};
   }
-  function samePitch(a,b){
-    return finite(a?.pitchLengthM)&&finite(a?.pitchWidthM)&&finite(b?.pitchLengthM)&&finite(b?.pitchWidthM)&&Math.abs(Number(a.pitchLengthM)-Number(b.pitchLengthM))<1e-6&&Math.abs(Number(a.pitchWidthM)-Number(b.pitchWidthM))<1e-6;
-  }
-  function matrixOk(m,rows,cols){return Array.isArray(m)&&m.length===rows&&m.every(row=>Array.isArray(row)&&row.length===cols&&row.every(finite));}
-  function dominantGeometryGroup(rows){
-    const groups=[];
-    for(const h of rows){
-      const r=Number(h.rows),c=Number(h.cols);
-      let group=groups.find(g=>g.rows===r&&g.cols===c&&samePitch(g.first,h));
-      if(!group){group={first:h,rows:r,cols:c,items:[],firstOrder:groups.length};groups.push(group);}
-      group.items.push(h);
-    }
-    groups.sort((a,b)=>b.items.length-a.items.length||a.firstOrder-b.firstOrder);
-    return groups[0]||null;
-  }
-  function mergeRosterHeatmaps(heatmaps){
-    const candidates=(Array.isArray(heatmaps)?heatmaps:[]).filter(h=>h&&finite(h.rows)&&finite(h.cols)&&Number(h.rows)>0&&Number(h.cols)>0&&finite(h.pitchLengthM)&&finite(h.pitchWidthM));
-    if(!candidates.length)return null;
-    const group=dominantGeometryGroup(candidates);
-    if(!group||!group.items.length)return null;
-    const first=group.first,r=group.rows,c=group.cols,compatible=group.items;
-    const useTime=compatible.every(h=>matrixOk(h.timeCells,r,c));
-    const key=useTime?'timeCells':'cells';
-    if(!compatible.every(h=>matrixOk(h[key],r,c)))return null;
-    const cells=Array.from({length:r},()=>Array(c).fill(0));
-    for(const h of compatible)for(let y=0;y<r;y++)for(let x=0;x<c;x++)cells[y][x]+=Number(h[key][y][x]);
-    const max=Math.max(0,...cells.flat());
-    const normalizedCells=cells.map(row=>row.map(v=>max>0?v/max:0));
-    return {status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:Number(first.pitchLengthM),pitchWidthM:Number(first.pitchWidthM),rows:r,cols:c,cells,normalizedCells,windowCount:compatible.length,sourceWindowIndexes:compatible.map(h=>h.windowIndex).filter(v=>v!==null&&v!==undefined),excludedGeometryWindowCount:Math.max(0,candidates.length-compatible.length),heatmapBasis:useTime?'TIME_WEIGHTED_CONFIRMED_PARTICIPATION':'OBSERVATION_COUNT_CONFIRMED_PARTICIPATION',policy:'AGREGE_UNIQUEMENT_LA_GEOMETRIE_TERRAIN_DOMINANTE_DES_FENETRES_DE_PARTICIPATION_CONFIRMEES'};
-  }
   function rosterPitchVisuals(player){
     const rm=player&&player.rosterMetric||null,spatial=rm&&rm.spatial||null;
     if(!rm||rm.status!=='FIABLE'||!spatial||spatial.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory:null,heatmap:null,metricCoverage:0,reason:rm?.reason||spatial?.reason||'liaison roster fiable et participation confirmée requises pour les visuels terrain',source:'ROSTER_METRIC_PIPELINE_V1'};
-    const heatmap=mergeRosterHeatmaps(spatial.heatmaps);
-    const pitchLengthM=heatmap?.pitchLengthM??null,pitchWidthM=heatmap?.pitchWidthM??null;
-    const allowedWindowIndexes=new Set(Array.isArray(heatmap?.sourceWindowIndexes)?heatmap.sourceWindowIndexes.map(String):[]);
+
+    const heatmap=spatial?.heatmap&&spatial.heatmap.status==='DISPONIBLE'?spatial.heatmap:null;
+    const geometry=spatial?.geometry||null;
+    const pitchLengthM=finite(geometry?.pitchLengthM)?Number(geometry.pitchLengthM):(finite(heatmap?.pitchLengthM)?Number(heatmap.pitchLengthM):null);
+    const pitchWidthM=finite(geometry?.pitchWidthM)?Number(geometry.pitchWidthM):(finite(heatmap?.pitchWidthM)?Number(heatmap.pitchWidthM):null);
     const rawRuns=Array.isArray(spatial?.trajectory?.runs)?spatial.trajectory.runs:[];
-    const runs=rawRuns.filter(run=>allowedWindowIndexes.has(String(run?.windowIndex))).map(run=>Array.isArray(run)?run:(Array.isArray(run?.points)?run.points:[])).filter(run=>run.length);
-    const trajectory=runs.length&&finite(pitchLengthM)&&finite(pitchWidthM)?{status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',runs,sourceWindowIndexes:[...allowedWindowIndexes],policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'}:{status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',runs:[],sourceWindowIndexes:[],policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'};
-    if(!heatmap&&trajectory.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory,heatmap:null,metricCoverage:0,reason:'aucun visuel terrain défendable dans les fenêtres de participation confirmées',source:'ROSTER_METRIC_PIPELINE_V1'};
-    const participationWindowCount=Number(spatial.participationWindowCount||0),availableWindowCount=Number(spatial.availableWindowCount||0),renderedWindowCount=Number(heatmap?.windowCount||0);
-    const geometryComplete=availableWindowCount>0&&renderedWindowCount===availableWindowCount;
-    const quality=spatial.status==='FIABLE'&&geometryComplete?'FIABLE':'PARTIEL';
-    return {status:'DISPONIBLE',quality,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,trajectory,heatmap,metricCoverage:pct(player?.metric?.metricCoverage),participationWindowCount,availableWindowCount,renderedWindowCount,excludedGeometryWindowCount:Math.max(0,availableWindowCount-renderedWindowCount),coverageNote:geometryComplete?null:'certaines fenêtres terrain ont été exclues car leur géométrie est incompatible avec le référentiel dominant',reason:null,source:'ROSTER_METRIC_PIPELINE_V1',policy:'VISUELS_TERRAIN_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_PARTICIPATION_CONFIRMEE_ET_GEOMETRIE_COHERENTE'};
+    const runs=rawRuns.map(run=>Array.isArray(run)?run:(Array.isArray(run?.points)?run.points:[])).filter(run=>run.length);
+    const trajectory=runs.length&&finite(pitchLengthM)&&finite(pitchWidthM)?{
+      status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',runs,
+      sourceWindowIndexes:Array.isArray(spatial?.trajectory?.sourceWindowIndexes)?[...spatial.trajectory.sourceWindowIndexes]:[],
+      policy:spatial?.trajectory?.policy||'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'
+    }:{status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',runs:[],sourceWindowIndexes:[],policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'};
+    if(!heatmap&&trajectory.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory,heatmap:null,metricCoverage:0,reason:spatial?.reason||'aucun visuel terrain défendable dans les fenêtres de participation confirmées',source:'ROSTER_METRIC_PIPELINE_V1'};
+
+    const participationWindowCount=Number(spatial.participationWindowCount||0);
+    const availableWindowCount=Number(spatial.availableWindowCount||0);
+    const renderedWindowCount=Number(spatial.renderedWindowCount||0);
+    const excludedGeometryWindowCount=Number(spatial.excludedGeometryWindowCount||0);
+    const quality=spatial.status==='FIABLE'?'FIABLE':'PARTIEL';
+    return {
+      status:'DISPONIBLE',quality,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,trajectory,heatmap,
+      metricCoverage:pct(player?.metric?.metricCoverage),participationWindowCount,availableWindowCount,renderedWindowCount,
+      excludedGeometryWindowCount,coverageNote:spatial.coverageNote||null,reason:null,source:'ROSTER_METRIC_PIPELINE_V1',
+      policy:'VISUELS_TERRAIN_CONSOMMES_EXCLUSIVEMENT_DEPUIS_LE_CONTRAT_SPATIAL_CENTRALISE_ROSTER_METRIC_PIPELINE_V1'
+    };
   }
   function buildCard(player){
     const observed=player&&player.observedVisuals||null,metric=player&&player.metric||null;
@@ -115,5 +99,5 @@
   patchBridge();
   loadRenderer();
   if(typeof setTimeout==='function')setTimeout(loadClubRosterIdentityUI,0);
-  return {buildCard,build,attach,patchBridge,metricValue,rosterPitchVisuals,mergeRosterHeatmaps,dominantGeometryGroup,loadRenderer,loadClubRosterIdentityUI};
+  return {buildCard,build,attach,patchBridge,metricValue,rosterPitchVisuals,loadRenderer,loadClubRosterIdentityUI};
 });
