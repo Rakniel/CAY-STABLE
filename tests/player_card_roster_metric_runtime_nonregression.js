@@ -28,10 +28,12 @@ assert.strictEqual(attached.players[0].metric.source,'ROSTER_METRIC_PIPELINE_V1'
 assert.strictEqual(attached.players[0].metric.distanceM,2,'post-substitution observations must not inflate starter distance');
 assert.strictEqual(attached.players[0].rosterMetric.participation.acceptedObservations,4);
 assert.strictEqual(attached.players[0].rosterMetric.participation.rejectedObservations,2);
-assert.strictEqual(attached.rosterMetricRuntime.reliablePlayers,1);
+assert.strictEqual(attached.rosterMetricRuntime.status,'DISPONIBLE');
+assert.strictEqual(attached.rosterMetricRuntime.publishablePlayers,1);
+assert.strictEqual(attached.rosterMetricRuntime.reliablePlayers,0,'sparse metric coverage must remain PARTIEL rather than being promoted to FIABLE');
 
 const card=VM.buildCard(attached.players[0]);
-assert.strictEqual(card.metrics.distanceM.status,'FIABLE');
+assert.strictEqual(card.metrics.distanceM.status,'PARTIEL');
 assert.strictEqual(card.metrics.distanceM.value,2);
 
 const noContext=CardBinding.attachRosterMetrics(report,state,projectors,null);
