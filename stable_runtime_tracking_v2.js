@@ -56,6 +56,44 @@ function fieldPolygonCameraSignals(prevPoly,poly,width,height){
   return {cameraMotionScore, cameraTransformDelta, fieldGeometryDelta, zoomDelta, geometrySignalAvailable:true};
 }
 root.CAYStableRuntimeCameraSignals=fieldPolygonCameraSignals;
+function providerProvenance(provider){
+  const p=provider&&provider.provenance;
+  if(!p||typeof p!=='object')return null;
+  const source=String(p.source||'').trim(),license=String(p.license||'').trim(),revision=String(p.weightId||p.sha256||p.revision||'').trim();
+  if(!source||!license||!revision)return null;
+  return {source,license,revision};
+}
+function semanticKeypointProviderVerdict(provider){
+  if(!provider||typeof provider.inferPitchKeypoints!=='function')return {allowed:false,reason:'PITCH_KEYPOINT_PROVIDER_UNAVAILABLE'};
+  if(provider.runtimeDefaultAllowed!==true)return {allowed:false,reason:'PITCH_KEYPOINT_PROVIDER_NOT_APPROVED'};
+  const provenance=providerProvenance(provider);
+  if(!provenance)return {allowed:false,reason:'PITCH_KEYPOINT_PROVENANCE_REQUIRED'};
+  const lic=provenance.license.toLowerCase();
+  if(lic.includes('agpl')||lic.includes('gpl-')||lic==='gpl')return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_REJECTED',provenance};
+  return {allowed:true,reason:null,provenance};
+}
+async function refreshSemanticPitchCalibration(canvas,time,segment,options={}){
+  const provider=options.provider||root.CAYPitchKeypointProvider,metricRuntime=options.metricRuntime||root.CAYStableMetricVisualsRuntime;
+  const verdict=semanticKeypointProviderVerdict(provider);
+  if(!verdict.allowed)return {ok:false,status:'INDISPONIBLE',reason:verdict.reason,registered:false,providerCalled:false,provenance:verdict.provenance||null};
+  if(!metricRuntime||typeof metricRuntime.calibrateSemanticSegment!=='function'||typeof metricRuntime.registerValidatedKeyframe!=='function')return {ok:false,status:'INDISPONIBLE',reason:'SEMANTIC_METRIC_RUNTIME_UNAVAILABLE',registered:false,providerCalled:false,provenance:verdict.provenance};
+  const width=Number(canvas?.width)||0,height=Number(canvas?.height)||0,t=Number(time),seg=Number(segment);
+  if(!(width>0&&height>0&&Number.isFinite(t)&&Number.isInteger(seg)&&seg>=0))return {ok:false,status:'REJECTED',reason:'SEMANTIC_FRAME_CONTEXT_INVALID',registered:false,providerCalled:false,provenance:verdict.provenance};
+  let output;
+  try{output=await provider.inferPitchKeypoints(canvas,{time:t,segment:seg,width,height});}
+  catch(err){return {ok:false,status:'INDISPONIBLE',reason:'PITCH_KEYPOINT_INFERENCE_FAILED',detail:String(err?.message||err),registered:false,providerCalled:true,provenance:verdict.provenance};}
+  const keypoints=Array.isArray(output)?output:(Array.isArray(output?.keypoints)?output.keypoints:null);
+  if(!keypoints)return {ok:false,status:'INDISPONIBLE',reason:'PITCH_KEYPOINT_OUTPUT_INVALID',registered:false,providerCalled:true,provenance:verdict.provenance};
+  const maxCalibrationAgeSec=Number.isFinite(Number(provider.maxCalibrationAgeSec))?Math.max(.02,Number(provider.maxCalibrationAgeSec)):.35;
+  const minConfidence=Number.isFinite(Number(provider.minConfidence))?clamp01(Number(provider.minConfidence)):.5;
+  const calibrated=metricRuntime.calibrateSemanticSegment(seg,keypoints,{time:t,createdAt:t,frameSize:{width,height},minConfidence,maxCalibrationAgeSec,shotId:'stable-segment-'+seg});
+  let dynamicArm=null;
+  if(calibrated?.ok===true&&calibrated?.dynamicRefresh!==true&&provider.assumeStaticCamera!==true&&calibrated?.calibration?.projector){
+    dynamicArm=metricRuntime.registerValidatedKeyframe(seg,t,calibrated.calibration.projector,{source:'semantic_pitch_keypoints_v2',kind:'semantic_dynamic_anchor',maxCalibrationAgeSec,shotId:'stable-segment-'+seg});
+  }
+  return {...calibrated,providerCalled:true,providerId:String(provider.id||verdict.provenance.source),providerProvenance:verdict.provenance,dynamicArmed:dynamicArm?.ok===true,metricProjectorAvailable:dynamicArm?dynamicArm.projectorAvailable!==false:calibrated?.projectorAvailable!==false};
+}
+root.CAYStableSemanticKeypointRuntime={refresh:refreshSemanticPitchCalibration,providerVerdict:semanticKeypointProviderVerdict,providerProvenance};
 function ensureStatsPanel(){
   let panel=$('stablePlayerStatsV2');
   if(panel)return panel;
@@ -188,8 +226,9 @@ async function runTrackingLongTermStable(){
       const sceneCutScore=clamp01(visualDiff+(countShock?.12:0));
       const cameraSignals=fieldPolygonCameraSignals(prevPoly,poly,c.width,c.height);
       const assigned=bridge.processFrame(dets,t,{width:c.width,height:c.height,maxPlayers:11,allowNew:dets.length>=2||bridge.state.active.length>0,sceneCutScore,visualDiscontinuity:clamp01(visualDiff),cameraMotionScore:cameraSignals.cameraMotionScore,cameraTransformDelta:cameraSignals.cameraTransformDelta,fieldGeometryDelta:cameraSignals.fieldGeometryDelta,zoomDelta:cameraSignals.zoomDelta,reidentifyArchived:true});
+      const semanticCalibration=await refreshSemanticPitchCalibration(c,t,bridge.state.segment);
       drawLongTrackFrame(c,assigned);prevSig=sig;prevDetCount=dets.length;prevPoly=poly;
-      frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,status:'OBSERVE',detections:assigned.map(a=>({id:a.trackId,cat:a.cat,x:+a.x.toFixed(4),y:+a.y.toFixed(4),source:a.source,score:+Number(a.score||0).toFixed(4)}))});
+      frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,status:'OBSERVE',semanticCalibration:{status:semanticCalibration.status||'INDISPONIBLE',registered:semanticCalibration.registered===true,metricEligible:semanticCalibration.metricEligible===true,reason:semanticCalibration.reason||null},detections:assigned.map(a=>({id:a.trackId,cat:a.cat,x:+a.x.toFixed(4),y:+a.y.toFixed(4),source:a.source,score:+Number(a.score||0).toFixed(4)}))});
       if(i%stride===0||i===times.length-1){const card=document.createElement('div');card.className='trackcard';const copy=document.createElement('canvas');copy.width=c.width;copy.height=c.height;copy.getContext('2d').drawImage(c,0,0);const info=document.createElement('div');info.className='trackinfo';info.innerHTML='<span>'+tf(t)+'</span><strong>'+assigned.length+' joueur(s)</strong>';card.append(copy,info);$('trackingGallery').append(card);}
       const sum=bridge.summary(),stable=sum.tracks.filter(s=>s.observations>=5).length,longest=sum.tracks.reduce((m,s)=>Math.max(m,s.observations||0),0);
       $('tFrames').textContent=i+1;$('tIds').textContent=sum.rosterTotal;$('tStable').textContent=stable;$('tLongest').textContent=longest+' img';$('tMatches').textContent=sum.totalAssociations;$('tSegments').textContent=sum.segments;$('trackingBar').style.width=Math.round((i+1)/times.length*100)+'%';
