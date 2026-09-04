@@ -22,10 +22,11 @@ assert(linkedHtml.includes('Louis Test #8'),'validated roster identity must rend
 assert(linkedHtml.includes('CM / AM • track 7'),'validated roster identity must render positions while preserving technical track provenance');
 assert(linkedHtml.includes('photos/p1.jpg'),'validated roster photo should be renderable');
 const trajectory={status:'DISPONIBLE',runs:[[{time:0,segment:1,x:5,y:10},{time:.5,segment:1,x:30,y:20}],[{time:2,segment:1,x:60,y:35},{time:2.5,segment:1,x:90,y:50}]]};
-const metric={...card,pitchVisuals:{status:'DISPONIBLE',metricCoverage:71,pitchLengthM:105,pitchWidthM:68,heatmap:{cols:2,rows:1,normalizedCells:[[.25,.75]]},trajectory},metrics:{distanceM:{status:'PARTIEL',value:1234.4},avgSpeedKmh:{status:'PARTIEL',value:7.52},maxSpeedKmh:{status:'PARTIEL',value:24.18},sprintCount:{status:'PARTIEL',value:0}}};
+const metric={...card,pitchVisuals:{status:'DISPONIBLE',quality:'PARTIEL',metricCoverage:71,participationWindowCount:3,renderedWindowCount:2,pitchLengthM:105,pitchWidthM:68,heatmap:{cols:2,rows:1,normalizedCells:[[.25,.75]]},trajectory},metrics:{distanceM:{status:'PARTIEL',value:1234.4},avgSpeedKmh:{status:'PARTIEL',value:7.52},maxSpeedKmh:{status:'PARTIEL',value:24.18},sprintCount:{status:'PARTIEL',value:0}}};
 const html2=R.cardHtml(metric);
 assert(html2.includes('1234 m'),'defended distance must render');
 assert(html2.includes('0</b>'),'a defended zero sprint count must not become unavailable');
+assert(html2.includes('TERRAIN • 71 % • FENÊTRES 2/3 • PARTIEL'),'terrain window coverage and partial geometry state must be explicit');
 assert(!html2.includes('POUR DÉBLOQUER LES STATS TERRAIN'),'validated pitch metrics must not show an unavailable-evidence warning');
 assert(html2.includes('OCCUPATION TERRAIN VALIDÉE'),'validated pitch heatmap must render separately');
 assert(!html2.includes('Heatmap indisponible'),'runtime normalizedCells heatmap payload must render without requiring legacy cells');
@@ -36,4 +37,5 @@ assert(html2.includes('viewBox="0 0 105 68"'),'trajectory must use explicit metr
 assert(R.trajectoryHtml(trajectory,null,68).includes('Trajectoire terrain indisponible'),'missing pitch dimensions must fail closed');
 assert(R.metricText(null,'m')==='INDISPONIBLE');
 assert(R.explainUnavailable(metric)==='','validated metric card must have no unavailable explanation');
+assert.equal(R.pitchWindowText({status:'DISPONIBLE',quality:'FIABLE',participationWindowCount:2,renderedWindowCount:2}),' • FENÊTRES 2/2');
 console.log('player card renderer non-regression: PASS');
