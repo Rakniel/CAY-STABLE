@@ -59,7 +59,7 @@ function unavailableMetric(reason){
   return {metricCoverage:0,metricCoveredSeconds:0,eligibleSeconds:0,distanceM:null,rawDistanceM:null,avgSpeedKmh:null,maxSpeedKmh:null,sprintCount:null,quality:'INDISPONIBLE',reason:reason||'association roster et participation requises',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'};
 }
 function attachRosterMetrics(report,state,projectors,rosterContext){
-  if(!report||!Array.isArray(report.players))return report;
+  if(!report||!Array.isArray(report.players)||!rosterContext)return report;
   const ctx=rosterContext||{},canBuild=RosterMetricPipeline&&typeof RosterMetricPipeline.build==='function'&&ctx.bindingState&&ctx.participation;
   let reliable=0;
   const players=report.players.map(player=>{
