@@ -1,8 +1,11 @@
 (function(root,factory){
-  const api=factory(typeof module==='object'&&module.exports ? require('./player_stats_v1.js') : root.CAYPlayerStats);
+  const api=factory(
+    typeof module==='object'&&module.exports ? require('./player_stats_v1.js') : root.CAYPlayerStats,
+    typeof module==='object'&&module.exports ? require('./metric_motion_plausibility_v1.js') : root.CAYMetricMotionPlausibility
+  );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYMetricQualityGuard=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Stats){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Stats,Motion){
   'use strict';
   const hypot=(a,b)=>Math.hypot((b.x||0)-(a.x||0),(b.y||0)-(a.y||0));
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
@@ -10,7 +13,7 @@
   const median3=(a,b,c)=>a+b+c-Math.min(a,b,c)-Math.max(a,b,c);
   const SPRINT_THRESHOLD_KMH=25;
   const MIN_SPRINT_SECONDS=1;
-  const RAW_SPIKE_THRESHOLD_KMH=55;
+  const RAW_SPIKE_THRESHOLD_KMH=Number.isFinite(Number(Motion?.RAW_SPIKE_THRESHOLD_KMH))?Number(Motion.RAW_SPIKE_THRESHOLD_KMH):55;
   const MAX_METRIC_GAP_SEC=Number.isFinite(Number(Stats?.MAX_METRIC_GAP_SEC))?Number(Stats.MAX_METRIC_GAP_SEC):1;
   const qualityFromEvidenceScore=score=>score>=.8?'FIABLE':score>0?'PARTIEL':'INDISPONIBLE';
   function smoothRun(run){
@@ -21,17 +24,8 @@
     });
   }
   function splitRawSpikeRuns(run,maxRawSpeedKmh=RAW_SPIKE_THRESHOLD_KMH){
-    const parts=[];let current=[],rejectedPairs=0;
-    for(const p of Array.isArray(run)?run:[]){
-      if(!current.length){current=[p];continue;}
-      const prev=current[current.length-1],dt=Number(p.time)-Number(prev.time),rawSpeedKmh=dt>0?(hypot(prev,p)/dt)*3.6:NaN;
-      if(!(dt>0)||!finite(rawSpeedKmh)||Number(rawSpeedKmh)>maxRawSpeedKmh){
-        if(current.length)parts.push(current);current=[p];rejectedPairs++;continue;
-      }
-      current.push(p);
-    }
-    if(current.length)parts.push(current);
-    return {runs:parts,rejectedPairs};
+    if(Motion&&typeof Motion.splitRawSpikeRuns==='function')return Motion.splitRawSpikeRuns(run,maxRawSpeedKmh);
+    return {runs:[],rejectedPairs:Array.isArray(run)&&run.length>1?run.length-1:0};
   }
   function projectorInfo(entry){
     if(Stats&&typeof Stats.projectorInfo==='function'){
@@ -141,7 +135,7 @@
       const measured=(report.players||[]).filter(p=>p.metric?.metricCoverage>0),all=report.players||[];
       if(report.team){report.team.playersWithMetricData=measured.length;report.team.measuredDistanceM=+measured.reduce((s,p)=>s+(p.metric.distanceM||0),0).toFixed(2);report.team.avgMetricCoverage=+(all.length?all.reduce((s,p)=>s+(p.metric?.metricCoverage||0),0)/all.length:0).toFixed(4);}
       patchTeamCalibrationEvidence(report);
-      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1_3',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE_APRES_VETO_SPIKE_BRUT',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'ANCRE_DEBUT_PREMIER_INTERVALLE_PAR_RUN + FINS_INTERVALLES POUR_NE_PAS_PERDRE_LE_PREMIER_DT',coveragePolicy:'LES_TROUS_TEMPORELS_MEME_SEGMENT_ET_SPIKES_BRUTS_REJETES_PENALISENT_EXPLICITEMENT_LA_COUVERTURE_SANS_CREER_DE_DISTANCE',rawSpikePolicy:'VETO_BRUT_AVANT_LISSAGE_A_55_KMH_MAX',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,rawSpikeThresholdKmh:RAW_SPIKE_THRESHOLD_KMH,principle:'veto des téléports métriques bruts avant tout lissage, puis filtre médian local, couverture qui conserve les preuves manquantes, combinaison couverture × confiance calibration et durée minimale avant de compter un sprint'};
+      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1_4',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE_APRES_VETO_SPIKE_BRUT',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'ANCRE_DEBUT_PREMIER_INTERVALLE_PAR_RUN + FINS_INTERVALLES POUR_NE_PAS_PERDRE_LE_PREMIER_DT',coveragePolicy:'LES_TROUS_TEMPORELS_MEME_SEGMENT_ET_SPIKES_BRUTS_REJETES_PENALISENT_EXPLICITEMENT_LA_COUVERTURE_SANS_CREER_DE_DISTANCE',rawSpikePolicy:'VETO_BRUT_AVANT_LISSAGE_A_55_KMH_MAX_VIA_METRIC_MOTION_PLAUSIBILITY_V1',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,rawSpikeThresholdKmh:RAW_SPIKE_THRESHOLD_KMH,principle:'veto partagé des téléports métriques bruts avant tout lissage, puis filtre médian local, couverture qui conserve les preuves manquantes, combinaison couverture × confiance calibration et durée minimale avant de compter un sprint'};
       return report;
     };
     Stats.__cayMetricQualityGuardPatched=true;return true;
