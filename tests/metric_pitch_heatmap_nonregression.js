@@ -25,6 +25,9 @@ assert.equal(onlyFirst.heatmapBasis,'TIME_SECONDS');
 assert.equal(onlyFirst.timeAllocation,'LINEAR_PITCH_SEGMENT');
 assert.equal(onlyFirst.projectedIntervalSeconds,1);
 assert.equal(onlyFirst.temporalCoverage,.5);
+assert.equal(onlyFirst.observationDefendableScore,.5);
+assert.equal(onlyFirst.defendableScore,.25);
+assert.equal(onlyFirst.quality,'PARTIEL');
 
 const strict=Heat.build(track,{1:projector(1)},{minMetricCoverage:.8});
 assert.equal(strict.status,'INDISPONIBLE');
@@ -100,6 +103,10 @@ assert.equal(cutGap.eligibleIntervalSeconds,5);
 assert.equal(cutGap.temporalCoverage,0);
 assert.equal(cutGap.unobservedGapSeconds,5);
 assert.equal(cutGap.gapBreaks,1);
+assert.equal(cutGap.observationDefendableScore,1);
+assert.equal(cutGap.defendableScore,1);
+assert.equal(cutGap.quality,'FIABLE');
+assert.equal(cutGap.qualityPolicy,'QUALITE_OBSERVATIONS = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE');
 
 const mixedGap=Heat.build({fullPath:[
   {time:0,segment:1,x:.1,y:.1},
@@ -113,6 +120,10 @@ assert.equal(mixedGap.unobservedGapSeconds,2.5);
 assert.equal(mixedGap.gapBreaks,1);
 assert.equal(mixedGap.temporalCoverage,.2857);
 assert(mixedGap.temporalCoverage<1,'a long tracking gap must reduce temporal coverage instead of disappearing from its denominator');
+assert.equal(mixedGap.observationDefendableScore,1);
+assert.equal(mixedGap.defendableScore,.2857);
+assert.equal(mixedGap.quality,'PARTIEL');
+assert.equal(mixedGap.qualityPolicy,'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE × COUVERTURE_TEMPORELLE');
 
 const segmentCut=Heat.build({fullPath:[
   {time:0,segment:1,x:.1,y:.1},
