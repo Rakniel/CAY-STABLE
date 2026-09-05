@@ -40,4 +40,14 @@ const img=create({maxImageJump:.1,minConfidence:.3});
 assert.strictEqual(img.select([{x:.5,y:.5,confidence:.8}],0,{planId:'P1'}).status,'SELECTED');
 assert.strictEqual(img.select([{x:.55,y:.5,confidence:.7},{x:.9,y:.9,confidence:.99}],.1,{planId:'P1'}).index,0);
 assert.strictEqual(img.select([],0.2,{planId:'P1'}).status,'UNAVAILABLE');
+
+const moving=create({bufferSize:6,maxPitchJumpM:6,minConfidence:.4,maxGapSec:.5,confidenceWeight:.2});
+assert.strictEqual(moving.select([ball(0,20,.9)],0,{segmentId:'RUN'}).index,0);
+assert.strictEqual(moving.select([ball(2,20,.9)],.1,{segmentId:'RUN'}).index,0);
+assert.strictEqual(moving.select([ball(4,20,.9)],.2,{segmentId:'RUN'}).index,0);
+r=moving.select([ball(6,20,.72),ball(2.4,20,.99)],.3,{segmentId:'RUN'});
+assert.strictEqual(r.index,0,'constant-velocity motion anchor must prefer the moving ball over a high-confidence centroid distractor');
+assert.strictEqual(r.motionAnchor,'constant_velocity_prediction');
+assert.ok(r.distanceToMotionAnchor<0.001,'uniform motion should land on the predicted ball position');
+assert.ok(r.distanceToRecentCentroid>2,'legacy centroid remains exposed for audit and is measurably behind');
 console.log('ball_candidate_continuity_nonregression: PASS');

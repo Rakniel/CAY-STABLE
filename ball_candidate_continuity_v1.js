@@ -38,6 +38,14 @@
       if(!pts.length)return null;
       return {x:pts.reduce((s,p)=>s+p.x,0)/pts.length,y:pts.reduce((s,p)=>s+p.y,0)/pts.length};
     }
+    function predict(space,time){
+      if(!finite(time))return null;
+      const pts=state.history.filter(h=>h.space===space&&finite(h.time));
+      if(pts.length<2)return null;
+      const a=pts[pts.length-2],b=pts[pts.length-1],dt=Number(b.time)-Number(a.time),lead=Number(time)-Number(b.time);
+      if(!(dt>0)||dt>cfg.maxGapSec||lead<0||lead>cfg.maxGapSec)return null;
+      return {x:b.x+(b.x-a.x)*(lead/dt),y:b.y+(b.y-a.y)*(lead/dt)};
+    }
     function select(candidates,time,context){
       const t=finite(time)?Number(time):null,key=continuityKey(context);
       if(state.lastObservedTime!==null&&t!==null&&t-state.lastObservedTime>cfg.maxGapSec)reset('observation_gap');
@@ -48,19 +56,29 @@
 
       let best=null;
       for(const c of valid){
-        const center=centroid(c.p.space);
-        const distance=center?Math.hypot(c.p.x-center.x,c.p.y-center.y):0;
+        const center=centroid(c.p.space),motion=predict(c.p.space,t);
+        const centerDistance=center?Math.hypot(c.p.x-center.x,c.p.y-center.y):null;
+        const motionDistance=motion?Math.hypot(c.p.x-motion.x,c.p.y-motion.y):null;
+        const anchor=motion||center;
+        const distance=motionDistance!==null?motionDistance:(centerDistance!==null?centerDistance:0);
         const limit=c.p.space==='pitch'?cfg.maxPitchJumpM:cfg.maxImageJump;
-        if(center&&distance>limit)continue;
-        const normalized=center&&limit>0?distance/limit:0;
+        const gateDistance=motionDistance!==null&&centerDistance!==null?Math.min(motionDistance,centerDistance):distance;
+        if(anchor&&gateDistance>limit)continue;
+        const normalized=anchor&&limit>0?distance/limit:0;
         const score=normalized-c.confidence*cfg.confidenceWeight;
-        if(!best||score<best.score)best={...c,distance,score,limit};
+        if(!best||score<best.score)best={...c,distance,score,limit,centerDistance,motionDistance,anchorType:motion?'constant_velocity_prediction':(center?'recent_centroid':'none')};
       }
       if(!best){state.rejections++;if(t!==null)state.lastTime=t;if(key!==null)state.lastKey=key;return {status:'UNAVAILABLE',reason:'ALL_CANDIDATES_BREAK_CONTINUITY',candidateCount:valid.length};}
       state.history.push({x:best.p.x,y:best.p.y,space:best.p.space,time:t});
       if(state.history.length>cfg.bufferSize)state.history.splice(0,state.history.length-cfg.bufferSize);
       if(t!==null){state.lastTime=t;state.lastObservedTime=t;}if(key!==null)state.lastKey=key;state.selections++;
-      return {status:'SELECTED',candidate:best.raw,index:best.index,confidence:best.confidence,distanceToRecentCentroid:best.distance,space:best.p.space,historySize:state.history.length,source:'observed_detection_temporal_continuity'};
+      return {
+        status:'SELECTED',candidate:best.raw,index:best.index,confidence:best.confidence,
+        distanceToRecentCentroid:best.centerDistance===null?0:best.centerDistance,
+        distanceToMotionAnchor:best.distance,
+        motionAnchor:best.anchorType,
+        space:best.p.space,historySize:state.history.length,source:'observed_detection_temporal_continuity'
+      };
     }
     function snapshot(){return {config:{...cfg},history:state.history.map(x=>({...x})),lastTime:state.lastTime,lastObservedTime:state.lastObservedTime,lastKey:state.lastKey,resets:state.resets,rejections:state.rejections,selections:state.selections};}
     return {select,reset,snapshot};
