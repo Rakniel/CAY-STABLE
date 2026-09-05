@@ -23,7 +23,17 @@ The existing CAY continuity policy already uses a 1 second maximum gap for traje
 - a pair separated by more than `maxGapSec` (default: 1 s) is rejected from distance and observed time;
 - rejected gap count and seconds are exposed for audit.
 
-## Measured regression fixture
+### Robust metric coverage extension
+
+The same continuity contract is now also applied to the **coverage denominator** used by `metric_quality_guard_v1.robustMetricForTrack()`.
+
+Before this extension, a same-segment blackout longer than 1 s correctly broke the metric trajectory, but the missing interval was also removed from `eligibleSeconds`. That could leave `metricCoverage=1.0` even when a large temporal hole existed between two valid runs.
+
+The robust path now keeps every positive same-segment elapsed interval in `eligibleSeconds`, while intervals over `MAX_METRIC_GAP_SEC` remain excluded from `metricCoveredSeconds`, distance, speed and sprint evidence. It also exposes `gapBreaks` and `rejectedGapSeconds` for audit. No interpolation is introduced.
+
+## Measured regression fixtures
+
+### Distance continuity fixture
 
 Synthetic same-segment path:
 
@@ -31,13 +41,13 @@ Synthetic same-segment path:
 - blackout pair: 0.5 s → 5.0 s, 30 m;
 - observed pair: 5.0 s → 5.5 s, 1 m.
 
-Before the guard:
+Before the distance guard:
 
 - distance: 32 m;
 - observed movement time: 5.5 s;
 - accepted pairs: 3.
 
-After the guard:
+After the distance guard:
 
 - distance: 2 m;
 - observed movement time: 1.0 s;
@@ -45,13 +55,34 @@ After the guard:
 - rejected gap pairs: 1;
 - rejected gap duration: 4.5 s.
 
+### Robust coverage fixture
+
+Synthetic same-segment timestamps: `0 s, 1 s, 6 s, 7 s`.
+
+Before the robust coverage extension:
+
+- metric covered time: 2 s;
+- eligible time: 2 s;
+- metric coverage: 100%;
+- quality could remain `FIABLE` with otherwise perfect calibration confidence.
+
+After the extension:
+
+- metric covered time: 2 s;
+- eligible time: 7 s;
+- metric coverage: 28.57%;
+- distance: 2 m only, with no bridge across the blackout;
+- gap breaks: 1;
+- rejected gap duration: 5 s;
+- quality: `PARTIEL`.
+
 ## Replacement / acceleration
 
-Replaces the adjacency-only distance accumulation with an extension of the continuity contract already used by CAY-STABLE. No duplicate metric engine is introduced.
+Replaces adjacency-only distance accumulation and the gap-blind robust coverage denominator by extending the same CAY continuity contract already in production. No duplicate metric engine is introduced.
 
-Estimated work avoided by following a mature time-indexed tracking contract rather than designing another interpolation strategy: **0.25–0.5 day**.
+Estimated work avoided by following a mature time-indexed tracking contract rather than designing another interpolation strategy: **0.25–0.5 day** for the original guard plus approximately **0.1–0.25 day** for propagating the same contract into robust coverage.
 
-Expected impact: fewer inflated distance, average-speed and downstream sprint indicators after temporary tracker loss, without inventing movement through missing evidence.
+Expected impact: fewer inflated distance, average-speed and downstream sprint indicators after temporary tracker loss, and no false 100% physical coverage across a blackout.
 
 ## Status and risks
 
