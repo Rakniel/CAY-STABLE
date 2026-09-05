@@ -4,7 +4,7 @@ const Heat=require('../metric_pitch_heatmap_v1.js');
 
 const track={fullPath:[
   {time:0,segment:1,x:.2,y:.2},
-  {time:.5,segment:1,x:.3,y:.3}
+  {time:.5,segment:1,x:.205,y:.205}
 ]};
 const project=p=>({x:p.x*105,y:p.y*68});
 

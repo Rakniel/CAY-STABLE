@@ -3,10 +3,10 @@ const assert=require('assert');
 const Heat=require('../metric_pitch_heatmap_v1.js');
 
 const track={fullPath:[
-  {time:0,segment:1,x:.10,y:.10},
-  {time:.5,segment:1,x:.20,y:.20},
-  {time:1,segment:2,x:.70,y:.70},
-  {time:1.5,segment:2,x:.80,y:.80}
+  {time:0,segment:1,x:.100,y:.100},
+  {time:.5,segment:1,x:.105,y:.105},
+  {time:1,segment:2,x:.700,y:.700},
+  {time:1.5,segment:2,x:.705,y:.705}
 ]};
 const projector=confidence=>({validated:true,confidence,project:p=>({x:p.x*105,y:p.y*68})});
 

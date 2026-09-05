@@ -76,7 +76,7 @@ const irregular=Heat.build({fullPath:[
   {time:.2,segment:1,x:.05,y:.05},
   {time:1.2,segment:1,x:.75,y:.75},
   {time:2.2,segment:1,x:.75,y:.75}
-]},{1:projector(1)},{cols:2,rows:2,maxDwellGapSec:2});
+]},{1:projector(1)},{cols:2,rows:2,maxDwellGapSec:2,maxRawSpeedKmh:1000});
 assert.equal(irregular.heatmapBasis,'TIME_SECONDS');
 assert.equal(irregular.timeAllocation,'LINEAR_PITCH_SEGMENT');
 assert.equal(irregular.projectedIntervalSeconds,2.2);
@@ -88,7 +88,7 @@ assert.notDeepEqual(irregular.normalizedCells,irregular.normalizedObservationCel
 const crossing=Heat.build({fullPath:[
   {time:0,segment:1,x:.1,y:.5},
   {time:1,segment:1,x:.9,y:.5}
-]},{1:projector(1)},{cols:4,rows:1,maxDwellGapSec:2});
+]},{1:projector(1)},{cols:4,rows:1,maxDwellGapSec:2,maxRawSpeedKmh:1000});
 assert.equal(crossing.projectedIntervalSeconds,1);
 assert.deepStrictEqual(crossing.timeCells[0],[.1875,.3125,.3125,.1875]);
 assert.deepStrictEqual(crossing.normalizedTimeCells[0],[.1875,.3125,.3125,.1875]);
@@ -119,7 +119,7 @@ const mixedGap=Heat.build({fullPath:[
   {time:.5,segment:1,x:.2,y:.2},
   {time:3,segment:1,x:.7,y:.7},
   {time:3.5,segment:1,x:.8,y:.8}
-]},{1:projector(1)},{maxDwellGapSec:1});
+]},{1:projector(1)},{maxDwellGapSec:1,maxRawSpeedKmh:1000});
 assert.equal(mixedGap.projectedIntervalSeconds,1);
 assert.equal(mixedGap.eligibleIntervalSeconds,3.5);
 assert.equal(mixedGap.unobservedGapSeconds,2.5);

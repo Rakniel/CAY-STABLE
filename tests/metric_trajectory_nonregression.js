@@ -5,10 +5,10 @@ const projector={validated:true,confidence:.9,project:p=>({x:p.x*105,y:p.y*68})}
 
 // Partial metric evidence must remain visible as a PARTIEL trajectory even when the stricter heatmap gate rejects publication.
 const partial=Heat.build({fullPath:[
-  {time:0,segment:1,x:.10,y:.10},
-  {time:.5,segment:1,x:.20,y:.20},
-  {time:1,segment:2,x:.30,y:.30},
-  {time:1.5,segment:2,x:.40,y:.40}
+  {time:0,segment:1,x:.100,y:.100},
+  {time:.5,segment:1,x:.105,y:.105},
+  {time:1,segment:2,x:.300,y:.300},
+  {time:1.5,segment:2,x:.305,y:.305}
 ]},{1:projector},{minMetricCoverage:.8,maxDwellGapSec:1});
 assert.strictEqual(partial.status,'INDISPONIBLE','heatmap remains gated at 80% coverage');
 assert.strictEqual(partial.projectedPoints.length,0,'legacy heatmap publication contract stays unchanged');
@@ -22,20 +22,20 @@ assert.strictEqual(partial.trajectory.interpolation,'NONE');
 
 // Never connect across camera cuts.
 const cut=Heat.build({fullPath:[
-  {time:0,segment:1,x:.10,y:.10},
-  {time:.5,segment:1,x:.20,y:.20},
-  {time:.6,segment:2,x:.80,y:.80},
-  {time:1.1,segment:2,x:.90,y:.90}
+  {time:0,segment:1,x:.100,y:.100},
+  {time:.5,segment:1,x:.105,y:.105},
+  {time:.6,segment:2,x:.800,y:.800},
+  {time:1.1,segment:2,x:.805,y:.805}
 ]},{1:projector,2:projector},{maxDwellGapSec:1});
 assert.strictEqual(cut.trajectory.runs.length,2);
 assert.deepStrictEqual(cut.trajectory.runs.map(r=>r.map(p=>p.segment)),[[1,1],[2,2]]);
 
 // Never bridge a missing/unprojectable observation even if points on both sides are metric-valid.
 const hole=Heat.build({fullPath:[
-  {time:0,segment:1,x:.10,y:.10},
-  {time:.4,segment:1,x:.20,y:.20},
-  {time:.8,segment:9,x:.30,y:.30},
-  {time:1.2,segment:1,x:.40,y:.40}
+  {time:0,segment:1,x:.100,y:.100},
+  {time:.4,segment:1,x:.104,y:.104},
+  {time:.8,segment:9,x:.300,y:.300},
+  {time:1.2,segment:1,x:.400,y:.400}
 ]},{1:projector},{maxDwellGapSec:1});
 assert.strictEqual(hole.trajectory.points.length,2,'isolated post-hole point is not published as a trajectory run');
 assert.strictEqual(hole.trajectory.runs.length,1,'only continuous metric motion is published');
@@ -43,9 +43,9 @@ assert.strictEqual(hole.trajectory.continuousObservations,2);
 
 // Long temporal gaps are explicit cuts, not invented travel. A singleton after the cut is diagnostic only.
 const gap=Heat.build({fullPath:[
-  {time:0,segment:1,x:.10,y:.10},
-  {time:.5,segment:1,x:.20,y:.20},
-  {time:4,segment:1,x:.70,y:.70}
+  {time:0,segment:1,x:.100,y:.100},
+  {time:.5,segment:1,x:.105,y:.105},
+  {time:4,segment:1,x:.700,y:.700}
 ]},{1:projector},{maxDwellGapSec:1});
 assert.strictEqual(gap.trajectory.runs.length,1);
 assert.strictEqual(gap.trajectory.points.length,2);
