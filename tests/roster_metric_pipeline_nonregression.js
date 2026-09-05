@@ -21,7 +21,7 @@ const starterTrack={globalId:'t1',fullPath:[
   {time:31,segment:0,x:30,y:0},{time:32,segment:0,x:31,y:0}
 ]};
 const starter=Pipeline.build({trackId:'t1',trackRaw:starterTrack,bindingState:bindings,participation,projectors});
-assert.strictEqual(starter.status,'FIABLE');
+assert.strictEqual(starter.status,'INDISPONIBLE','neither short physical evidence nor a heatmap with a 27 s blackout is publishable');
 assert.strictEqual(starter.playerId,'p1');
 assert.strictEqual(starter.participation.acceptedObservations,4);
 assert.strictEqual(starter.participation.rejectedObservations,2);
@@ -31,15 +31,14 @@ assert.strictEqual(starter.metric.diagnosticPhysicalMetrics.distanceM,2,'short-w
 assert.strictEqual(starter.metric.metricCoveredSeconds,2);
 assert.strictEqual(starter.metric.participationWindowCount,1);
 assert.strictEqual(starter.metric.publication.status,'INDISPONIBLE');
-assert.strictEqual(starter.spatial.status,'FIABLE');
-assert.strictEqual(starter.spatial.projectedObservations,4);
-assert.strictEqual(starter.spatial.heatmaps.length,1);
-assert.strictEqual(starter.spatial.heatmaps[0].observations,4);
-assert.strictEqual(starter.spatial.coherentWindowCount,1);
+assert.strictEqual(starter.spatial.status,'INDISPONIBLE','27 s without tracking must fail the temporal heatmap gate');
+assert.strictEqual(starter.spatial.projectedObservations,0);
+assert.strictEqual(starter.spatial.heatmaps.length,0);
+assert.strictEqual(starter.spatial.coherentWindowCount,0);
 assert.strictEqual(starter.spatial.excludedGeometryWindowCount,0);
-assert.deepStrictEqual(starter.spatial.heatmap.sourceWindowIndexes,[0]);
-assert.ok(starter.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.time<=29));
-assert.ok(starter.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.x<=3));
+assert.strictEqual(starter.spatial.heatmap,null);
+assert.strictEqual(starter.spatial.trajectory.runs.length,0);
+assert.strictEqual(starter.windows[0].spatial.temporalCoverage,.069,'window keeps the measured temporal coverage for audit');
 
 const subTrack={globalId:'t12',fullPath:[
   {time:29,segment:0,x:0,y:0},{time:30,segment:0,x:10,y:0},{time:31,segment:0,x:11,y:0},{time:32,segment:0,x:12,y:0}
@@ -85,12 +84,14 @@ assert.strictEqual(noMetric.status,'INDISPONIBLE');
 assert.strictEqual(noMetric.metric.distanceM,null);
 assert.strictEqual(noMetric.spatial.status,'INDISPONIBLE');
 
-const spatialOnly=Pipeline.build({
+const strictSpatial=Pipeline.build({
   trackId:'t1',trackRaw:starterTrack,bindingState:bindings,participation,projectors,
   heatmapOptions:{minMetricCoverage:.5,minCalibrationConfidence:.5,maxDwellGapSec:1}
 });
-assert.strictEqual(spatialOnly.spatial.status,'FIABLE');
-assert.strictEqual(spatialOnly.spatial.trajectory.policy,'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN');
+assert.strictEqual(strictSpatial.spatial.status,'INDISPONIBLE');
+assert.strictEqual(strictSpatial.windows[0].spatial.minTemporalCoverage,.5);
+assert.strictEqual(strictSpatial.windows[0].spatial.temporalCoverage,.069);
+assert.match(strictSpatial.windows[0].spatial.reason,/couverture temporelle insuffisante/i);
 
 // Two individually short participation windows must never be stitched into 4 s of fake continuous speed evidence.
 const rawAggregate=Pipeline.aggregateMetrics([
