@@ -75,10 +75,16 @@ function validateSnapshot(s={}){
 }
 function canResume(snapshot,ctx={}){
   const v=validateSnapshot(snapshot);if(!v.valid)return {allowed:false,reason:'INVALID_STATE',errors:v.errors};
-  const sameTeam=!snapshot.teamId||!ctx.teamId||clean(snapshot.teamId)===clean(ctx.teamId);
-  const sameVideo=!snapshot.videoFingerprint||!ctx.videoFingerprint||clean(snapshot.videoFingerprint)===clean(ctx.videoFingerprint);
-  if(!sameTeam)return {allowed:false,reason:'TEAM_MISMATCH'};
-  if(!sameVideo)return {allowed:false,reason:'VIDEO_MISMATCH'};
+  const stateTeam=clean(snapshot.teamId);
+  const stateVideo=clean(snapshot.videoFingerprint);
+  const contextTeam=clean(ctx.teamId);
+  const contextVideo=clean(ctx.videoFingerprint);
+  if(!stateTeam)return {allowed:false,reason:'STATE_TEAM_SCOPE_REQUIRED'};
+  if(!stateVideo)return {allowed:false,reason:'STATE_VIDEO_SCOPE_REQUIRED'};
+  if(!contextTeam)return {allowed:false,reason:'CONTEXT_TEAM_REQUIRED'};
+  if(!contextVideo)return {allowed:false,reason:'CONTEXT_VIDEO_REQUIRED'};
+  if(stateTeam!==contextTeam)return {allowed:false,reason:'TEAM_MISMATCH'};
+  if(stateVideo!==contextVideo)return {allowed:false,reason:'VIDEO_MISMATCH'};
   return {allowed:true,reason:'MATCH'};
 }
 function exportJson(snapshot){const v=validateSnapshot(snapshot);if(!v.valid)throw new Error(v.errors.join(','));return JSON.stringify(snapshot);}
