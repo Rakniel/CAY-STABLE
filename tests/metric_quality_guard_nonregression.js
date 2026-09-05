@@ -15,6 +15,15 @@ assert.strictEqual(linear.distanceM,20,'clean linear distance must be preserved'
 assert.strictEqual(linear.avgSpeedKmh,18,'clean linear speed must be preserved');
 assert.strictEqual(linear.maxSpeedKmh,18,'clean max speed must be preserved');
 assert.strictEqual(linear.sprintCount,0,'18 km/h must not create a sprint');
+assert.strictEqual(linear.rejectedRawSpikePairs,0,'clean linear motion must not trigger the raw-spike veto');
+assert.strictEqual(linear.rawSpikeThresholdKmh,55,'raw-spike threshold must stay explicit and auditable');
+
+const teleport=Guard.robustMetricForTrack(track([[0,0],[1,0],[20,0],[3,0],[4,0]]),projector);
+assert.strictEqual(teleport.rejectedRawSpikePairs,2,'isolated metric teleport must reject both raw edges before smoothing');
+assert.strictEqual(teleport.metricCoverage,.5,'rejected teleport edges must remain missing evidence in metric coverage');
+assert.strictEqual(teleport.metricCoveredSeconds,2,'only the two clean one-second intervals may remain metric evidence');
+assert.strictEqual(teleport.distanceM,2,'median smoothing must not hide a teleport and turn rejected edges into distance');
+assert.match(teleport.rawSpikePolicy,/AVANT_LISSAGE/,'diagnostics must expose the pre-smoothing veto policy');
 
 const sprint=Guard.robustMetricForTrack(track([[0,0],[8,0],[16,0],[24,0],[32,0]]),projector);
 assert.strictEqual(sprint.sprintCount,1,'continuous 28.8 km/h run must count as one sprint episode');
