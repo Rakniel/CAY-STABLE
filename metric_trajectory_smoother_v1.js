@@ -50,15 +50,26 @@
     };
   }
 
-  function pathDistance(points){
-    let distance=0,seconds=0,pairs=0;
+  function pathDistance(points,options){
+    const cfg={maxGapSec:1,...(options||{})};
+    const maxGapSec=Math.max(0,Number(cfg.maxGapSec)||0);
+    let distance=0,seconds=0,pairs=0,gapRejectedPairs=0,gapRejectedSeconds=0;
     for(let i=1;i<(points||[]).length;i++){
       const a=points[i-1],b=points[i];
       if(!a||!b||a.segment!==b.segment||![a.x,a.y,b.x,b.y,a.time,b.time].every(finite))continue;
       const dt=Number(b.time)-Number(a.time);if(!(dt>0))continue;
+      if(maxGapSec>0&&dt>maxGapSec){gapRejectedPairs++;gapRejectedSeconds+=dt;continue;}
       distance+=Math.hypot(Number(b.x)-Number(a.x),Number(b.y)-Number(a.y));seconds+=dt;pairs++;
     }
-    return {distanceM:+distance.toFixed(4),seconds:+seconds.toFixed(4),pairs};
+    return {
+      distanceM:+distance.toFixed(4),
+      seconds:+seconds.toFixed(4),
+      pairs,
+      gapRejectedPairs,
+      gapRejectedSeconds:+gapRejectedSeconds.toFixed(4),
+      maxGapSec,
+      policy:'AUCUNE_DISTANCE_A_TRAVERS_CHANGEMENT_SEGMENT_OU_GAP_TEMPOREL_SUPERIEUR_AU_SEUIL'
+    };
   }
 
   return {smoothSeries,pathDistance,coefficients:COEFF.slice()};

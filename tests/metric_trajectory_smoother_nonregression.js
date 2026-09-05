@@ -30,4 +30,20 @@ const irregular=[
  {x:0,y:0,time:0,segment:1},{x:1,y:.2,time:.1,segment:1},{x:2,y:0,time:.2,segment:1},{x:3,y:.2,time:.9,segment:1},{x:4,y:0,time:1,segment:1}
 ];
 assert.strictEqual(S.smoothSeries(irregular).smoothedSamples,0,'irregular timing must disable local smoothing');
+
+// Same-segment tracking blackouts must never be interpreted as travelled distance.
+const blackout=[
+ {x:0,y:0,time:0,segment:1},
+ {x:1,y:0,time:.5,segment:1},
+ {x:31,y:0,time:5,segment:1},
+ {x:32,y:0,time:5.5,segment:1}
+];
+const blackoutDistance=S.pathDistance(blackout);
+assert.strictEqual(blackoutDistance.distanceM,2,'30m across a 4.5s blackout must not be invented');
+assert.strictEqual(blackoutDistance.seconds,1,'blackout time must not become observed movement time');
+assert.strictEqual(blackoutDistance.pairs,2);
+assert.strictEqual(blackoutDistance.gapRejectedPairs,1);
+assert.strictEqual(blackoutDistance.gapRejectedSeconds,4.5);
+assert.strictEqual(blackoutDistance.maxGapSec,1);
+assert.match(blackoutDistance.policy,/GAP_TEMPOREL/);
 console.log('metric_trajectory_smoother_nonregression: PASS');
