@@ -26,8 +26,24 @@ function row(time,ballX,cayX,oppX){
   assert.deepEqual(r.events,[]);
 }
 
-// Contrôle positif : une récupération adverse avec déplacement métrique observable
-// du ballon reste publiable.
+// Avant ce garde, deux observations adverses espacées de 0.4 s pouvaient suffire
+// a publier un turnover des que le deplacement minimal etait atteint. On exige
+// maintenant au moins trois observations de transition pour une preuve soutenue.
+{
+  const samples=[
+    row(0,10,10.1,16),row(.2,10,10.1,16),row(.4,10,10.1,16),
+    row(.6,11,16,11.1),row(1.0,12,16,12.1)
+  ];
+  const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.5,minTurnoverTravelM:.75,maxTurnoverTransitionSec:1.5});
+  assert.equal(r.quality,'FIABLE');
+  assert.equal(r.turnovers,0);
+  assert.equal(r.rejectedTurnoverTransitions,1);
+  assert.deepEqual(r.events,[]);
+  assert.equal(r.thresholds.minTurnoverObservations,3);
+}
+
+// Controle positif : une recuperation adverse avec deplacement metrique observable
+// du ballon et trois observations de transition reste publiable.
 {
   const samples=[
     row(0,10,10.1,16),row(.2,10,10.1,16),row(.4,10,10.1,16),
@@ -40,6 +56,7 @@ function row(time,ballX,cayX,oppX){
   assert.equal(r.events[0].type,'TURNOVER');
   assert(r.events[0].travelM>=1.9);
   assert(r.events[0].transitionSec<=.5);
+  assert.equal(r.events[0].transitionBallObservations,3);
   assert.equal(r.events[0].source,'validated_ball_motion_and_ownership_transition');
 }
 
