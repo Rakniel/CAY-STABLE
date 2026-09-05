@@ -2,11 +2,11 @@ const assert=require('assert');
 const MetricHeatmap=require('../metric_pitch_heatmap_v1.js');
 const Runtime=require('../stable_metric_visuals_runtime_v1.js');
 const track={globalId:7,fullPath:[
- {time:0,segment:1,x:.10,y:.20},
- {time:.5,segment:1,x:.20,y:.30},
- {time:1,segment:1,x:.30,y:.40},
- {time:3,segment:2,x:.50,y:.50},
- {time:3.5,segment:2,x:.60,y:.55}
+ {time:0,segment:1,x:.100,y:.200},
+ {time:.5,segment:1,x:.105,y:.205},
+ {time:1,segment:1,x:.110,y:.210},
+ {time:3,segment:2,x:.500,y:.500},
+ {time:3.5,segment:2,x:.505,y:.505}
 ]};
 const projectors={
  1:{validated:true,confidence:.95,project:p=>({x:p.x*105,y:p.y*68})},
