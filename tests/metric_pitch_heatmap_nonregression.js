@@ -119,7 +119,7 @@ const mixedGap=Heat.build({fullPath:[
   {time:.5,segment:1,x:.2,y:.2},
   {time:3,segment:1,x:.7,y:.7},
   {time:3.5,segment:1,x:.8,y:.8}
-]},{1:projector(1)},{maxDwellGapSec:1});
+]},{1:projector(1)},{maxDwellGapSec:1,maxRawSpeedKmh:1000});
 assert.equal(mixedGap.projectedIntervalSeconds,1);
 assert.equal(mixedGap.eligibleIntervalSeconds,3.5);
 assert.equal(mixedGap.unobservedGapSeconds,2.5);
