@@ -16,6 +16,8 @@ const track={fullPath:[
 const onlyFirst=Heat.build(track,{1:projector(1)},{cols:6,rows:4,minMetricCoverage:.35});
 assert.equal(onlyFirst.status,'DISPONIBLE');
 assert.equal(onlyFirst.metricCoverage,.5);
+assert.equal(onlyFirst.minMetricCoverage,.35);
+assert.equal(onlyFirst.minTemporalCoverage,.35);
 assert.equal(onlyFirst.observations,2);
 assert.equal(onlyFirst.coordinateSystem,'PITCH_METERS');
 assert.equal(onlyFirst.policy,'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN');
@@ -101,12 +103,16 @@ assert.equal(cutGap.timeAllocation,'NONE');
 assert.equal(cutGap.projectedIntervalSeconds,0);
 assert.equal(cutGap.eligibleIntervalSeconds,5);
 assert.equal(cutGap.temporalCoverage,0);
+assert.equal(cutGap.minTemporalCoverage,.35);
 assert.equal(cutGap.unobservedGapSeconds,5);
 assert.equal(cutGap.gapBreaks,1);
 assert.equal(cutGap.observationDefendableScore,1);
-assert.equal(cutGap.defendableScore,1);
-assert.equal(cutGap.quality,'FIABLE');
-assert.equal(cutGap.qualityPolicy,'QUALITE_OBSERVATIONS = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE');
+assert.equal(cutGap.defendableScore,0);
+assert.equal(cutGap.status,'INDISPONIBLE');
+assert.equal(cutGap.quality,'INDISPONIBLE');
+assert.equal(cutGap.projectedPoints.length,0);
+assert(/couverture temporelle insuffisante/.test(cutGap.reason));
+assert.equal(cutGap.qualityPolicy,'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE × COUVERTURE_TEMPORELLE');
 
 const mixedGap=Heat.build({fullPath:[
   {time:0,segment:1,x:.1,y:.1},
@@ -122,7 +128,10 @@ assert.equal(mixedGap.temporalCoverage,.2857);
 assert(mixedGap.temporalCoverage<1,'a long tracking gap must reduce temporal coverage instead of disappearing from its denominator');
 assert.equal(mixedGap.observationDefendableScore,1);
 assert.equal(mixedGap.defendableScore,.2857);
-assert.equal(mixedGap.quality,'PARTIEL');
+assert.equal(mixedGap.status,'INDISPONIBLE');
+assert.equal(mixedGap.quality,'INDISPONIBLE');
+assert.equal(mixedGap.projectedPoints.length,0);
+assert(/couverture temporelle insuffisante/.test(mixedGap.reason));
 assert.equal(mixedGap.qualityPolicy,'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE × COUVERTURE_TEMPORELLE');
 
 const segmentCut=Heat.build({fullPath:[
