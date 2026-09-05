@@ -151,9 +151,12 @@
     const confidenceCoverage=projected>0?confidenceKnown/projected:0;
     const confidenceComplete=projected>0&&confidenceKnown===projected;
     const avgCalibrationConfidence=confidenceComplete?confidenceSum/projected:null;
-    const defendableScore=confidenceComplete?coverage*avgCalibrationConfidence:null;
+    const temporalCoverage=eligibleIntervalSeconds>0?clamp(projectedIntervalSeconds/eligibleIntervalSeconds,0,1):null;
+    const useTimeWeighting=projectedIntervalSeconds>0;
+    const observationDefendableScore=confidenceComplete?coverage*avgCalibrationConfidence:null;
+    const defendableScore=observationDefendableScore===null?null:observationDefendableScore*(useTimeWeighting&&temporalCoverage!==null?temporalCoverage:1);
     const coverageOk=coverage>=clamp(Number(opts.minMetricCoverage)||0,0,1),confidenceOk=confidenceComplete&&avgCalibrationConfidence>=minCalibrationConfidence,available=projected>0&&coverageOk&&confidenceOk;
-    const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0),useTimeWeighting=projectedIntervalSeconds>0;
+    const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0);
     const normalizedObservationCells=normalizeGrid(cells,projected),normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
     let reason=null;
     if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':!confidenceComplete?'confiance calibration indisponible pour une heatmap terrain défendable':'confiance calibration insuffisante pour une heatmap terrain défendable';
@@ -162,10 +165,10 @@
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
       heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',timeAllocation:useTimeWeighting?'LINEAR_PITCH_SEGMENT':'NONE',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,lowConfidenceSegmentRejected,metricCoverage:+coverage.toFixed(4),
-      eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:eligibleIntervalSeconds>0?+(projectedIntervalSeconds/eligibleIntervalSeconds).toFixed(4):null,maxDwellGapSec,
+      eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:temporalCoverage===null?null:+temporalCoverage.toFixed(4),maxDwellGapSec,
       unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,
-      calibrationConfidenceObservations:confidenceKnown,calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),avgCalibrationConfidence:avgCalibrationConfidence===null?null:+avgCalibrationConfidence.toFixed(4),defendableScore:defendableScore===null?null:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
-      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
+      calibrationConfidenceObservations:confidenceKnown,calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),avgCalibrationConfidence:avgCalibrationConfidence===null?null:+avgCalibrationConfidence.toFixed(4),observationDefendableScore:observationDefendableScore===null?null:+observationDefendableScore.toFixed(4),defendableScore:defendableScore===null?null:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
+      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:useTimeWeighting?'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE × COUVERTURE_TEMPORELLE':'QUALITE_OBSERVATIONS = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
       temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
