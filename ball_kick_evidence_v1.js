@@ -81,16 +81,45 @@
     };
   }
   function filterPassEvents(samples,analysis,options){
-    if(!analysis||!Array.isArray(analysis.events))return {...analysis,events:[],passes:'INDISPONIBLE',kickEvidenceQuality:'INDISPONIBLE'};
-    if(analysis.quality!=='FIABLE')return {...analysis,kickEvidenceQuality:'INDISPONIBLE',kickEvidenceReason:'BALL_ANALYSIS_NOT_RELIABLE'};
-    const kept=[],rejected=[];
+    if(!analysis||!Array.isArray(analysis.events))return {...analysis,events:[],passes:'INDISPONIBLE',kickEvidenceQuality:'INDISPONIBLE',fieldStatus:{...(analysis?.fieldStatus||{}),passes:'INDISPONIBLE'}};
+    if(analysis.quality!=='FIABLE')return {...analysis,kickEvidenceQuality:'INDISPONIBLE',kickEvidenceReason:'BALL_ANALYSIS_NOT_RELIABLE',fieldStatus:{...(analysis.fieldStatus||{}),passes:'INDISPONIBLE'}};
+    const kept=[],rejected=[],unavailable=[];
     for(const e of analysis.events){
       if(e.type!=='PASS'){kept.push(e);continue;}
       const evidence=validatePassKick(samples,e,options);
       if(evidence.status==='CONFIRMED')kept.push({...e,kickEvidence:evidence});
-      else rejected.push({...e,kickEvidence:evidence});
+      else if(evidence.status==='REJECTED')rejected.push({...e,kickEvidence:evidence});
+      else unavailable.push({...e,kickEvidence:evidence});
     }
-    return {...analysis,events:kept,passes:kept.filter(e=>e.type==='PASS').length,kickEvidenceQuality:'FIABLE',kickEvidenceRejectedPasses:rejected.length,rejectedPassEvidence:rejected};
+    const confirmedPasses=kept.filter(e=>e.type==='PASS').length;
+    if(unavailable.length){
+      return {
+        ...analysis,
+        events:kept,
+        diagnosticPasses:confirmedPasses,
+        passes:'INDISPONIBLE',
+        kickEvidenceQuality:'INDISPONIBLE',
+        kickEvidenceReason:'PASS_KICK_EVIDENCE_INCOMPLETE',
+        kickEvidenceRejectedPasses:rejected.length,
+        kickEvidenceUnavailablePasses:unavailable.length,
+        rejectedPassEvidence:rejected,
+        unavailablePassEvidence:unavailable,
+        fieldStatus:{...(analysis.fieldStatus||{}),passes:'INDISPONIBLE'},
+        passPublicationPolicy:'UNE_PASSE_EST_PUBLIEE_SEULEMENT_SI_TOUTE_PASSE_CANDIDATE_PEUT_ETRE_EVALUEE_PAR_LA_PREUVE_DE_FRAPPE;_UNE_PREUVE_INDISPONIBLE_REND_LE_COMPTE_PASSES_INDISPONIBLE_SANS_TRANSFORMER_L_ABSENCE_DE_PREUVE_EN_ZERO'
+      };
+    }
+    return {
+      ...analysis,
+      events:kept,
+      passes:confirmedPasses,
+      kickEvidenceQuality:'FIABLE',
+      kickEvidenceRejectedPasses:rejected.length,
+      kickEvidenceUnavailablePasses:0,
+      rejectedPassEvidence:rejected,
+      unavailablePassEvidence:[],
+      fieldStatus:{...(analysis.fieldStatus||{}),passes:'FIABLE'},
+      passPublicationPolicy:'UNE_PASSE_EST_PUBLIEE_SEULEMENT_SI_TOUTE_PASSE_CANDIDATE_PEUT_ETRE_EVALUEE_PAR_LA_PREUVE_DE_FRAPPE;_UNE_PREUVE_INDISPONIBLE_REND_LE_COMPTE_PASSES_INDISPONIBLE_SANS_TRANSFORMER_L_ABSENCE_DE_PREUVE_EN_ZERO'
+    };
   }
   return {validatePassKick,filterPassEvents};
 });
