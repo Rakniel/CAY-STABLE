@@ -18,6 +18,6 @@ assert.strictEqual(metric.distanceM,2,'aucune distance ne doit être inventée �
 assert.strictEqual(metric.gapBreaks,1,'le blackout est compté explicitement');
 assert.strictEqual(metric.rejectedGapSeconds,5,'la durée du blackout rejeté reste auditée');
 assert.strictEqual(metric.quality,'PARTIEL','une couverture amputée par un blackout ne peut pas rester FIABLE');
-assert.strictEqual(metric.coveragePolicy,'LES_TROUS_TEMPORELS_MEME_SEGMENT_RESTENT_DANS_LE_TEMPS_ELIGIBLE_MAIS_JAMAIS_DANS_LE_TEMPS_METRIQUE','politique de couverture exposée');
+assert.strictEqual(metric.coveragePolicy,'LES_TROUS_TEMPORELS_MEME_SEGMENT_ET_SPIKES_BRUTS_REJETES_RESTENT_DANS_LE_TEMPS_ELIGIBLE_MAIS_JAMAIS_DANS_LE_TEMPS_METRIQUE','politique de couverture exposée');
 
 console.log('PASS 8/8 robust metric gap coverage');
