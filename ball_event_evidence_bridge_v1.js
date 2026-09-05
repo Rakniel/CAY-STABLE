@@ -35,25 +35,32 @@
     const possessionQuality=base?.quality==='FIABLE'&&possessionCoverage>=minCoverage?'FIABLE':'INDISPONIBLE';
     const diagnosticPossession=base&&base.possession&&typeof base.possession==='object'?base.possession:null;
     const diagnosticPlayerPossession=base&&base.playerPossession&&typeof base.playerPossession==='object'?base.playerPossession:null;
+    const diagnosticPlayerPossessionByTeam=base&&base.playerPossessionByTeam&&typeof base.playerPossessionByTeam==='object'?base.playerPossessionByTeam:null;
+    const diagnosticPlayerPossessionIdCollisions=Array.isArray(base?.playerPossessionIdCollisions)?base.playerPossessionIdCollisions:null;
     return {
       ...base,
       possessionCoverage:round4(possessionCoverage),
       possessionReason:possessionQuality==='FIABLE'?null:(base?.quality!=='FIABLE'?(base?.reason||'BALL_EVENT_EVIDENCE_TOO_LOW'):'POSSESSION_EVIDENCE_TOO_LOW'),
       diagnosticPossession,
       diagnosticPlayerPossession,
+      diagnosticPlayerPossessionByTeam,
+      diagnosticPlayerPossessionIdCollisions,
       possession:possessionQuality==='FIABLE'?base.possession:'INDISPONIBLE',
       playerPossession:possessionQuality==='FIABLE'?base.playerPossession:'INDISPONIBLE',
+      playerPossessionByTeam:possessionQuality==='FIABLE'?base.playerPossessionByTeam:'INDISPONIBLE',
+      playerPossessionIdCollisions:possessionQuality==='FIABLE'?base.playerPossessionIdCollisions:'INDISPONIBLE',
       fieldStatus:{
         ...(base?.fieldStatus||{}),
         passes:base?.quality==='FIABLE'?'FIABLE':'INDISPONIBLE',
         turnovers:base?.quality==='FIABLE'?'FIABLE':'INDISPONIBLE',
-        possession:possessionQuality
+        possession:possessionQuality,
+        playerPossession:possessionQuality
       },
-      possessionEvidencePolicy:'POSSESSION_PUBLIEE_SEULEMENT_SI_LE_BALLON_EST_FIABLE_ET_SI_LE_TEMPS_ATTRIBUE_A_UN_PROPRIETAIRE_STABLE_COUVRE_AU_MOINS_LE_MEME_SEUIL_QUE_LA_COUVERTURE_BALLON;_LE_RESULTAT_BRUT_RESTE_DIAGNOSTIQUE'
+      possessionEvidencePolicy:'POSSESSION_PUBLIEE_SEULEMENT_SI_LE_BALLON_EST_FIABLE_ET_SI_LE_TEMPS_ATTRIBUE_A_UN_PROPRIETAIRE_STABLE_COUVRE_AU_MOINS_LE_MEME_SEUIL_QUE_LA_COUVERTURE_BALLON;_LA_POSSESSION_JOUEUR_AUTORITAIRE_RESTE_QUALIFIEE_PAR_EQUIPE;_LE_RESULTAT_BRUT_RESTE_DIAGNOSTIQUE'
     };
   }
   function analyze(samples,options){
-    if(!BallEvents||typeof BallEvents.analyzeBallEvents!=='function')return {quality:'INDISPONIBLE',reason:'BALL_EVENT_ENGINE_UNAVAILABLE',events:[],passes:'INDISPONIBLE',fieldStatus:{passes:'INDISPONIBLE',turnovers:'INDISPONIBLE',possession:'INDISPONIBLE'}};
+    if(!BallEvents||typeof BallEvents.analyzeBallEvents!=='function')return {quality:'INDISPONIBLE',reason:'BALL_EVENT_ENGINE_UNAVAILABLE',events:[],passes:'INDISPONIBLE',fieldStatus:{passes:'INDISPONIBLE',turnovers:'INDISPONIBLE',possession:'INDISPONIBLE',playerPossession:'INDISPONIBLE'}};
     const guarded=guardLivePlaySamples(samples);
     const base=applyPossessionEvidencePolicy(BallEvents.analyzeBallEvents(guarded.samples,options));
     const withLiveGuard={...base,nonLiveExcludedFrames:guarded.excludedFrames,nonLiveRuns:guarded.nonLiveRuns,livePlayPolicy:'LES_REPLAYS_RALENTIS_ET_SEGMENTS_NON_LIVE_NE_SONT_EXCLUS_QUE_SUR_METADONNEE_EXPLICITE;_ILS_CASSENT_LA_CONTINUITE_ET_NE_PEUVENT_PRODUIRE_PASSE_POSSESSION_OU_TURNOVER'};
