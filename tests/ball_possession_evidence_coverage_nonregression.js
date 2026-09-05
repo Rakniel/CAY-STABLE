@@ -1,5 +1,5 @@
 const assert=require('assert');
-const {analyzeBallEvents}=require('../ball_event_state_v1.js');
+const {analyze}=require('../ball_event_evidence_bridge_v1.js');
 
 const players=[
   {id:'cay-9',team:'CAY',pitchX:10,pitchY:10,confidence:.95,onField:true},
@@ -18,7 +18,7 @@ function row(time,ballX){
     row(0,10.1),row(.2,10.1),row(.4,10.1),row(.6,10.1),
     row(.8,20),row(1.0,20),row(1.2,20),row(1.4,20),row(1.6,20),row(1.8,20),row(2.0,20)
   ];
-  const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.55,maxObservationGapSec:.75});
+  const r=analyze(samples,{minStableOwnershipSec:.3,minCoverage:.55,maxObservationGapSec:.75});
   assert.equal(r.quality,'FIABLE');
   assert(r.coverage>=.99);
   assert(r.possessionCoverage<.55);
@@ -36,7 +36,7 @@ function row(time,ballX){
     row(0,10.1),row(.2,10.1),row(.4,10.1),row(.6,10.1),row(.8,10.1),
     row(1.0,10.1),row(1.2,10.1),row(1.4,10.1),row(1.6,10.1),row(1.8,10.1),row(2.0,10.1)
   ];
-  const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.55,maxObservationGapSec:.75});
+  const r=analyze(samples,{minStableOwnershipSec:.3,minCoverage:.55,maxObservationGapSec:.75});
   assert.equal(r.quality,'FIABLE');
   assert(r.possessionCoverage>=.55);
   assert.equal(r.fieldStatus.possession,'FIABLE');
