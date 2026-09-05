@@ -16,7 +16,7 @@ function row(time,ballX){
 {
   const samples=[
     row(0,10.1),row(.2,10.1),row(.4,10.1),row(.6,10.1),
-    row(.8,20),row(1.0,20),row(1.2,20),row(1.4,20),row(1.6,20),row(1.8,20),row(2.0,20)
+    row(.8,14),row(1.0,14),row(1.2,14),row(1.4,14),row(1.6,14),row(1.8,14),row(2.0,14)
   ];
   const r=analyze(samples,{minStableOwnershipSec:.3,minCoverage:.55,maxObservationGapSec:.75});
   assert.equal(r.quality,'FIABLE');
