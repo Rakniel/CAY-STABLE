@@ -3,11 +3,13 @@
     (typeof module==='object'&&module.exports&&typeof require==='function')?require('./app_domain_models_v1.js'):root.CAYAppDomainModels,
     (typeof module==='object'&&module.exports&&typeof require==='function')?require('./track_roster_binding_v1.js'):root.CAYTrackRosterBinding,
     (typeof module==='object'&&module.exports&&typeof require==='function')?require('./player_stats_v1.js'):root.CAYPlayerStats,
-    (typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_pitch_heatmap_v1.js'):root.CAYMetricPitchHeatmap
+    (typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_pitch_heatmap_v1.js'):root.CAYMetricPitchHeatmap,
+    (typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_quality_guard_v1.js'):root.CAYMetricQualityGuard,
+    (typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_publication_guard_v1.js'):root.CAYMetricPublicationGuard
   );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYRosterMetricPipeline=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Domain,Binding,PlayerStats,MetricPitchHeatmap){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Domain,Binding,PlayerStats,MetricPitchHeatmap,MetricQualityGuard,MetricPublicationGuard){
   const finite=v=>Number.isFinite(Number(v));
   const sum=(rows,key)=>rows.reduce((acc,row)=>acc+(finite(row?.[key])?Number(row[key]):0),0);
 
@@ -20,28 +22,42 @@
     if(!Binding||typeof Binding.resolve!=='function')throw new Error('ROSTER_METRIC_BINDING_REQUIRED');
     if(!PlayerStats||typeof PlayerStats.metricForTrack!=='function')throw new Error('ROSTER_METRIC_PLAYER_STATS_REQUIRED');
     if(!MetricPitchHeatmap||typeof MetricPitchHeatmap.build!=='function')throw new Error('ROSTER_METRIC_HEATMAP_REQUIRED');
+    if(!MetricQualityGuard||typeof MetricQualityGuard.robustMetricForTrack!=='function')throw new Error('ROSTER_METRIC_QUALITY_GUARD_REQUIRED');
+    if(!MetricPublicationGuard||typeof MetricPublicationGuard.applyPublicationPolicy!=='function')throw new Error('ROSTER_METRIC_PUBLICATION_GUARD_REQUIRED');
   }
 
   function aggregateMetrics(rows){
-    const eligibleSeconds=sum(rows,'eligibleSeconds');
-    const metricCoveredSeconds=sum(rows,'metricCoveredSeconds');
-    const distanceM=sum(rows,'distanceM');
-    const rawDistanceM=sum(rows,'rawDistanceM');
-    const sprintCount=rows.some(row=>row?.sprintCount!==null&&row?.sprintCount!==undefined)?sum(rows,'sprintCount'):null;
-    const maxSpeedValues=rows.map(row=>Number(row?.maxSpeedKmh)).filter(Number.isFinite);
+    const input=Array.isArray(rows)?rows:[];
+    const eligibleSeconds=sum(input,'eligibleSeconds');
+    const metricCoveredSeconds=sum(input,'metricCoveredSeconds');
+    const distanceM=sum(input,'distanceM');
+    const sprintCount=input.some(row=>row?.sprintCount!==null&&row?.sprintCount!==undefined)?sum(input,'sprintCount'):null;
+    const sprintQualifiedSeconds=input.some(row=>row?.sprintQualifiedSeconds!==null&&row?.sprintQualifiedSeconds!==undefined)?sum(input,'sprintQualifiedSeconds'):null;
+    const maxSpeedValues=input.map(row=>Number(row?.maxSpeedKmh)).filter(Number.isFinite);
     const metricCoverage=eligibleSeconds>0?metricCoveredSeconds/eligibleSeconds:0;
     const avgSpeedKmh=metricCoveredSeconds>0?(distanceM/metricCoveredSeconds)*3.6:null;
+    const confidenceWeighted=input.reduce((acc,row)=>acc+(finite(row?.avgCalibrationConfidence)&&finite(row?.metricCoveredSeconds)?Number(row.avgCalibrationConfidence)*Number(row.metricCoveredSeconds):0),0);
+    const avgCalibrationConfidence=metricCoveredSeconds>0?confidenceWeighted/metricCoveredSeconds:0;
+    const defendableScore=metricCoverage*avgCalibrationConfidence;
+    const speedSamples=input.flatMap((row,windowIndex)=>(Array.isArray(row?.speedSamples)?row.speedSamples:[]).map(sample=>({...sample,segment:`window:${windowIndex}:${String(sample.segment)}`})));
+    const quality=MetricQualityGuard&&typeof MetricQualityGuard.qualityFromEvidenceScore==='function'?MetricQualityGuard.qualityFromEvidenceScore(defendableScore):PlayerStats.qualityFromCoverage(metricCoverage);
     return {
       metricCoverage:+metricCoverage.toFixed(4),
       metricCoveredSeconds:+metricCoveredSeconds.toFixed(3),
       eligibleSeconds:+eligibleSeconds.toFixed(3),
       distanceM:metricCoveredSeconds>0?+distanceM.toFixed(2):null,
-      rawDistanceM:metricCoveredSeconds>0?+rawDistanceM.toFixed(2):null,
       avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),
       maxSpeedKmh:maxSpeedValues.length?+Math.max(...maxSpeedValues).toFixed(2):null,
       sprintCount:metricCoveredSeconds>0?sprintCount:null,
-      quality:PlayerStats.qualityFromCoverage(metricCoverage),
-      participationWindowCount:rows.length,
+      sprintQualifiedSeconds:metricCoveredSeconds>0&&sprintQualifiedSeconds!==null?+sprintQualifiedSeconds.toFixed(3):null,
+      quality,
+      avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),
+      defendableScore:+defendableScore.toFixed(4),
+      speedSamples,
+      rejectedSpeedPairs:sum(input,'rejectedSpeedPairs'),
+      participationWindowCount:input.length,
+      qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',
+      speedSamplePolicy:'FENETRES_DE_PARTICIPATION_NAMESPACEES_POUR_INTERDIRE_TOUTE_CONTINUITE_ARTIFICIELLE_ENTRE_FENETRES',
       policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN'
     };
   }
@@ -150,13 +166,15 @@
     }
 
     const windows=split.windows.map(window=>{
-      const metric=PlayerStats.metricForTrack(window.track,input.projectors||{});
+      const metric=MetricQualityGuard.robustMetricForTrack(window.track,input.projectors||{});
       const spatial=MetricPitchHeatmap.build(window.track,input.projectors||{},input.heatmapOptions||{});
       return {index:window.index,startMs:window.startMs,endMs:window.endMs,observations:window.track.fullPath.length,metric,spatial};
     });
-    const metric=aggregateMetrics(windows.map(window=>window.metric));
+    const rawMetric=aggregateMetrics(windows.map(window=>window.metric));
+    const metric=MetricPublicationGuard.applyPublicationPolicy(rawMetric,{identityQuality:'FIABLE'});
     const spatial=summarizeSpatial(windows);
-    const status=metric.metricCoveredSeconds>0||spatial.status!=='INDISPONIBLE'?'FIABLE':'INDISPONIBLE';
+    const metricAvailable=metric?.publication?.status==='FIABLE';
+    const status=metricAvailable||spatial.status!=='INDISPONIBLE'?'FIABLE':'INDISPONIBLE';
     return {
       status,
       reason:status==='FIABLE'?null:'aucune métrique, trajectoire ou heatmap terrain défendable dans les fenêtres de participation confirmées',
@@ -168,7 +186,7 @@
       metric,
       spatial,
       source:'ROSTER_METRIC_PIPELINE_V1',
-      policy:'TRACK_BINDING_FIABLE_ET_PARTICIPATION_CONFIRMEE_REQUISES_AVANT_PUBLICATION_METRIQUE_OU_SPATIALE'
+      policy:'TRACK_BINDING_FIABLE_ET_PARTICIPATION_CONFIRMEE_REQUISES_AVANT_PUBLICATION_METRIQUE_OU_SPATIALE; METRIQUES_PHYSIQUES_REUTILISENT_LES_GARDES_QUALITE_ET_PUBLICATION_STABLE'
     };
   }
 

@@ -1,6 +1,7 @@
 const assert=require('assert');
 const Domain=require('../app_domain_models_v1.js');
 const Binding=require('../track_roster_binding_v1.js');
+const PublicationGuard=require('../metric_publication_guard_v1.js');
 const Pipeline=require('../roster_metric_pipeline_v1.js');
 
 const roster=Array.from({length:12},(_,i)=>({id:`p${i+1}`,name:`Joueur ${i+1}`,status:'ACTIVE'}));
@@ -13,6 +14,7 @@ const projectors={0:{validated:true,confidence:.95,source:'TEST_METRIC',project:
 let bindings=Binding.createState();
 bindings=Binding.bind(bindings,{trackId:'t1',playerId:'p1',source:'MANUAL',confidence:.99,confirmed:true,atMs:0});
 bindings=Binding.bind(bindings,{trackId:'t12',playerId:'p12',source:'REID_FUSED',confidence:.9,confirmed:true,atMs:30000,evidence:['appearance-gallery','shirt-number-12']});
+bindings=Binding.bind(bindings,{trackId:'long',playerId:'p2',source:'MANUAL',confidence:.99,confirmed:true,atMs:0});
 
 const starterTrack={globalId:'t1',fullPath:[
   {time:0,segment:0,x:0,y:0},{time:1,segment:0,x:1,y:0},{time:2,segment:0,x:2,y:0},{time:29,segment:0,x:3,y:0},
@@ -24,9 +26,11 @@ assert.strictEqual(starter.playerId,'p1');
 assert.strictEqual(starter.participation.acceptedObservations,4);
 assert.strictEqual(starter.participation.rejectedObservations,2);
 assert.strictEqual(starter.windows.length,1);
-assert.strictEqual(starter.metric.distanceM,2);
+assert.strictEqual(starter.metric.distanceM,null,'2 s of metric evidence must not bypass the STABLE 3 s publication gate');
+assert.strictEqual(starter.metric.diagnosticPhysicalMetrics.distanceM,2,'short-window distance remains auditable but not publishable');
 assert.strictEqual(starter.metric.metricCoveredSeconds,2);
 assert.strictEqual(starter.metric.participationWindowCount,1);
+assert.strictEqual(starter.metric.publication.status,'INDISPONIBLE');
 assert.strictEqual(starter.spatial.status,'FIABLE');
 assert.strictEqual(starter.spatial.projectedObservations,4);
 assert.strictEqual(starter.spatial.heatmaps.length,1);
@@ -45,18 +49,32 @@ assert.strictEqual(substitute.status,'FIABLE');
 assert.strictEqual(substitute.playerId,'p12');
 assert.strictEqual(substitute.participation.acceptedObservations,3);
 assert.strictEqual(substitute.participation.rejectedObservations,1);
-assert.strictEqual(substitute.metric.distanceM,2);
+assert.strictEqual(substitute.metric.distanceM,null,'substitute with only 2 s evidence must remain unavailable');
+assert.strictEqual(substitute.metric.diagnosticPhysicalMetrics.distanceM,2);
+assert.strictEqual(substitute.metric.publication.status,'INDISPONIBLE');
 assert.strictEqual(substitute.spatial.status,'FIABLE');
 assert.strictEqual(substitute.spatial.projectedObservations,3);
 assert.ok(substitute.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.time>=30));
 assert.ok(substitute.spatial.trajectory.runs.flatMap(run=>run.points).every(point=>point.x>=10));
+
+const longTrack={globalId:'long',fullPath:[0,1,2,3,4].map(time=>({time,segment:0,x:time,y:0}))};
+const longResult=Pipeline.build({trackId:'long',trackRaw:longTrack,bindingState:bindings,participation,projectors});
+assert.strictEqual(longResult.status,'FIABLE');
+assert.strictEqual(longResult.metric.publication.status,'FIABLE','4 s continuous reliable metric evidence should publish');
+assert.strictEqual(longResult.metric.distanceM,4);
+assert.strictEqual(longResult.metric.metricCoveredSeconds,4);
+assert.strictEqual(longResult.metric.defendableScore,.95);
+assert.strictEqual(longResult.metric.sprintCount,0);
+assert.strictEqual(longResult.metric.sprintQualifiedSeconds,0);
+assert.strictEqual(longResult.metric.publication.fieldStatus.distanceM.status,'FIABLE');
+assert.strictEqual(longResult.metric.publication.fieldStatus.maxSpeedKmh.status,'FIABLE');
 
 const unknown=Pipeline.build({trackId:'missing',trackRaw:starterTrack,bindingState:bindings,participation,projectors});
 assert.strictEqual(unknown.status,'INDISPONIBLE');
 assert.strictEqual(unknown.metric,null);
 assert.strictEqual(unknown.spatial,null);
 
-let weak={bindings:[{trackId:'weak',playerId:'p2',source:'MANUAL',confidence:.7,confirmed:true}]};
+let weak={bindings:[{trackId:'weak',playerId:'p3',source:'MANUAL',confidence:.7,confirmed:true}]};
 const weakResult=Pipeline.build({trackId:'weak',trackRaw:starterTrack,bindingState:weak,participation,projectors});
 assert.strictEqual(weakResult.status,'INDISPONIBLE');
 assert.strictEqual(weakResult.metric,null);
@@ -73,6 +91,18 @@ const spatialOnly=Pipeline.build({
 });
 assert.strictEqual(spatialOnly.spatial.status,'FIABLE');
 assert.strictEqual(spatialOnly.spatial.trajectory.policy,'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN');
+
+// Two individually short participation windows must never be stitched into 4 s of fake continuous speed evidence.
+const rawAggregate=Pipeline.aggregateMetrics([
+  {eligibleSeconds:2,metricCoveredSeconds:2,distanceM:2,maxSpeedKmh:3.6,sprintCount:0,sprintQualifiedSeconds:0,avgCalibrationConfidence:.95,defendableScore:.95,quality:'FIABLE',speedSamples:[{time:0,segment:0,kmh:3.6},{time:1,segment:0,kmh:3.6},{time:2,segment:0,kmh:3.6}]},
+  {eligibleSeconds:2,metricCoveredSeconds:2,distanceM:2,maxSpeedKmh:3.6,sprintCount:0,sprintQualifiedSeconds:0,avgCalibrationConfidence:.95,defendableScore:.95,quality:'FIABLE',speedSamples:[{time:2,segment:0,kmh:3.6},{time:3,segment:0,kmh:3.6},{time:4,segment:0,kmh:3.6}]}
+]);
+assert.notStrictEqual(rawAggregate.speedSamples[0].segment,rawAggregate.speedSamples[3].segment,'window namespace must make participation discontinuity explicit');
+const guardedAggregate=PublicationGuard.applyPublicationPolicy(rawAggregate,{identityQuality:'FIABLE'});
+assert.strictEqual(guardedAggregate.continuousSpeedEvidenceSeconds,2,'publication evidence must stay bounded by the longest single participation window');
+assert.strictEqual(guardedAggregate.publication.status,'INDISPONIBLE');
+assert.strictEqual(guardedAggregate.distanceM,null,'4 m accumulated across separate short windows stays diagnostic only');
+assert.strictEqual(guardedAggregate.diagnosticPhysicalMetrics.distanceM,4);
 
 function spatialWindow(index,pitchLengthM,pitchWidthM,x,timeValue){
   return {index,startMs:index*10000,endMs:index*10000+9000,spatial:{

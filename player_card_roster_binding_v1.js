@@ -58,25 +58,34 @@ function findTrack(state,id){
 function unavailableMetric(reason){
   return {metricCoverage:0,metricCoveredSeconds:0,eligibleSeconds:0,distanceM:null,rawDistanceM:null,avgSpeedKmh:null,maxSpeedKmh:null,sprintCount:null,quality:'INDISPONIBLE',reason:reason||'association roster et participation requises',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'};
 }
+function fieldQuality(metric,key){
+  const scoped=metric?.publication?.fieldStatus?.[key]?.status;
+  if(scoped==='FIABLE')return 'FIABLE';
+  if(scoped==='INDISPONIBLE')return 'INDISPONIBLE';
+  return metric?.quality||'INDISPONIBLE';
+}
 function attachRosterMetrics(report,state,projectors,rosterContext){
   if(!report||!Array.isArray(report.players)||!rosterContext)return report;
   const ctx=rosterContext||{},canBuild=RosterMetricPipeline&&typeof RosterMetricPipeline.build==='function'&&ctx.bindingState&&ctx.participation;
-  let publishable=0,reliable=0;
+  let publishable=0,reliable=0,spatiallyAvailable=0;
   const players=report.players.map(player=>{
     const track=findTrack(state,player?.id);
     let rosterMetric=null;
     if(canBuild&&track){
       rosterMetric=RosterMetricPipeline.build({trackId:player.id,trackRaw:track,bindingState:ctx.bindingState,participation:ctx.participation,projectors:projectors||{},timeScaleMs:ctx.timeScaleMs==null?1000:ctx.timeScaleMs});
     }
-    const accepted=rosterMetric&&rosterMetric.status==='FIABLE'&&rosterMetric.metric;
-    const metric=accepted
-      ?{...rosterMetric.metric,reason:null,rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'}
+    const bound=rosterMetric&&rosterMetric.status==='FIABLE'&&rosterMetric.metric;
+    const metric=bound
+      ?{...rosterMetric.metric,reason:rosterMetric.metric?.publication?.reason||null,rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'}
       :unavailableMetric(rosterMetric?.reason||(track?'association roster/participation non fournie':'tracking joueur absent'));
-    if(accepted)publishable++;
-    if(metric.quality==='FIABLE')reliable++;
-    return {...player,metric,rosterMetric,quality:{...(player.quality||{}),metricDistance:metric.quality,metricSpeed:metric.quality,sprints:metric.quality}};
+    const distanceQuality=fieldQuality(metric,'distanceM'),speedQuality=fieldQuality(metric,'avgSpeedKmh'),sprintQuality=fieldQuality(metric,'sprintCount');
+    const metricPublished=distanceQuality==='FIABLE';
+    if(metricPublished)publishable++;
+    if(metricPublished&&metric.quality==='FIABLE')reliable++;
+    if(rosterMetric?.spatial?.status&&rosterMetric.spatial.status!=='INDISPONIBLE')spatiallyAvailable++;
+    return {...player,metric,rosterMetric,quality:{...(player.quality||{}),metricDistance:distanceQuality,metricSpeed:speedQuality,sprints:sprintQuality}};
   });
-  return {...report,players,rosterMetricRuntime:{status:publishable?'DISPONIBLE':'INDISPONIBLE',publishablePlayers:publishable,reliablePlayers:reliable,totalPlayers:players.length,policy:'FICHES_JOUEURS_METRIQUES_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_ET_FENETRES_DE_PARTICIPATION_CONFIRMEES; QUALITE_FIABLE_RESTE_DISTINCTE_D_UNE_METRIQUE_PARTIELLE_PUBLIABLE'}};
+  return {...report,players,rosterMetricRuntime:{status:publishable?'DISPONIBLE':'INDISPONIBLE',publishablePlayers:publishable,reliablePlayers:reliable,spatiallyAvailablePlayers:spatiallyAvailable,totalPlayers:players.length,policy:'FICHES_JOUEURS_METRIQUES_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_FENETRES_DE_PARTICIPATION_CONFIRMEES_ET_GARDE_DE_PUBLICATION_STABLE; VISUELS_TERRAIN_RESTANT_INDEPENDANTS_DES_METRIQUES_PHYSIQUES'}};
 }
 function patchBridge(){
   if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayPlayerCardRosterMetricPatched===true)return false;
@@ -93,5 +102,5 @@ function patchBridge(){
   return true;
 }
 patchBridge();
-return {normalizeTrackId,normalizeBinding,buildIndex,cardRoster,enrichModel,findTrack,unavailableMetric,attachRosterMetrics,patchBridge};
+return {normalizeTrackId,normalizeBinding,buildIndex,cardRoster,enrichModel,findTrack,unavailableMetric,fieldQuality,attachRosterMetrics,patchBridge};
 });
