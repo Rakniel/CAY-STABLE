@@ -15,9 +15,27 @@ CAY-STABLE now maintains an element-wise exponential moving average of the exist
 
 A second guard, `appearanceUpdateMinScore` (default `0.50`), prevents low-confidence detections from changing an already-established identity appearance memory. Those detections can still participate in spatial continuity through the existing tracker policy; they simply cannot poison the ReID memory.
 
+## Active-association extension — 2026-09-05
+
+The existing quality-gated appearance gallery was already used by archived-track ReID through `galleryAppearanceDistance()`, but active tracks still used the EMA alone inside `matchCost()`. This left a gap during crossings, viewpoint changes and short visual regime shifts: the long-term identity evidence existed, yet the active association ignored it until after an ID had already been lost.
+
+CAY-STABLE now reuses the same `galleryAppearanceDistance()` directly inside active `matchCost()` and passes the existing tracker options through `assignFrame()`. No second appearance model or parallel association path was introduced. The active and archived paths therefore share one evidence lifecycle and the same configurable `reidGalleryMinSamples`, `reidGalleryMaxSamples` and `reidGalleryEmaWeight` controls.
+
+Deterministic non-regression coverage in `tests/tracking_active_gallery_association_nonregression.js` creates an active player whose EMA is intentionally shifted by a long alternate visual regime while the quality-gated gallery retains valid historical samples. On the return appearance used by the fixture:
+
+- former EMA-only active cost: approximately `0.114913`;
+- gallery-aware active cost: approximately `0.040220`;
+- appearance-cost reduction: `65%`;
+- existing adaptive active threshold in the fixture: `0.095`;
+- expected identity result before the extension: active match rejected and a duplicate technical ID can be created;
+- result after the extension: persistent `trackId=1` retained, `createdTracks=1`, with no archived-track ReID involved.
+
+This is a synthetic isolation test, not a claim of 65% real-video ID-switch reduction. Real C.A. Yenne footage remains the authority for production tuning.
+
 ## What it replaces
 
 - Replaces: last-observation-only appearance memory in `tracking_core_v1.js`.
+- Extends: active association that previously consumed only the EMA even when a mature gallery was already available.
 - Does not replace: CAY confidence cascade, manual identity merge guard, reciprocal/margin ReID evidence, segment guards, team evidence or the 11-player limit.
 - Does not auto-merge player identities.
 
@@ -27,18 +45,22 @@ A second guard, `appearanceUpdateMinScore` (default `0.50`), prevents low-confid
 
 The test also checks that a low-confidence appearance observation is rejected from the identity memory.
 
+`tests/tracking_active_gallery_association_nonregression.js` separately verifies that the same gallery is consumed before archival, so CAY does not need to lose an ID before benefiting from its long-term appearance evidence.
+
 ## Expected impact
 
 - Fewer ID breaks after short/medium occlusion or re-entry when the final pre-occlusion crop is blurred, partially turned or atypical.
+- Fewer avoidable active ID splits during crossings or viewpoint changes when historical appearance evidence is stronger than the current EMA alone.
 - More stable player trajectories and heatmaps because fewer physical player paths are split across technical IDs.
 - No change to metric publication rules: distance, speed and sprint statistics still require validated pitch projection and coverage.
 
 ## Estimated work avoided
 
-Approximately 0.5-1 day of bespoke feature-memory design and edge-case testing by adapting a mature MOT principle instead of designing a new appearance lifecycle from scratch.
+Approximately 0.5-1 day of bespoke feature-memory design and edge-case testing by adapting a mature MOT principle instead of designing a new appearance lifecycle from scratch. Reusing the already integrated gallery for active association avoids roughly another 0.25-0.5 day that a separate active-memory implementation and its configuration surface would otherwise require.
 
 ## Risks
 
 - An EMA can become too inert if the feature extractor changes appearance distribution strongly during a match; alpha remains configurable and must be benchmarked on representative C.A. Yenne video.
+- Historical gallery samples can be harmful if upstream appearance features are themselves contaminated; the existing confidence gate and bounded gallery remain mandatory, and real-video ID-switch benchmarks must watch for regressions.
 - The local feature vector is not assumed to be a FastReID embedding, so no upstream similarity thresholds are copied.
 - This change improves persistence only when meaningful `feature` vectors are supplied by the detector/ReID path; it creates no synthetic identity evidence.

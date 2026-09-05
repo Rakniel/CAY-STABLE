@@ -60,9 +60,9 @@
     const v=velocity(track),dt=Math.max(0,t-last.time);
     return {x:last.x+v.x*dt,y:last.y+v.y*dt};
   }
-  function matchCost(track,d,t){
+  function matchCost(track,d,t,opts={}){
     const spatial=dist(prediction(track,t),d);
-    const appearance=appearanceDistance(track.feature,d.feature);
+    const appearance=galleryAppearanceDistance(track,d.feature,opts);
     const catPenalty=track.cat===d.cat?0:((track.cat==='goalkeeper'||d.cat==='goalkeeper')?.55:.16);
     return spatial*2.65+appearance*.60+catPenalty+Math.min(.25,track.missed*.05);
   }
@@ -210,7 +210,7 @@
     for(let ti=0;ti<state.active.length;ti++){
       const tr=state.active[ti]; if(tr.missed>lostAfter)continue;
       for(let di=0;di<dets.length;di++){
-        const cost=matchCost(tr,dets[di],t);
+        const cost=matchCost(tr,dets[di],t,opts);
         const last=tr.motionHistory[tr.motionHistory.length-1],dt=last?Math.max(1,t-last.time):1;
         const threshold=(opts.baseThreshold||.50)+Math.min(.34,dt*.045);
         if(cost<=threshold)pairs.push({ti,di,cost});
