@@ -30,4 +30,24 @@ ok(report.players.every(p=>p.metric.distanceM===null),'metric distance remains u
 ok(report.unavailable.possession && report.unavailable.passes && report.unavailable.shots,'unvalidated ball events remain unavailable');
 ok(report.bridge.frames===3,'bridge report preserves global processed-frame count');
 
-console.log(`bridge nonregression: ${pass}/14 PASS`);
+// Production eligibility must fail closed before detections can become persistent CAY identities.
+const guarded=Bridge.create();
+const guardedAssigned=guarded.processFrame([
+  {x:.32,y:.54,cat:'team',score:.97,feature:feat(1)},
+  {cat:'team',score:.99,feature:feat(2)},
+  {x:.38,y:.55,cat:'team',score:.99,feature:feat(3),isBench:true},
+  {x:.42,y:.56,cat:'team',score:.99,feature:feat(4),isSpectator:true},
+  {x:.46,y:.57,cat:'team',score:.99,feature:feat(5),yellowDetailOnly:true},
+  {x:.50,y:.58,cat:'team',score:.99,feature:feat(6),onField:false}
+],0,{width:1920,height:1080});
+ok(guardedAssigned.length===1,'only the eligible on-field CAY detection reaches the tracker');
+ok(guarded.snapshot().rosterTotal===1,'rejected detections never create persistent player identities');
+const guardSnapshot=guarded.snapshot();
+ok(guardSnapshot.rejectedDetections===5,'all five invalid detections are auditable as rejected');
+ok(guardSnapshot.rejectedByReason.normalization_failed===1,'missing coordinates fail closed instead of becoming a phantom (0,0) player');
+ok(guardSnapshot.rejectedByReason.bench===1,'bench detections remain excluded');
+ok(guardSnapshot.rejectedByReason.spectator===1,'spectator detections remain excluded');
+ok(guardSnapshot.rejectedByReason.yellow_detail_only===1,'yellow-only false CAY evidence remains excluded');
+ok(guardSnapshot.rejectedByReason.outside_playable_field===1,'off-field detections remain excluded');
+
+console.log(`bridge nonregression: ${pass}/22 PASS`);
