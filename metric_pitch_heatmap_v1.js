@@ -157,15 +157,15 @@
     const hasTemporalEvidence=eligibleIntervalSeconds>0;
     const useTimeWeighting=projectedIntervalSeconds>0;
     const observationDefendableScore=confidenceComplete?coverage*avgCalibrationConfidence:null;
-    const defendableScore=observationDefendableScore===null?null:observationDefendableScore*(temporalCoverage!==null?temporalCoverage:1);
+    const defendableScore=observationDefendableScore===null?null:observationDefendableScore*(temporalCoverage!==null?temporalCoverage:0);
     const coverageOk=coverage>=minMetricCoverage;
-    const temporalCoverageOk=!hasTemporalEvidence||temporalCoverage>=minTemporalCoverage;
+    const temporalCoverageOk=hasTemporalEvidence&&temporalCoverage!==null&&temporalCoverage>=minTemporalCoverage;
     const confidenceOk=confidenceComplete&&avgCalibrationConfidence>=minCalibrationConfidence;
     const available=projected>0&&coverageOk&&temporalCoverageOk&&confidenceOk;
     const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0);
     const normalizedObservationCells=normalizeGrid(cells,projected),normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
     let reason=null;
-    if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':!temporalCoverageOk?'couverture temporelle insuffisante pour une heatmap terrain défendable':!confidenceComplete?'confiance calibration indisponible pour une heatmap terrain défendable':'confiance calibration insuffisante pour une heatmap terrain défendable';
+    if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':!hasTemporalEvidence?'aucune preuve temporelle continue pour une heatmap terrain défendable':!temporalCoverageOk?'couverture temporelle insuffisante pour une heatmap terrain défendable':!confidenceComplete?'confiance calibration indisponible pour une heatmap terrain défendable':'confiance calibration insuffisante pour une heatmap terrain défendable';
     const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxDwellGapSec,minCalibrationConfidence);
     return {
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
@@ -174,8 +174,8 @@
       eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:temporalCoverage===null?null:+temporalCoverage.toFixed(4),minTemporalCoverage,maxDwellGapSec,
       unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,
       calibrationConfidenceObservations:confidenceKnown,calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),avgCalibrationConfidence:avgCalibrationConfidence===null?null:+avgCalibrationConfidence.toFixed(4),observationDefendableScore:observationDefendableScore===null?null:+observationDefendableScore.toFixed(4),defendableScore:defendableScore===null?null:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
-      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:temporalCoverage!==null?'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE × COUVERTURE_TEMPORELLE':'QUALITE_OBSERVATIONS = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
-      temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; PUBLICATION_EXIGE_COUVERTURE_TEMPORELLE_MINIMALE; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
+      quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:temporalCoverage!==null?'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE × COUVERTURE_TEMPORELLE':'QUALITE_INDISPONIBLE_SANS_PREUVE_TEMPORELLE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
+      temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; PUBLICATION_EXIGE_PREUVE_TEMPORELLE_ET_COUVERTURE_TEMPORELLE_MINIMALE; TEMPS_REPARTI_LINEAIREMENT_SUR_LES_CELLULES_TRAVERSEES_ENTRE_POINTS_CALIBRES_SANS_GAP_EXCESSIF'
     };
   }
   return {build,buildTrajectory,projectorInfo,qualityFromEvidenceScore,accumulateLinearDwell};
