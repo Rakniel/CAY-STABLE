@@ -23,10 +23,14 @@ function row(time,ballX){
   assert(r.coverage>=.99);
   assert(r.possessionCoverage<.55);
   assert.equal(r.fieldStatus.possession,'INDISPONIBLE');
+  assert.equal(r.fieldStatus.playerPossession,'INDISPONIBLE');
   assert.equal(r.possession,'INDISPONIBLE');
   assert.equal(r.playerPossession,'INDISPONIBLE');
+  assert.equal(r.playerPossessionByTeam,'INDISPONIBLE');
+  assert.equal(r.playerPossessionIdCollisions,'INDISPONIBLE');
   assert.equal(r.possessionReason,'POSSESSION_EVIDENCE_TOO_LOW');
   assert(r.diagnosticPossession.CAY);
+  assert(r.diagnosticPlayerPossessionByTeam.CAY);
 }
 
 // When stable ownership covers the required fraction, possession remains
@@ -40,8 +44,11 @@ function row(time,ballX){
   assert.equal(r.quality,'FIABLE');
   assert(r.possessionCoverage>=.55);
   assert.equal(r.fieldStatus.possession,'FIABLE');
+  assert.equal(r.fieldStatus.playerPossession,'FIABLE');
   assert.notEqual(r.possession,'INDISPONIBLE');
+  assert.notEqual(r.playerPossessionByTeam,'INDISPONIBLE');
   assert.equal(r.possession.CAY.share,1);
+  assert(r.playerPossessionByTeam.CAY['cay-9']>0);
 }
 
 console.log('ball possession evidence coverage non-regression: PASS');
