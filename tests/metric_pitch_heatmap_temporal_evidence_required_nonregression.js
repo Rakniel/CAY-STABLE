@@ -35,11 +35,11 @@ assert.equal(cutsOnly.temporalCoverage,null);
 assert.equal(cutsOnly.status,'INDISPONIBLE');
 assert.match(cutsOnly.reason,/preuve temporelle continue/);
 
-// A normal same-plan timed sequence remains publishable.
+// A normal same-plan timed sequence remains publishable and physically plausible.
 const timed=Heat.build({fullPath:[
-  {time:0,segment:1,x:.10,y:.10},
-  {time:.5,segment:1,x:.20,y:.20},
-  {time:1,segment:1,x:.30,y:.30}
+  {time:0,segment:1,x:.100,y:.100},
+  {time:.5,segment:1,x:.105,y:.105},
+  {time:1,segment:1,x:.110,y:.110}
 ]},{1:projector},{});
 assert.equal(timed.metricCoverage,1);
 assert.equal(timed.eligibleIntervalSeconds,1);
