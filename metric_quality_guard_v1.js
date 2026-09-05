@@ -30,14 +30,23 @@
   }
   function robustMetricForTrack(track,projectors){
     const path=track?.fullPath||[];
-    let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0,rejectedSpeedPairs=0,confidenceDt=0;
+    let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0,rejectedSpeedPairs=0,confidenceDt=0,rejectedGapSeconds=0,gapBreaks=0;
     let sprintQualifiedSeconds=0,sprintCandidateSeconds=0,sprintEpisodeCounted=false;
     const speeds=[],runs=[];let current=[];
     const resetSprint=()=>{sprintCandidateSeconds=0;sprintEpisodeCounted=false;};
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<path.length;i++){
       const p=path[i];
-      if(i>0){const a=path[i-1];if(finite(a.time)&&finite(p.time)){const dt=Number(p.time)-Number(a.time);if(a.segment===p.segment&&dt>0&&dt<=MAX_METRIC_GAP_SEC)eligibleDt+=dt;}}
+      if(i>0){
+        const a=path[i-1];
+        if(finite(a.time)&&finite(p.time)){
+          const dt=Number(p.time)-Number(a.time);
+          if(a.segment===p.segment&&dt>0){
+            eligibleDt+=dt;
+            if(dt>MAX_METRIC_GAP_SEC){rejectedGapSeconds+=dt;gapBreaks++;}
+          }
+        }
+      }
       const info=projectorInfo(projectors&&projectors[p.segment]);
       let projected=null;
       if(info.validated){try{projected=info.project(p);}catch(_){projected=null;}}
@@ -71,7 +80,7 @@
     const avgCalibrationConfidence=metricDt>0?confidenceDt/metricDt:0;
     const defendableScore=coverage*avgCalibrationConfidence;
     const quality=qualityFromEvidenceScore(defendableScore);
-    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintDurationSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'CHAQUE_RUN_EXPOSE_UNE_ANCRE_AU_DEBUT_DU_PREMIER_INTERVALLE_PUIS_LES_FINS_D_INTERVALLES_POUR_PRESERVER_LA_DUREE_REELLE_DE_PREUVE',sprintContinuityPolicy:'EPISODE >= 1S A >=25KMH; RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_REJETEE_OU_RUN_METRIQUE'};
+    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintDurationSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,rejectedGapSeconds:+rejectedGapSeconds.toFixed(3),gapBreaks,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'CHAQUE_RUN_EXPOSE_UNE_ANCRE_AU_DEBUT_DU_PREMIER_INTERVALLE_PUIS_LES_FINS_D_INTERVALLES_POUR_PRESERVER_LA_DUREE_REELLE_DE_PREUVE',coveragePolicy:'LES_TROUS_TEMPORELS_MEME_SEGMENT_RESTENT_DANS_LE_TEMPS_ELIGIBLE_MAIS_JAMAIS_DANS_LE_TEMPS_METRIQUE',sprintContinuityPolicy:'EPISODE >= 1S A >=25KMH; RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_PAIRE_REJETEE_OU_RUN_METRIQUE'};
   }
   function patchTeamCalibrationEvidence(report){
     const frames=Array.isArray(report?.teamTimeline)?report.teamTimeline:[];
@@ -115,7 +124,7 @@
       const measured=(report.players||[]).filter(p=>p.metric?.metricCoverage>0),all=report.players||[];
       if(report.team){report.team.playersWithMetricData=measured.length;report.team.measuredDistanceM=+measured.reduce((s,p)=>s+(p.metric.distanceM||0),0).toFixed(2);report.team.avgMetricCoverage=+(all.length?all.reduce((s,p)=>s+(p.metric?.metricCoverage||0),0)/all.length:0).toFixed(4);}
       patchTeamCalibrationEvidence(report);
-      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1_1',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'ANCRE_DEBUT_PREMIER_INTERVALLE_PAR_RUN + FINS_INTERVALLES POUR_NE_PAS_PERDRE_LE_PREMIER_DT',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,principle:'filtre médian local avant calcul distance/vitesse, combinaison explicite couverture × confiance calibration, durée temporelle complète des runs et durée minimale avant de compter un sprint'};
+      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1_2',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'ANCRE_DEBUT_PREMIER_INTERVALLE_PAR_RUN + FINS_INTERVALLES POUR_NE_PAS_PERDRE_LE_PREMIER_DT',coveragePolicy:'LES_TROUS_TEMPORELS_MEME_SEGMENT_PENALISENT_EXPLICITEMENT_LA_COUVERTURE_SANS_CREER_DE_DISTANCE',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,principle:'filtre médian local avant calcul distance/vitesse, couverture qui conserve les trous temporels comme preuve manquante, combinaison explicite couverture × confiance calibration et durée minimale avant de compter un sprint'};
       return report;
     };
     Stats.__cayMetricQualityGuardPatched=true;return true;
