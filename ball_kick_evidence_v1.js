@@ -31,8 +31,13 @@
     const p=(sample?.players||[]).find(x=>String(x?.id??x?.playerId)===String(id));
     return pointOf(p);
   }
-  function sampleRows(samples){
-    return (samples||[]).filter(s=>finite(s?.time)&&pointOf(s?.ball)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
+  function usableBall(ball,minBallConfidence){
+    if(!ball||ball.valid===false||ball.visible===false||!pointOf(ball))return false;
+    const confidence=finite(ball.confidence)?Number(ball.confidence):0;
+    return confidence>=minBallConfidence;
+  }
+  function sampleRows(samples,minBallConfidence){
+    return (samples||[]).filter(s=>finite(s?.time)&&usableBall(s?.ball,minBallConfidence)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
   }
   function localSpeed(rows,i,maxObservationGapSec){
     if(i<=0||i>=rows.length)return null;
@@ -44,6 +49,7 @@
   function validatePassKick(samples,event,options){
     const cfg={
       windowSec:finite(options?.windowSec)?Number(options.windowSec):.55,
+      minBallConfidence:finite(options?.minBallConfidence)?Math.max(0,Math.min(1,Number(options.minBallConfidence))):.65,
       minReleaseSpeedMps:finite(options?.minReleaseSpeedMps)?Number(options.minReleaseSpeedMps):3,
       minSpeedGainMps:finite(options?.minSpeedGainMps)?Number(options.minSpeedGainMps):1.2,
       minSeparationGainM:finite(options?.minSeparationGainM)?Number(options.minSeparationGainM):.8,
@@ -54,8 +60,8 @@
     if(!event||event.type!=='PASS'||!finite(event.time)||!finite(event.transitionSec)||event.fromPlayerId===undefined){
       return {status:'INDISPONIBLE',reason:'PASS_EVENT_METADATA_MISSING'};
     }
-    const start=Number(event.time)-Number(event.transitionSec),rows=sampleRows(samples).filter(r=>Math.abs(Number(r.time)-start)<=cfg.windowSec);
-    if(rows.length<cfg.minObservations)return {status:'INDISPONIBLE',reason:'INSUFFICIENT_BALL_OBSERVATIONS',observations:rows.length};
+    const start=Number(event.time)-Number(event.transitionSec),rows=sampleRows(samples,cfg.minBallConfidence).filter(r=>Math.abs(Number(r.time)-start)<=cfg.windowSec);
+    if(rows.length<cfg.minObservations)return {status:'INDISPONIBLE',reason:'INSUFFICIENT_RELIABLE_BALL_OBSERVATIONS',observations:rows.length,minBallConfidence:cfg.minBallConfidence};
     let best=null,continuityRejectedPairs=0;
     for(let i=1;i<rows.length;i++){
       if(!continuousPair(rows[i-1],rows[i],cfg.maxObservationGapSec)){continuityRejectedPairs+=1;continue;}
