@@ -21,6 +21,15 @@ For accepted intervals, CAY now distributes dwell time over every pitch-grid cel
 
 If no defensible timed interval exists, the module falls back explicitly to observation-density and reports `heatmapBasis: OBSERVATIONS` and `timeAllocation: NONE`. This fallback never manufactures seconds.
 
+### 2026-09-05 quality refinement
+For a `TIME_SECONDS` heatmap, the publication quality now includes the amount of eligible time actually covered by accepted projected intervals:
+
+`defendableScore = metricCoverage × avgCalibrationConfidence × temporalCoverage`
+
+The previous two-factor score remains exposed as `observationDefendableScore` for audit. This prevents a time-weighted heatmap with perfect point projection/calibration but a large tracking gap from being labelled `FIABLE`. Example non-regression: 1.0 s of accepted dwell over 3.5 s eligible time keeps `observationDefendableScore = 1.0`, but produces `temporalCoverage = 0.2857`, `defendableScore = 0.2857`, and quality `PARTIEL`.
+
+When no valid timed interval exists, the artifact stays explicitly observation-based and its quality remains based on metric point coverage × calibration confidence only. It is therefore never presented as time occupancy.
+
 ## Exposed evidence
 - `timeCells`
 - `normalizedTimeCells`
@@ -30,13 +39,16 @@ If no defensible timed interval exists, the module falls back explicitly to obse
 - `eligibleIntervalSeconds`
 - `projectedIntervalSeconds`
 - `temporalCoverage`
+- `observationDefendableScore`
+- `defendableScore`
+- `qualityPolicy`
 - `temporalPolicy`
 
 ## Replaced weakness
-The first adaptation removed sampling-density bias by weighting heatmaps with time. The 2026-08-30 extension removes a second bias: an accepted interval is no longer assigned entirely to its starting cell when the player demonstrably crosses pitch-grid boundaries before the next observation.
+The first adaptation removed sampling-density bias by weighting heatmaps with time. The 2026-08-30 extension removed a second bias: an accepted interval is no longer assigned entirely to its starting cell when the player demonstrably crosses pitch-grid boundaries before the next observation. The 2026-09-05 refinement removes a third bias: temporal holes can no longer disappear from the quality score of a time-based heatmap.
 
 ## Validation
-`tests/metric_pitch_heatmap_nonregression.js` covers irregular sampling, exact multi-cell dwell allocation, excessive temporal gaps, camera-segment cuts, calibrated partial coverage, strict coverage rejection and legacy observation fallback. Tests assert that allocated cell seconds conserve the full accepted interval duration.
+`tests/metric_pitch_heatmap_nonregression.js` covers irregular sampling, exact multi-cell dwell allocation, excessive temporal gaps, camera-segment cuts, calibrated partial coverage, strict coverage rejection, legacy observation fallback, and temporal-quality degradation when accepted dwell covers only part of eligible time. Tests assert that allocated cell seconds conserve the full accepted interval duration.
 
 ## Dependency / legal impact
-Zero new runtime dependency. BSD-3-Clause design/data-contract reference only; no external code incorporated. The grid-boundary dwell allocator is CAY-specific JavaScript written for STABLE.
+Zero new runtime dependency. BSD-3-Clause design/data-contract reference only; no external code incorporated. The grid-boundary dwell allocator and temporal quality contract are CAY-specific JavaScript written for STABLE.
