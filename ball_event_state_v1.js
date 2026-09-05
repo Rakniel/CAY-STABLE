@@ -31,7 +31,7 @@
     const p=pointOf(raw);
     if(id===null||team===null||!p)return null;
     const confidence=finite(raw.confidence)?clamp01(raw.confidence):1;
-    if(raw.onField===false||raw.valid===false)return null;
+    if(raw.onField===false||raw.valid===false||raw.visible===false)return null;
     return {id,team,x:p.x,y:p.y,confidence};
   }
   function normalizeBall(raw){
