@@ -27,6 +27,15 @@ r=s.select([ball(81,50,.2,{valid:true})],1.2,{segmentId:'B'});
 assert.strictEqual(r.status,'UNAVAILABLE');
 assert.strictEqual(r.reason,'NO_VALID_BALL_CANDIDATE');
 
+const blackout=create({bufferSize:4,maxPitchJumpM:10,minConfidence:.4,maxGapSec:.5});
+assert.strictEqual(blackout.select([ball(10,10,.9)],0,{segmentId:'LIVE'}).status,'SELECTED');
+for(const t of [.2,.4,.6,.8,1.0])assert.strictEqual(blackout.select([],t,{segmentId:'LIVE'}).status,'UNAVAILABLE');
+r=blackout.select([ball(50,30,.9)],1.1,{segmentId:'LIVE'});
+assert.strictEqual(r.status,'SELECTED','successive empty frames must not keep a stale ball prior alive across a long observation blackout');
+assert.strictEqual(r.historySize,1,'post-blackout ball must start a fresh continuity history');
+assert.ok(blackout.snapshot().resets>=1,'observation blackout must be auditable as a continuity reset');
+assert.strictEqual(blackout.snapshot().lastObservedTime,1.1,'only a selected observed ball may advance the observation anchor');
+
 const img=create({maxImageJump:.1,minConfidence:.3});
 assert.strictEqual(img.select([{x:.5,y:.5,confidence:.8}],0,{planId:'P1'}).status,'SELECTED');
 assert.strictEqual(img.select([{x:.55,y:.5,confidence:.7},{x:.9,y:.9,confidence:.99}],.1,{planId:'P1'}).index,0);

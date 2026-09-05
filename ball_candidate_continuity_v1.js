@@ -30,9 +30,9 @@
       maxImageJump:finite(raw.maxImageJump)?Number(raw.maxImageJump):.22,
       confidenceWeight:finite(raw.confidenceWeight)?Number(raw.confidenceWeight):.20
     };
-    const state={history:[],lastTime:null,lastKey:null,resets:0,rejections:0,selections:0};
+    const state={history:[],lastTime:null,lastObservedTime:null,lastKey:null,resets:0,rejections:0,selections:0};
 
-    function reset(reason){state.history=[];state.lastTime=null;state.lastKey=null;state.resets++;return reason||'manual';}
+    function reset(reason){state.history=[];state.lastTime=null;state.lastObservedTime=null;state.lastKey=null;state.resets++;return reason||'manual';}
     function centroid(space){
       const pts=state.history.filter(h=>h.space===space);
       if(!pts.length)return null;
@@ -40,7 +40,7 @@
     }
     function select(candidates,time,context){
       const t=finite(time)?Number(time):null,key=continuityKey(context);
-      if(state.lastTime!==null&&t!==null&&t-state.lastTime>cfg.maxGapSec)reset('gap');
+      if(state.lastObservedTime!==null&&t!==null&&t-state.lastObservedTime>cfg.maxGapSec)reset('observation_gap');
       if(state.lastKey!==null&&key!==null&&state.lastKey!==key)reset('segment');
       const valid=(candidates||[]).map((raw,index)=>({raw,index,p:pointOf(raw),confidence:confidenceOf(raw)}))
         .filter(x=>x.p&&x.confidence>=cfg.minConfidence&&x.raw.valid!==false&&x.raw.visible!==false&&x.raw.drifted!==true&&x.raw.driftStatus!=='DRIFTED');
@@ -59,10 +59,10 @@
       if(!best){state.rejections++;if(t!==null)state.lastTime=t;if(key!==null)state.lastKey=key;return {status:'UNAVAILABLE',reason:'ALL_CANDIDATES_BREAK_CONTINUITY',candidateCount:valid.length};}
       state.history.push({x:best.p.x,y:best.p.y,space:best.p.space,time:t});
       if(state.history.length>cfg.bufferSize)state.history.splice(0,state.history.length-cfg.bufferSize);
-      if(t!==null)state.lastTime=t;if(key!==null)state.lastKey=key;state.selections++;
+      if(t!==null){state.lastTime=t;state.lastObservedTime=t;}if(key!==null)state.lastKey=key;state.selections++;
       return {status:'SELECTED',candidate:best.raw,index:best.index,confidence:best.confidence,distanceToRecentCentroid:best.distance,space:best.p.space,historySize:state.history.length,source:'observed_detection_temporal_continuity'};
     }
-    function snapshot(){return {config:{...cfg},history:state.history.map(x=>({...x})),lastTime:state.lastTime,lastKey:state.lastKey,resets:state.resets,rejections:state.rejections,selections:state.selections};}
+    function snapshot(){return {config:{...cfg},history:state.history.map(x=>({...x})),lastTime:state.lastTime,lastObservedTime:state.lastObservedTime,lastKey:state.lastKey,resets:state.resets,rejections:state.rejections,selections:state.selections};}
     return {select,reset,snapshot};
   }
   return {create};
