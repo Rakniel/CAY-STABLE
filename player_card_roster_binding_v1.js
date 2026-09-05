@@ -74,9 +74,9 @@ function attachRosterMetrics(report,state,projectors,rosterContext){
     if(canBuild&&track){
       rosterMetric=RosterMetricPipeline.build({trackId:player.id,trackRaw:track,bindingState:ctx.bindingState,participation:ctx.participation,projectors:projectors||{},timeScaleMs:ctx.timeScaleMs==null?1000:ctx.timeScaleMs});
     }
-    const bound=rosterMetric&&rosterMetric.status==='FIABLE'&&rosterMetric.metric;
-    const metric=bound
-      ?{...rosterMetric.metric,reason:rosterMetric.metric?.publication?.reason||null,rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'}
+    const hasBoundMetric=rosterMetric&&rosterMetric.metric&&rosterMetric.binding?.status==='FIABLE';
+    const metric=hasBoundMetric
+      ?{...rosterMetric.metric,reason:rosterMetric.metric?.publication?.reason||rosterMetric.reason||null,rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'}
       :unavailableMetric(rosterMetric?.reason||(track?'association roster/participation non fournie':'tracking joueur absent'));
     const distanceQuality=fieldQuality(metric,'distanceM'),speedQuality=fieldQuality(metric,'avgSpeedKmh'),sprintQuality=fieldQuality(metric,'sprintCount');
     const metricPublished=distanceQuality==='FIABLE';

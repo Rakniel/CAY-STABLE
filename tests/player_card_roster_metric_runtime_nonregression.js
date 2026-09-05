@@ -33,12 +33,12 @@ assert.strictEqual(attached.players[0].rosterMetric.participation.rejectedObserv
 assert.strictEqual(attached.rosterMetricRuntime.status,'INDISPONIBLE');
 assert.strictEqual(attached.rosterMetricRuntime.publishablePlayers,0);
 assert.strictEqual(attached.rosterMetricRuntime.reliablePlayers,0);
-assert.strictEqual(attached.rosterMetricRuntime.spatiallyAvailablePlayers,1,'pitch visuals may remain available even when physical metrics are not publishable');
+assert.strictEqual(attached.rosterMetricRuntime.spatiallyAvailablePlayers,0,'a 27 s tracking blackout must make pitch visuals unavailable even though physical diagnostics remain auditable');
 
 const card=VM.buildCard(attached.players[0]);
 assert.strictEqual(card.metrics.distanceM.status,'INDISPONIBLE');
 assert.strictEqual(card.metrics.distanceM.value,null);
-assert.strictEqual(card.pitchVisuals.status,'DISPONIBLE','trajectory/heatmap availability stays independent from physical metric publication');
+assert.strictEqual(card.pitchVisuals.status,'INDISPONIBLE','pitch visuals must fail closed when temporal coverage is below the heatmap publication threshold');
 
 const noContext=CardBinding.attachRosterMetrics(report,state,projectors,null);
 assert.strictEqual(noContext.players[0].metric.distanceM,9999,'diagnostic report must remain untouched when no roster context is requested');
