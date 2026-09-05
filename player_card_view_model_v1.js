@@ -13,8 +13,11 @@
   const unavailable=reason=>({status:'INDISPONIBLE',value:null,reason:reason||'preuve insuffisante'});
   function metricValue(metric,key,label){
     if(!metric||metric.rosterBound!==true)return unavailable('liaison roster fiable et participation confirmée requises');
-    if(!finite(metric.metricCoverage)||Number(metric.metricCoverage)<=0||!finite(metric[key]))return unavailable('projection terrain métrique non défendable');
-    return {status:metric.quality==='FIABLE'?'FIABLE':'PARTIEL',value:Number(metric[key]),label,coverage:pct(metric.metricCoverage),reason:null};
+    const scoped=metric?.publication?.fieldStatus?.[key];
+    if(scoped?.status==='INDISPONIBLE')return unavailable(scoped.reason||'preuve spécifique insuffisante pour cette métrique');
+    if(!finite(metric.metricCoverage)||Number(metric.metricCoverage)<=0||!finite(metric[key]))return unavailable(scoped?.reason||'projection terrain métrique non défendable');
+    const status=scoped?.status==='FIABLE'?'FIABLE':metric.quality==='FIABLE'?'FIABLE':'PARTIEL';
+    return {status,value:Number(metric[key]),label,coverage:pct(metric.metricCoverage),reason:null};
   }
   function rosterPitchVisuals(player){
     const rm=player&&player.rosterMetric||null,spatial=rm&&rm.spatial||null;
