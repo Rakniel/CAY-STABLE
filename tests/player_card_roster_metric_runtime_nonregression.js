@@ -25,16 +25,20 @@ const state={active:[track],archive:[]};
 const attached=CardBinding.attachRosterMetrics(report,state,projectors,{bindingState,participation,timeScaleMs:1000});
 assert.strictEqual(attached.players[0].metric.rosterBound,true);
 assert.strictEqual(attached.players[0].metric.source,'ROSTER_METRIC_PIPELINE_V1');
-assert.strictEqual(attached.players[0].metric.distanceM,2,'post-substitution observations must not inflate starter distance');
+assert.strictEqual(attached.players[0].metric.distanceM,null,'2 s of evidence must stay unavailable in the player card metric contract');
+assert.strictEqual(attached.players[0].metric.diagnosticPhysicalMetrics.distanceM,2,'post-substitution observations must not inflate the auditable starter distance');
+assert.strictEqual(attached.players[0].metric.publication.status,'INDISPONIBLE');
 assert.strictEqual(attached.players[0].rosterMetric.participation.acceptedObservations,4);
 assert.strictEqual(attached.players[0].rosterMetric.participation.rejectedObservations,2);
-assert.strictEqual(attached.rosterMetricRuntime.status,'DISPONIBLE');
-assert.strictEqual(attached.rosterMetricRuntime.publishablePlayers,1);
-assert.strictEqual(attached.rosterMetricRuntime.reliablePlayers,0,'sparse metric coverage must remain PARTIEL rather than being promoted to FIABLE');
+assert.strictEqual(attached.rosterMetricRuntime.status,'INDISPONIBLE');
+assert.strictEqual(attached.rosterMetricRuntime.publishablePlayers,0);
+assert.strictEqual(attached.rosterMetricRuntime.reliablePlayers,0);
+assert.strictEqual(attached.rosterMetricRuntime.spatiallyAvailablePlayers,1,'pitch visuals may remain available even when physical metrics are not publishable');
 
 const card=VM.buildCard(attached.players[0]);
-assert.strictEqual(card.metrics.distanceM.status,'PARTIEL');
-assert.strictEqual(card.metrics.distanceM.value,2);
+assert.strictEqual(card.metrics.distanceM.status,'INDISPONIBLE');
+assert.strictEqual(card.metrics.distanceM.value,null);
+assert.strictEqual(card.pitchVisuals.status,'DISPONIBLE','trajectory/heatmap availability stays independent from physical metric publication');
 
 const noContext=CardBinding.attachRosterMetrics(report,state,projectors,null);
 assert.strictEqual(noContext.players[0].metric.distanceM,9999,'diagnostic report must remain untouched when no roster context is requested');
