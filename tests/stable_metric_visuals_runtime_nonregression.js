@@ -25,7 +25,7 @@ assert.strictEqual(p.metricVisuals.pitchHeatmap.eligibleIntervalSeconds,3.5);
 assert.strictEqual(p.metricVisuals.pitchHeatmap.projectedIntervalSeconds,1);
 assert.strictEqual(p.metricVisuals.pitchHeatmap.segmentBoundarySeconds,2);
 assert.strictEqual(p.metricVisuals.pitchHeatmap.segmentBoundaryBreaks,1);
-assert.strictEqual(p.metricVisuals.pitchHeatmap.temporalCoverage,.2857);
+assert.strictEqual(p.metricVisuals.temporalCoverage,.2857);
 assert.ok(p.metricVisuals.pitchHeatmap.normalizedCells.length>0);
 assert.ok(p.metricVisuals.trajectory.points.length===3);
 assert.strictEqual(p.metricVisuals.trajectory.runs.length,1);
