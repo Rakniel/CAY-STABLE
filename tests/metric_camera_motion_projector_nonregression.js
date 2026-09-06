@@ -12,6 +12,7 @@ assert.ok(Math.abs(q.y-20)<1e-9);
 assert.strictEqual(translated.validation.motionSupport,40);
 assert.ok(translated.validation.motionPlausibility);
 assert.strictEqual(translated.validation.motionForwardBackwardErrorPx,null);
+assert.strictEqual(translated.validation.motionPitchLineAlignmentErrorPx,null);
 
 const scaled=M.createPropagatedProjector(anchor,{matrix:[1.1,0,2,0,1.1,-3,0,0,1],confidence:.96,support:60,inlierRatio:.92,residual:.004},{ageSec:.2,maxAgeSec:.35});
 assert.strictEqual(scaled.validated,true);
@@ -39,6 +40,29 @@ assert.strictEqual(fbCustomLimit.reason,'MOTION_FORWARD_BACKWARD_ERROR_TOO_HIGH'
 const fbRequiredMissing=M.validateMotion({matrix:[1,0,8,0,1,3],confidence:.99,support:100,inlierRatio:.98,residual:.001},{requireForwardBackwardConsistency:true});
 assert.strictEqual(fbRequiredMissing.ok,false);
 assert.strictEqual(fbRequiredMissing.reason,'MOTION_FORWARD_BACKWARD_EVIDENCE_MISSING');
+
+// MatchVision pitch-line drift evidence is plumbed into the same authoritative
+// camera-motion gate. CAY deliberately has no universal default pixel threshold:
+// a calibrated provider threshold must be supplied before the evidence can reject.
+const lineObserved=M.createPropagatedProjector(anchor,{matrix:[1,0,8,0,1,3],confidence:.96,support:55,inlierRatio:.91,residual:.004,pitchLineAlignmentErrorPx:22},{ageSec:.1});
+assert.strictEqual(lineObserved.validated,true,'observed line error alone is diagnostic until a CAY-calibrated threshold is configured');
+assert.strictEqual(lineObserved.validation.motionPitchLineAlignmentErrorPx,22);
+assert.strictEqual(lineObserved.validation.maxPitchLineAlignmentErrorPx,null);
+const lineAlias=M.validateMotion({matrix:[1,0,8,0,1,3],confidence:.96,support:55,inlierRatio:.91,residual:.004,pitch_line_alignment_error_px:7},{maxPitchLineAlignmentErrorPx:12});
+assert.strictEqual(lineAlias.ok,true);
+assert.strictEqual(lineAlias.pitchLineAlignmentErrorPx,7);
+const lineGood=M.createPropagatedProjector(anchor,{matrix:[1,0,8,0,1,3],confidence:.96,support:55,inlierRatio:.91,residual:.004,lineAlignmentErrorPx:8},{ageSec:.1,maxPitchLineAlignmentErrorPx:12});
+assert.strictEqual(lineGood.validated,true);
+assert.strictEqual(lineGood.validation.motionPitchLineAlignmentErrorPx,8);
+assert.strictEqual(lineGood.validation.maxPitchLineAlignmentErrorPx,12);
+const lineBad=M.createPropagatedProjector(anchor,{matrix:[1,0,8,0,1,3],confidence:.99,support:100,inlierRatio:.98,residual:.001,pitchLineAlignmentErrorPx:22},{ageSec:.05,maxPitchLineAlignmentErrorPx:12});
+assert.strictEqual(lineBad.validated,false);
+assert.strictEqual(lineBad.reason,'MOTION_PITCH_LINE_ALIGNMENT_ERROR_TOO_HIGH');
+assert.strictEqual(lineBad.motion.pitchLineAlignmentErrorPx,22);
+assert.strictEqual(lineBad.motion.maxPitchLineAlignmentErrorPx,12);
+const lineRequiredMissing=M.validateMotion({matrix:[1,0,8,0,1,3],confidence:.99,support:100,inlierRatio:.98,residual:.001},{requirePitchLineAlignmentEvidence:true,maxPitchLineAlignmentErrorPx:12});
+assert.strictEqual(lineRequiredMissing.ok,false);
+assert.strictEqual(lineRequiredMissing.reason,'MOTION_PITCH_LINE_ALIGNMENT_EVIDENCE_MISSING');
 
 const stale=M.createPropagatedProjector(anchor,{matrix:[1,0,1,0,1,1],confidence:.95,support:40,inlierRatio:.9,residual:.005},{ageSec:.5,maxAgeSec:.35});
 assert.strictEqual(stale.validated,false);
