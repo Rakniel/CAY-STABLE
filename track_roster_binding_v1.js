@@ -1,8 +1,10 @@
 (function(root,factory){
-  const api=factory();
+  const api=factory(
+    typeof module==='object'&&module.exports?require('./app_domain_models_v1.js'):root.CAYAppDomainModels
+  );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYTrackRosterBinding=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(){
+})(typeof globalThis!=='undefined'?globalThis:this,function(AppDomain){
   const MIN_RELIABLE_CONFIDENCE=.8;
   const ALLOWED_SOURCES=new Set(['MANUAL','JERSEY_NUMBER','REID_FUSED','MANUAL_PLUS_REID']);
   const clean=v=>String(v==null?'':v).trim();
@@ -71,9 +73,10 @@
     if(!Number.isFinite(time))return {...resolved,status:'INDISPONIBLE',playerId:null,reason:'temps observation invalide'};
     const intervals=participation?.byPlayerId?.[String(resolved.playerId)];
     if(!Array.isArray(intervals))return {...resolved,status:'INDISPONIBLE',playerId:null,reason:'fenêtres de participation indisponibles'};
-    const active=intervals.some(interval=>time>=Number(interval.startMs)&&(interval.endMs===null||interval.endMs===undefined||time<=Number(interval.endMs)));
+    if(!AppDomain||typeof AppDomain.isPlayerActiveAt!=='function')return {...resolved,status:'INDISPONIBLE',playerId:null,reason:'contrat de participation indisponible'};
+    const active=AppDomain.isPlayerActiveAt(participation,resolved.playerId,time);
     if(!active)return {...resolved,status:'INDISPONIBLE',playerId:null,reason:'joueur hors fenêtre de participation confirmée'};
-    return {...resolved,atMs:time};
+    return {...resolved,atMs:time,boundaryPolicy:participation?.boundaryPolicy||'HALF_OPEN_SUBSTITUTION_WINDOWS_[START,END)'};
   }
 
   function reliableBindings(state){
