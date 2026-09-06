@@ -48,9 +48,14 @@ const fullPath=latentPath.map(p=>{
 const track={fullPath};
 const projectors={1:p1,2:p2};
 
-const heat=Heatmap.build(track,projectors,{pitchLengthM:105,pitchWidthM:68,cols:6,rows:4,minMetricCoverage:.95,minCalibrationConfidence:.5,maxDwellGapSec:1.1});
-assert.equal(heat.status,'DISPONIBLE','metric heatmap must be publishable when every point is calibrated');
+const heat=Heatmap.build(track,projectors,{pitchLengthM:105,pitchWidthM:68,cols:6,rows:4,minMetricCoverage:.95,minTemporalCoverage:.8,minCalibrationConfidence:.5,maxDwellGapSec:1.1});
+assert.equal(heat.status,'DISPONIBLE','metric heatmap must be publishable when every point is calibrated and the explicit temporal threshold is met');
 assert.equal(heat.metricCoverage,1,'heatmap metric coverage must stay explicit and complete');
+assert.equal(heat.eligibleIntervalSeconds,5,'all chronological time must remain in the temporal denominator');
+assert.equal(heat.projectedIntervalSeconds,4,'camera-cut time must never be allocated as pitch dwell');
+assert.equal(heat.segmentBoundarySeconds,1,'camera-cut duration must be explicit');
+assert.equal(heat.segmentBoundaryBreaks,1,'camera cut must be counted exactly once');
+assert.equal(heat.temporalCoverage,.8,'metric coverage and temporal coverage must remain distinct');
 assert.equal(heat.trajectory.runs.length,2,'camera cut must split the field trajectory into two runs');
 assert.equal(heat.trajectory.points.length,6,'all calibrated observations must remain in the metric trajectory');
 
@@ -76,5 +81,5 @@ assert.ok(unavailable.metricCoverage<.95,'failed-plan coverage must be visible i
 console.log('synthetic_metric_chain_nonregression: PASS',JSON.stringify({
   segment1MeanErrorM:+p1.validation.meanM.toFixed(6),segment2MeanErrorM:+p2.validation.meanM.toFixed(6),
   maxTrajectoryErrorM:+maxTrajectoryError.toFixed(6),distanceM:metric.distanceM,avgSpeedKmh:metric.avgSpeedKmh,
-  heatmapCoverage:heat.metricCoverage,failedPlanCoverage:unavailable.metricCoverage
+  heatmapCoverage:heat.metricCoverage,heatmapTemporalCoverage:heat.temporalCoverage,failedPlanCoverage:unavailable.metricCoverage
 }));
