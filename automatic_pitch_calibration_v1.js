@@ -21,25 +21,15 @@
     }));
   }
 
+  function squaredDistance(a,b){return (Number(a.x)-Number(b.x))**2+(Number(a.y)-Number(b.y))**2;}
+
   function farthestPairIndices(items){
     let best=[0,1],bestD=-1;
     for(let i=0;i<items.length-1;i++)for(let j=i+1;j<items.length;j++){
-      const a=items[i].image,b=items[j].image;
-      const d=(a.x-b.x)**2+(a.y-b.y)**2;
+      const d=squaredDistance(items[i].image,items[j].image);
       if(d>bestD){bestD=d;best=[i,j];}
     }
     return best;
-  }
-
-  function splitFitValidation(correspondences){
-    const c=normalizeCorrespondences(correspondences);
-    if(c.length<6)return {ok:false,reason:'AUTO_CALIBRATION_NEEDS_SIX_CORRESPONDENCES',total:c.length};
-    const validationIndices=farthestPairIndices(c);
-    const validationSet=new Set(validationIndices);
-    const fit=c.filter((_,i)=>!validationSet.has(i));
-    const validation=c.filter((_,i)=>validationSet.has(i));
-    if(fit.length<4)return {ok:false,reason:'AUTO_CALIBRATION_FIT_TOO_SMALL',total:c.length};
-    return {ok:true,fit,validation,validationIndices,total:c.length};
   }
 
   function span(points,key){
@@ -51,6 +41,56 @@
     if(!Array.isArray(points)||points.length<3)return 0;
     if(Homography&&typeof Homography.orderInvariantArea==='function')return Homography.orderInvariantArea(points);
     return 0;
+  }
+
+  function maxPairDistance(items,key){
+    let best=0;
+    for(let i=0;i<items.length-1;i++)for(let j=i+1;j<items.length;j++)best=Math.max(best,Math.sqrt(squaredDistance(items[i][key],items[j][key])));
+    return best;
+  }
+
+  function chooseValidationPair(correspondences){
+    const c=normalizeCorrespondences(correspondences);
+    const fallback=farthestPairIndices(c);
+    if(c.length<6)return {indices:fallback,policy:'FARTHEST_PAIR_FALLBACK',score:null,fitSupportRetention:null,validationSpread:null};
+    const fullImageArea=supportArea(c.map(x=>x.image)),fullPitchArea=supportArea(c.map(x=>x.pitch));
+    const maxImageDistance=maxPairDistance(c,'image'),maxPitchDistance=maxPairDistance(c,'pitch');
+    if(!(fullImageArea>0&&fullPitchArea>0&&maxImageDistance>0&&maxPitchDistance>0))return {indices:fallback,policy:'FARTHEST_PAIR_FALLBACK',score:null,fitSupportRetention:null,validationSpread:null};
+
+    let best=null;
+    for(let i=0;i<c.length-1;i++)for(let j=i+1;j<c.length;j++){
+      const fit=c.filter((_,idx)=>idx!==i&&idx!==j);
+      if(fit.length<4)continue;
+      const imageRetention=clamp(supportArea(fit.map(x=>x.image))/fullImageArea,0,1);
+      const pitchRetention=clamp(supportArea(fit.map(x=>x.pitch))/fullPitchArea,0,1);
+      const fitSupportRetention=Math.min(imageRetention,pitchRetention);
+      if(!(fitSupportRetention>0))continue;
+      const imageSpread=Math.sqrt(squaredDistance(c[i].image,c[j].image))/maxImageDistance;
+      const pitchSpread=Math.sqrt(squaredDistance(c[i].pitch,c[j].pitch))/maxPitchDistance;
+      const validationSpread=Math.min(imageSpread,pitchSpread);
+      const score=fitSupportRetention*.85+validationSpread*.15;
+      if(!best||score>best.score+1e-12||(Math.abs(score-best.score)<=1e-12&&validationSpread>best.validationSpread))best={indices:[i,j],score,fitSupportRetention,validationSpread};
+    }
+    return best?{
+      indices:best.indices,policy:'MAXIMIZE_FIT_SUPPORT_WITH_VALIDATION_SPREAD',
+      score:+best.score.toFixed(6),fitSupportRetention:+best.fitSupportRetention.toFixed(6),validationSpread:+best.validationSpread.toFixed(6)
+    }:{indices:fallback,policy:'FARTHEST_PAIR_FALLBACK',score:null,fitSupportRetention:null,validationSpread:null};
+  }
+
+  function splitFitValidation(correspondences){
+    const c=normalizeCorrespondences(correspondences);
+    if(c.length<6)return {ok:false,reason:'AUTO_CALIBRATION_NEEDS_SIX_CORRESPONDENCES',total:c.length};
+    const selection=chooseValidationPair(c);
+    const validationIndices=selection.indices;
+    const validationSet=new Set(validationIndices);
+    const fit=c.filter((_,i)=>!validationSet.has(i));
+    const validation=c.filter((_,i)=>validationSet.has(i));
+    if(fit.length<4)return {ok:false,reason:'AUTO_CALIBRATION_FIT_TOO_SMALL',total:c.length};
+    return {
+      ok:true,fit,validation,validationIndices,total:c.length,
+      selectionPolicy:selection.policy,selectionScore:selection.score,
+      fitSupportRetention:selection.fitSupportRetention,validationSpread:selection.validationSpread
+    };
   }
 
   function geometricSupport(correspondences,frameSize,pitch,options={}){
@@ -98,16 +138,21 @@
     return {available:true,mean:+(values.reduce((a,b)=>a+b,0)/values.length).toFixed(4),min:+Math.min(...values).toFixed(4)};
   }
 
+  function validationSelectionSummary(split){
+    return {policy:split.selectionPolicy||null,score:split.selectionScore??null,fitSupportRetention:split.fitSupportRetention??null,validationSpread:split.validationSpread??null};
+  }
+
   function evaluateAutomaticCalibration(options={}){
     if(!Homography||typeof Homography.createProjector!=='function')return {status:'INDISPONIBLE',reason:'HOMOGRAPHY_ENGINE_UNAVAILABLE'};
     const normalized=normalizeCorrespondences(options.correspondences);
     const split=splitFitValidation(normalized);
     if(!split.ok)return {status:'INSUFFICIENT_EVIDENCE',reason:split.reason,totalCorrespondences:split.total||0};
+    const validationSelection=validationSelectionSummary(split);
 
     const pitchLengthM=finite(options.pitchLengthM)?Number(options.pitchLengthM):105;
     const pitchWidthM=finite(options.pitchWidthM)?Number(options.pitchWidthM):68;
     const support=geometricSupport(normalized,options.frameSize,{lengthM:pitchLengthM,widthM:pitchWidthM},options);
-    if(!support.ok)return {status:'REJECTED',reason:support.reason,totalCorrespondences:split.total,geometricSupport:support};
+    if(!support.ok)return {status:'REJECTED',reason:support.reason,totalCorrespondences:split.total,geometricSupport:support,validationSelection};
 
     const projector=Homography.createProjector({
       correspondences:split.fit,
@@ -122,37 +167,37 @@
     if(!projector.validated)return {
       status:'REJECTED',reason:projector.reason||'AUTO_CALIBRATION_REPROJECTION_REJECTED',
       totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,
-      validation:projector.validation||null,fit:projector.fit||null,geometricSupport:support
+      validation:projector.validation||null,fit:projector.fit||null,geometricSupport:support,validationSelection
     };
 
     const cornerCheck=bottomCornerSanity(projector,options.frameSize,{lengthM:pitchLengthM,widthM:pitchWidthM},options);
     if(!cornerCheck.ok)return {
       status:'REJECTED',reason:cornerCheck.reason,
       totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,
-      validation:projector.validation||null,fit:projector.fit||null,bottomCornerCheck:cornerCheck,geometricSupport:support
+      validation:projector.validation||null,fit:projector.fit||null,bottomCornerCheck:cornerCheck,geometricSupport:support,validationSelection
     };
 
     const sourceConfidence=confidenceSummary(normalized);
     const minSourceMean=finite(options.minSourceMeanConfidence)?clamp(Number(options.minSourceMeanConfidence),0,1):0;
     if(sourceConfidence.available&&sourceConfidence.mean<minSourceMean)return {
       status:'REJECTED',reason:'AUTO_CALIBRATION_SOURCE_CONFIDENCE_TOO_LOW',sourceConfidence,
-      totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,geometricSupport:support
+      totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,geometricSupport:support,validationSelection
     };
 
     return {
       status:'ACCEPTED_AUTOMATIC',reason:null,projector,confidence:projector.confidence,
       totalCorrespondences:split.total,fitCount:split.fit.length,validationCount:split.validation.length,
       validationIndices:split.validationIndices,validation:projector.validation,bottomCornerCheck:cornerCheck,
-      sourceConfidence,geometricSupport:support,policy:'AUTO_FIRST_MANUAL_ONLY_ON_FAILURE',
+      sourceConfidence,geometricSupport:support,validationSelection,policy:'AUTO_FIRST_MANUAL_ONLY_ON_FAILURE',
       provenance:{
         designReference:'rafaelsouza-tech/soccer-tactical-vision',
         auditedRevision:'4c557534c624948f3bfe3db956859c7ea3b442fa',
         license:'MIT',
-        adaptedIdea:'real-footage calibration must have broad visible keypoint support before RANSAC; reject geometrically starved frames instead of forcing a plausible-looking homography',
+        adaptedIdea:'real-footage calibration must preserve broad visible keypoint support for the homography fit while keeping independent validation; reject geometrically starved frames instead of forcing a plausible-looking homography',
         codeCopied:false
       }
     };
   }
 
-  return {VERSION:'1.1.0',splitFitValidation,geometricSupport,bottomCornerSanity,evaluateAutomaticCalibration};
+  return {VERSION:'1.2.0',splitFitValidation,chooseValidationPair,geometricSupport,bottomCornerSanity,evaluateAutomaticCalibration};
 });
