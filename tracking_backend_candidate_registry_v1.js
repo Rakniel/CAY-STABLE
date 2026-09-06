@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 
-const VERSION='1.1.0';
+const VERSION='1.2.0';
 const candidates={
   'roboflow-trackers-apache':{
     id:'roboflow-trackers-apache',family:'mot',license:'Apache-2.0',status:'BENCHMARK_ONLY',
@@ -9,6 +9,13 @@ const candidates={
     requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,
     preferredProfiles:{cameraMotion:'BoT-SORT',variableDetectionConfidence:'ByteTrack'},
     note:'Permissive reference/backend candidate exposing ByteTrack, BoT-SORT, OC-SORT and evaluation tooling. Python backend must remain optional until real CAY footage proves measurable short-term tracking AND persistent-identity gains.'
+  },
+  'cameltrack-apache':{
+    id:'cameltrack-apache',family:'learned-multi-cue-mot',license:'Apache-2.0',status:'BENCHMARK_ONLY',
+    source:'https://github.com/TrackingLaboratory/CAMELTrack',upstreamVersion:'46a74bb22a28d2d699b4c5c5e317a26d3b87f1e2',runtimeDefaultAllowed:false,
+    requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,
+    preferredProfiles:{crowdedSports:'CAMEL bbox+appearance+keypoints',crossDomain:'global multi-dataset checkpoint'},
+    note:'Context-aware learned association candidate from the TrackLab ecosystem. SportsMOT reports HOTA 80.3 upstream, but CAY promotion remains blocked until dependency/model-weight licensing and real C.A. Yenne persistent-identity benchmarks are validated. No CAMELTrack source or weights are bundled.'
   },
   'sportslabkit-gpl':{
     id:'sportslabkit-gpl',family:'sports-mot',license:'GPL-3.0',status:'REFERENCE_ONLY',
