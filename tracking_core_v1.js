@@ -60,11 +60,23 @@
     const v=velocity(track),dt=Math.max(0,t-last.time);
     return {x:last.x+v.x*dt,y:last.y+v.y*dt};
   }
+  function directionPenalty(track,d,opts={}){
+    if(opts.directionConsistencyEnabled!==true||!track||!Array.isArray(track.motionHistory)||track.motionHistory.length<2)return 0;
+    const last=track.motionHistory[track.motionHistory.length-1];
+    const v=velocity(track);
+    const step={x:(Number(d&&d.x)||0)-last.x,y:(Number(d&&d.y)||0)-last.y};
+    const vn=Math.hypot(v.x,v.y),sn=Math.hypot(step.x,step.y);
+    const minMotion=Number.isFinite(opts.directionMinMotion)?Math.max(0,Number(opts.directionMinMotion)):.003;
+    if(vn<minMotion||sn<minMotion)return 0;
+    const cosine=Math.max(-1,Math.min(1,(v.x*step.x+v.y*step.y)/(vn*sn)));
+    const weight=Number.isFinite(opts.directionPenaltyWeight)?Math.max(0,Number(opts.directionPenaltyWeight)):.18;
+    return weight*((1-cosine)/2);
+  }
   function matchCost(track,d,t,opts={}){
     const spatial=dist(prediction(track,t),d);
     const appearance=galleryAppearanceDistance(track,d.feature,opts);
     const catPenalty=track.cat===d.cat?0:((track.cat==='goalkeeper'||d.cat==='goalkeeper')?.55:.16);
-    return spatial*2.65+appearance*.60+catPenalty+Math.min(.25,track.missed*.05);
+    return spatial*2.65+appearance*.60+catPenalty+Math.min(.25,track.missed*.05)+directionPenalty(track,d,opts);
   }
   function assignmentSignature(pairs){
     return (pairs||[]).map(p=>`${p.ti}:${p.di}`).join('|');
@@ -318,5 +330,5 @@
     const tracks=allUniqueTracks(state).filter(tr=>tr.cayIdentityConfirmed!==false).map(summarizeTrack).sort((a,b)=>a.id-b.id);
     return {segments:state.segments,rosterTotal:tracks.length,maxVisible:state.maxVisible,totalAssociations:state.totalMatches,reidentified:state.reidentified,manualMerges:state.manualMerges||0,reidRejectedAmbiguous:state.reidRejectedAmbiguous||0,reidRejectedStale:state.reidRejectedStale||0,reidRejectedLowScore:state.reidRejectedLowScore||0,tracks};
   }
-  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,appearanceDistance,galleryAppearanceDistance,reidCandidateScore,smoothAppearance,updateTrackAppearance,selectGlobalAssignment};
+  return {createState,startSegment,assignFrame,summary,mergeTracks,matchCost,directionPenalty,appearanceDistance,galleryAppearanceDistance,reidCandidateScore,smoothAppearance,updateTrackAppearance,selectGlobalAssignment};
 });
