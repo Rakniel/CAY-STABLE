@@ -3,13 +3,29 @@ const assert=require('assert');
 const Registry=require('../tracking_backend_candidate_registry_v1.js');
 
 assert.strictEqual(Registry.runtimeLicenseCompatible('roboflow-trackers-apache'),true,'Apache backend must be license-compatible');
+assert.strictEqual(Registry.runtimeLicenseCompatible('cameltrack-apache'),true,'CAMELTrack Apache code candidate must be license-compatible at repository level');
 assert.strictEqual(Registry.runtimeLicenseCompatible('sportslabkit-gpl'),false,'GPL backend must remain reference-only');
 assert.strictEqual(Registry.runtimeLicenseCompatible('soccertrack-v2-benchmark'),false,'dataset/license bundle is not a runtime backend license');
+
+const camel=Registry.get('cameltrack-apache');
+assert.strictEqual(camel.status,'BENCHMARK_ONLY');
+assert.strictEqual(camel.runtimeDefaultAllowed,false);
+assert.strictEqual(camel.requiresDependencyAudit,true);
+assert.strictEqual(camel.requiresIdentityBenchmark,true);
+assert.strictEqual(camel.upstreamVersion,'46a74bb22a28d2d699b4c5c5e317a26d3b87f1e2');
 
 const good={beforeIdSwitchRate:.12,afterIdSwitchRate:.08,frames:1200,reidAttempts:12,beforeReidRecoveryRate:.70,afterReidRecoveryRate:.83,beforeFailedReidentifications:4,afterFailedReidentifications:2,crossSegmentAttempts:5,beforeCrossSegmentRecoveryRate:.60,afterCrossSegmentRecoveryRate:.80};
 
 let verdict=Registry.promotionVerdict('roboflow-trackers-apache',null,{compatible:true});
 assert.strictEqual(verdict.allowed,false);
+assert.strictEqual(verdict.reason,'REAL_VIDEO_GAIN_REQUIRED');
+
+verdict=Registry.promotionVerdict('cameltrack-apache',good,{compatible:false});
+assert.strictEqual(verdict.allowed,false,'repository license alone must not bypass dependency/model audit');
+assert.strictEqual(verdict.reason,'DEPENDENCY_AUDIT_REQUIRED');
+
+verdict=Registry.promotionVerdict('cameltrack-apache',null,{compatible:true});
+assert.strictEqual(verdict.allowed,false,'CAMELTrack must not be promoted without real CAY footage gain');
 assert.strictEqual(verdict.reason,'REAL_VIDEO_GAIN_REQUIRED');
 
 verdict=Registry.promotionVerdict('roboflow-trackers-apache',good,{compatible:false});
