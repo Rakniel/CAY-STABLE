@@ -4,7 +4,7 @@ const heat=require('../metric_heatmap_bins_v1.js');
 (function validBinningAndCoverage(){
   const result=heat.build([
     {x:0,y:0,metricValid:true,inField:true},
-    {x:5,y:4,metricValid:true,inField:true},
+    {x:4.9,y:4,metricValid:true,inField:true},
     {x:104.9,y:67.9,metricValid:true,inField:true},
     {x:106,y:20,metricValid:true,inField:true},
     {x:10,y:10,metricValid:false,inField:true},
