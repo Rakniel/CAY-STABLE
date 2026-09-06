@@ -45,6 +45,12 @@
     return null;
   }
 
+  function readPitchLineAlignmentErrorPx(motion){
+    const candidates=[motion?.pitchLineAlignmentErrorPx,motion?.lineAlignmentErrorPx,motion?.pitch_line_alignment_error_px];
+    for(const value of candidates)if(finite(value))return Number(value);
+    return null;
+  }
+
   function validateTransformPlausibility(matrix,options={}){
     const M=matrix3(matrix);
     if(!M)return {ok:false,reason:'MOTION_MATRIX_INVALID'};
@@ -108,25 +114,34 @@
     const inlierRatio=finite(motion?.inlierRatio)?Number(motion.inlierRatio):0;
     const residual=finite(motion?.residual)?Number(motion.residual):Infinity;
     const forwardBackwardErrorPx=readForwardBackwardErrorPx(motion);
+    const pitchLineAlignmentErrorPx=readPitchLineAlignmentErrorPx(motion);
     const maxForwardBackwardErrorPx=finite(options.maxForwardBackwardErrorPx)?Math.max(0,Number(options.maxForwardBackwardErrorPx)):1.5;
+    const maxPitchLineAlignmentErrorPx=finite(options.maxPitchLineAlignmentErrorPx)?Math.max(0,Number(options.maxPitchLineAlignmentErrorPx)):null;
     const maxResidual=finite(options.maxResidual)?Number(options.maxResidual):.02;
     const minConfidence=finite(options.minConfidence)?Number(options.minConfidence):.78;
     const minSupport=finite(options.minSupport)?Number(options.minSupport):20;
     const minInlierRatio=finite(options.minInlierRatio)?Number(options.minInlierRatio):.72;
+    const evidence={confidence,support,inlierRatio,residual,forwardBackwardErrorPx,pitchLineAlignmentErrorPx,maxPitchLineAlignmentErrorPx};
     if(options.requireForwardBackwardConsistency===true&&forwardBackwardErrorPx===null){
-      return {ok:false,reason:'MOTION_FORWARD_BACKWARD_EVIDENCE_MISSING',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
+      return {ok:false,reason:'MOTION_FORWARD_BACKWARD_EVIDENCE_MISSING',...evidence};
     }
     if(forwardBackwardErrorPx!==null&&forwardBackwardErrorPx>maxForwardBackwardErrorPx){
-      return {ok:false,reason:'MOTION_FORWARD_BACKWARD_ERROR_TOO_HIGH',confidence,support,inlierRatio,residual,forwardBackwardErrorPx,maxForwardBackwardErrorPx};
+      return {ok:false,reason:'MOTION_FORWARD_BACKWARD_ERROR_TOO_HIGH',...evidence,maxForwardBackwardErrorPx};
     }
-    if(confidence<minConfidence)return {ok:false,reason:'MOTION_CONFIDENCE_TOO_LOW',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
-    if(support<minSupport)return {ok:false,reason:'MOTION_SUPPORT_TOO_LOW',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
-    if(inlierRatio<minInlierRatio)return {ok:false,reason:'MOTION_INLIER_RATIO_TOO_LOW',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
-    if(!(residual<=maxResidual))return {ok:false,reason:'MOTION_RESIDUAL_TOO_HIGH',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
+    if(options.requirePitchLineAlignmentEvidence===true&&pitchLineAlignmentErrorPx===null){
+      return {ok:false,reason:'MOTION_PITCH_LINE_ALIGNMENT_EVIDENCE_MISSING',...evidence};
+    }
+    if(pitchLineAlignmentErrorPx!==null&&maxPitchLineAlignmentErrorPx!==null&&pitchLineAlignmentErrorPx>maxPitchLineAlignmentErrorPx){
+      return {ok:false,reason:'MOTION_PITCH_LINE_ALIGNMENT_ERROR_TOO_HIGH',...evidence};
+    }
+    if(confidence<minConfidence)return {ok:false,reason:'MOTION_CONFIDENCE_TOO_LOW',...evidence};
+    if(support<minSupport)return {ok:false,reason:'MOTION_SUPPORT_TOO_LOW',...evidence};
+    if(inlierRatio<minInlierRatio)return {ok:false,reason:'MOTION_INLIER_RATIO_TOO_LOW',...evidence};
+    if(!(residual<=maxResidual))return {ok:false,reason:'MOTION_RESIDUAL_TOO_HIGH',...evidence};
     const plausibility=validateTransformPlausibility(matrix,options);
-    if(!plausibility.ok)return {ok:false,reason:plausibility.reason,confidence,support,inlierRatio,residual,forwardBackwardErrorPx,plausibility};
-    const inv=inverse3(matrix);if(!inv)return {ok:false,reason:'MOTION_MATRIX_SINGULAR',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
-    return {ok:true,matrix,inverse:inv,confidence,support,inlierRatio,residual,forwardBackwardErrorPx,maxForwardBackwardErrorPx,plausibility};
+    if(!plausibility.ok)return {ok:false,reason:plausibility.reason,...evidence,plausibility};
+    const inv=inverse3(matrix);if(!inv)return {ok:false,reason:'MOTION_MATRIX_SINGULAR',...evidence};
+    return {ok:true,matrix,inverse:inv,...evidence,maxForwardBackwardErrorPx,plausibility};
   }
 
   function createPropagatedProjector(anchor,motion,options={}){
@@ -159,9 +174,9 @@
     return {
       validated:true,source:'guarded_camera_motion_propagation_cay_v1',confidence:+confidence.toFixed(3),reason:null,
       project:safeProject,homography:H,pitch,
-      validation:{derived:true,ageSec:+age.toFixed(4),maxAgeSec:maxAge,motionConfidence:checked.confidence,motionSupport:checked.support,motionInlierRatio:checked.inlierRatio,motionResidual:checked.residual,motionForwardBackwardErrorPx:checked.forwardBackwardErrorPx,motionPlausibility:checked.plausibility},
+      validation:{derived:true,ageSec:+age.toFixed(4),maxAgeSec:maxAge,motionConfidence:checked.confidence,motionSupport:checked.support,motionInlierRatio:checked.inlierRatio,motionResidual:checked.residual,motionForwardBackwardErrorPx:checked.forwardBackwardErrorPx,motionPitchLineAlignmentErrorPx:checked.pitchLineAlignmentErrorPx,maxPitchLineAlignmentErrorPx:checked.maxPitchLineAlignmentErrorPx,motionPlausibility:checked.plausibility},
       provenance:{
-        designReferences:['OpenCV robust affine/homography estimation','BoT-SORT global motion compensation','MatchVision guarded forward/backward optical flow'],
+        designReferences:['OpenCV robust affine/homography estimation','BoT-SORT global motion compensation','MatchVision guarded forward/backward optical flow','MatchVision pitch-line alignment drift validation'],
         codeCopied:false,
         licenseDependency:'none',
         referenceLicenses:['OpenCV Apache-2.0 (>=4.5)','BoT-SORT MIT','MatchVision MIT'],
@@ -170,5 +185,5 @@
     };
   }
 
-  return {matrix3,multiply3,inverse3,projectMatrix,readForwardBackwardErrorPx,validateTransformPlausibility,validateMotion,createPropagatedProjector};
+  return {matrix3,multiply3,inverse3,projectMatrix,readForwardBackwardErrorPx,readPitchLineAlignmentErrorPx,validateTransformPlausibility,validateMotion,createPropagatedProjector};
 });
