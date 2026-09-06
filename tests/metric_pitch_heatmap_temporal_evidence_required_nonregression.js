@@ -22,18 +22,20 @@ assert.equal(missingTime.projectedPoints.length,0);
 assert.match(missingTime.reason,/preuve temporelle continue/);
 assert.equal(missingTime.qualityPolicy,'QUALITE_INDISPONIBLE_SANS_PREUVE_TEMPORELLE');
 
-// Camera-plan cuts cannot create temporal evidence even with valid timestamps and calibration.
+// Camera-plan cuts remain in the denominator but can never create defensible dwell evidence.
 const cutsOnly=Heat.build({fullPath:[
   {time:0,segment:1,x:.10,y:.10},
   {time:.5,segment:2,x:.20,y:.20},
   {time:1,segment:3,x:.30,y:.30}
 ]},{1:projector,2:projector,3:projector},{});
 assert.equal(cutsOnly.metricCoverage,1);
-assert.equal(cutsOnly.eligibleIntervalSeconds,0);
+assert.equal(cutsOnly.eligibleIntervalSeconds,1);
 assert.equal(cutsOnly.projectedIntervalSeconds,0);
-assert.equal(cutsOnly.temporalCoverage,null);
+assert.equal(cutsOnly.segmentBoundaryBreaks,2);
+assert.equal(cutsOnly.segmentBoundarySeconds,1);
+assert.equal(cutsOnly.temporalCoverage,0);
 assert.equal(cutsOnly.status,'INDISPONIBLE');
-assert.match(cutsOnly.reason,/preuve temporelle continue/);
+assert.match(cutsOnly.reason,/couverture temporelle insuffisante/);
 
 // A normal same-plan timed sequence remains publishable and physically plausible.
 const timed=Heat.build({fullPath:[

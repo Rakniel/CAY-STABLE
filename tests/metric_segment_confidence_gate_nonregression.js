@@ -15,6 +15,7 @@ const projector=confidence=>({validated:true,confidence,project:p=>({x:p.x*105,y
 const guarded=Heat.build(track,{1:projector(.9),2:projector(.1)},{
   minCalibrationConfidence:.5,
   minMetricCoverage:.4,
+  minTemporalCoverage:.3,
   maxDwellGapSec:1
 });
 assert.equal(guarded.status,'DISPONIBLE');
@@ -26,7 +27,10 @@ assert.equal(guarded.trajectory.status,'DISPONIBLE');
 assert.equal(guarded.trajectory.points.length,2);
 assert(guarded.trajectory.points.every(p=>p.segment===1));
 assert.equal(guarded.projectedIntervalSeconds,.5);
-assert.equal(guarded.temporalCoverage,.5);
+assert.equal(guarded.eligibleIntervalSeconds,1.5);
+assert.equal(guarded.segmentBoundarySeconds,.5);
+assert.equal(guarded.segmentBoundaryBreaks,1);
+assert.equal(guarded.temporalCoverage,.3333);
 
 const tooStrict=Heat.build(track,{1:projector(.9),2:projector(.1)},{
   minCalibrationConfidence:.5,

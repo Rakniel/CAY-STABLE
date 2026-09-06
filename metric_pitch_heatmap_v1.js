@@ -131,7 +131,7 @@
     }
     const hasTrustedSegment=Object.values(segmentInfos).some(info=>info.validated&&isPresentFinite(info.confidence)&&Number(info.confidence)>=minCalibrationConfidence);
     const cells=createGrid(cols,rows),timeCells=createGrid(cols,rows);
-    let eligible=0,projected=0,rejected=0,lowConfidenceSegmentRejected=0,confidenceSum=0,confidenceKnown=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0,rejectedRawSpikeSeconds=0,rejectedRawSpikePairs=0;
+    let eligible=0,projected=0,rejected=0,lowConfidenceSegmentRejected=0,confidenceSum=0,confidenceKnown=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0,segmentBoundarySeconds=0,segmentBoundaryBreaks=0,rejectedRawSpikeSeconds=0,rejectedRawSpikePairs=0;
     const projectedPoints=[],prepared=[];
     for(const p of path){
       const structurallyEligible=!!p&&isPresentFinite(p.x)&&isPresentFinite(p.y)&&isPresentFinite(p.segment);
@@ -150,8 +150,8 @@
     for(let i=0;i+1<prepared.length;i++){
       const a=prepared[i],b=prepared[i+1];if(!a?.p||!b?.p)continue;
       const ta=Number(a.p.time),tb=Number(b.p.time);if(!Number.isFinite(ta)||!Number.isFinite(tb)||tb<=ta)continue;
-      if(Number(a.p.segment)!==Number(b.p.segment))continue;
       const dt=tb-ta;eligibleIntervalSeconds+=dt;
+      if(Number(a.p.segment)!==Number(b.p.segment)){segmentBoundarySeconds+=dt;segmentBoundaryBreaks++;continue;}
       if(maxDwellGapSec>0&&dt>maxDwellGapSec){unobservedGapSeconds+=dt;gapBreaks++;continue;}
       if(!a.projected||!b.projected)continue;
       const pa={...a.projected,time:ta},pb={...b.projected,time:tb};
@@ -183,10 +183,10 @@
       timeCells:timeCells.map(r=>r.map(v=>+v.toFixed(6))),normalizedCells:useTimeWeighting?normalizedTimeCells:normalizedObservationCells,normalizedObservationCells,normalizedTimeCells,
       heatmapBasis:useTimeWeighting?'TIME_SECONDS':'OBSERVATIONS',timeAllocation:useTimeWeighting?'LINEAR_PITCH_SEGMENT':'NONE',max,maxTimeSeconds:+maxTimeSeconds.toFixed(6),observations:projected,eligibleObservations:eligible,rejectedObservations:rejected,lowConfidenceSegmentRejected,metricCoverage:+coverage.toFixed(4),minMetricCoverage,
       eligibleIntervalSeconds:+eligibleIntervalSeconds.toFixed(6),projectedIntervalSeconds:+projectedIntervalSeconds.toFixed(6),temporalCoverage:temporalCoverage===null?null:+temporalCoverage.toFixed(4),minTemporalCoverage,maxDwellGapSec,
-      unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,rejectedRawSpikeSeconds:+rejectedRawSpikeSeconds.toFixed(6),rejectedRawSpikePairs,rawSpikeThresholdKmh:maxRawSpeedKmh,
+      unobservedGapSeconds:+unobservedGapSeconds.toFixed(6),gapBreaks,segmentBoundarySeconds:+segmentBoundarySeconds.toFixed(6),segmentBoundaryBreaks,rejectedRawSpikeSeconds:+rejectedRawSpikeSeconds.toFixed(6),rejectedRawSpikePairs,rawSpikeThresholdKmh:maxRawSpeedKmh,
       calibrationConfidenceObservations:confidenceKnown,calibrationConfidenceCoverage:+confidenceCoverage.toFixed(4),avgCalibrationConfidence:avgCalibrationConfidence===null?null:+avgCalibrationConfidence.toFixed(4),observationDefendableScore:observationDefendableScore===null?null:+observationDefendableScore.toFixed(4),defendableScore:defendableScore===null?null:+defendableScore.toFixed(4),projectedPoints:available?projectedPoints:[],trajectory,
       quality:available?qualityFromEvidenceScore(defendableScore):'INDISPONIBLE',qualityPolicy:temporalCoverage!==null?'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE × COUVERTURE_TEMPORELLE':'QUALITE_INDISPONIBLE_SANS_PREUVE_TEMPORELLE',policy:'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN',
-      temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_MEME_SEGMENT; PUBLICATION_EXIGE_PREUVE_TEMPORELLE_ET_COUVERTURE_TEMPORELLE_MINIMALE; TEMPS_REPARTI_LINEAIREMENT_SEULEMENT_SUR_LES_TRANSITIONS_CALIBREES_PHYSIQUEMENT_PLAUSIBLES_SANS_GAP_EXCESSIF',
+      temporalPolicy:'DENOMINATEUR_CONSERVE_TOUT_INTERVALLE_CHRONOLOGIQUE_ADJACENT_Y_COMPRIS_CHANGEMENT_SEGMENT; CHANGEMENT_SEGMENT_COMPTE_COMME_TEMPS_NON_DEFENDABLE_SANS_INTERPOLATION; PUBLICATION_EXIGE_PREUVE_TEMPORELLE_ET_COUVERTURE_TEMPORELLE_MINIMALE; TEMPS_REPARTI_LINEAIREMENT_SEULEMENT_SUR_LES_TRANSITIONS_MEME_SEGMENT_CALIBREES_PHYSIQUEMENT_PLAUSIBLES_SANS_GAP_EXCESSIF',
       rawMotionPolicy:'VETO_PARTAGE_AVEC_METRIC_QUALITY_GUARD_AVANT_TRAJECTOIRE_ET_REPARTITION_TEMPORELLE_HEATMAP'
     };
   }
