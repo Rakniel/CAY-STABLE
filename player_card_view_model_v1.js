@@ -24,9 +24,29 @@
     if(!Number.isFinite(total)||total<=0||!Number.isFinite(rendered)||rendered<=0)return 0;
     return pct(Math.max(0,Math.min(total,rendered))/total);
   }
+  function metricAvailable(metric){return !!metric&&metric.status!=='INDISPONIBLE'&&finite(metric.value);}
+  function firstResultsReadiness(card){
+    const tracking=Number(card?.presence?.observations||0)>0||card?.observedVisuals?.status==='DISPONIBLE';
+    const trajectory=card?.pitchVisuals?.trajectory?.status==='DISPONIBLE';
+    const heatmap=card?.pitchVisuals?.heatmap?.status==='DISPONIBLE';
+    const distance=metricAvailable(card?.metrics?.distanceM);
+    const avgSpeed=metricAvailable(card?.metrics?.avgSpeedKmh);
+    const maxSpeed=metricAvailable(card?.metrics?.maxSpeedKmh);
+    const sprints=metricAvailable(card?.metrics?.sprintCount);
+    const physical=distance||avgSpeed||maxSpeed||sprints;
+    const pitch=trajectory||heatmap||physical;
+    const status=pitch?'TERRAIN_DISPONIBLE':tracking?'TRACKING_DISPONIBLE':'INDISPONIBLE';
+    return {status,tracking,trajectory,heatmap,distance,avgSpeed,maxSpeed,sprints,physicalMetrics:physical,pitchResults:pitch};
+  }
+  function readinessSummary(cards){
+    const readiness=(cards||[]).map(firstResultsReadiness),count=key=>readiness.filter(r=>r[key]===true).length;
+    const withTracking=count('tracking'),withPitchTrajectory=count('trajectory'),withPitchHeatmap=count('heatmap'),withMetricDistance=count('distance'),withMetricAvgSpeed=count('avgSpeed'),withMetricMaxSpeed=count('maxSpeed'),withMetricSprints=count('sprints'),withPhysicalMetrics=count('physicalMetrics'),withPitchResults=count('pitchResults');
+    const status=withPitchResults?'TERRAIN_DISPONIBLE':withTracking?'TRACKING_DISPONIBLE':'INDISPONIBLE';
+    return {status,players:readiness.length,withTracking,withPitchTrajectory,withPitchHeatmap,withMetricDistance,withMetricAvgSpeed,withMetricMaxSpeed,withMetricSprints,withPhysicalMetrics,withPitchResults,policy:'PREMIERS_RESULTATS_SEPARENT_TRACKING_CAMERA_VISUELS_TERRAIN_ET_METRIQUES_PHYSIQUES; AUCUNE_DISPONIBILITE_DEDUITE_SANS_PREUVE_PUBLIEE'};
+  }
   function rosterPitchVisuals(player){
     const rm=player&&player.rosterMetric||null,spatial=rm&&rm.spatial||null;
-    if(!rm||rm.status!=='FIABLE'||!spatial||spatial.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory:null,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,reason:rm?.reason||spatial?.reason||'liaison roster fiable et participation confirmée requises pour les visuels terrain',source:'ROSTER_METRIC_PIPELINE_V1'};
+    if(!rm||rm.status!=='FIABLE'||!spatial||spatial.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory:null,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,reason:rm?.reason||spatial?.reason||'liaison roster fiable et participation confirmées pour les visuels terrain',source:'ROSTER_METRIC_PIPELINE_V1'};
 
     const heatmap=spatial?.heatmap&&spatial.heatmap.status==='DISPONIBLE'?spatial.heatmap:null;
     const geometry=spatial?.geometry||null;
@@ -60,7 +80,7 @@
     const observed=player&&player.observedVisuals||null,metric=player&&player.metric||null;
     const observedOk=observed&&observed.status==='DISPONIBLE';
     const pitchVisuals=rosterPitchVisuals(player);
-    return {
+    const card={
       id:player?.id??null,
       category:player?.cat||null,
       identity:{status:player?.identityQuality||'INDISPONIBLE',confidence:finite(player?.identityConfidence)?Number(player.identityConfidence):null,reidentifications:Number(player?.reidentifications||0)},
@@ -71,11 +91,13 @@
       rosterState:player?.rosterState||null,
       policies:{imageSpace:'VISUEL_OBSERVE_UNIQUEMENT; JAMAIS_UTILISE_POUR_METRES_KMH_SPRINTS',metricSpace:'STATISTIQUES_ET_VISUELS_TERRAIN_UNIQUEMENT_SUR_PROJECTION_VALIDEE_ET_LIAISON_ROSTER_FIABLE'}
     };
+    return {...card,firstResults:firstResultsReadiness(card)};
   }
   function build(report,rosterContext){
     const players=Array.isArray(report?.players)?report.players:[];
     const cards=players.map(buildCard);
-    const model={version:'CAY_PLAYER_CARD_VIEW_MODEL_V1',status:cards.length?'DISPONIBLE':'INDISPONIBLE',players:cards,summary:{players:cards.length,withObservedVisuals:cards.filter(c=>c.observedVisuals.status==='DISPONIBLE').length,withPitchVisuals:cards.filter(c=>c.pitchVisuals.status==='DISPONIBLE').length,withMetricDistance:cards.filter(c=>c.metrics.distanceM.status!=='INDISPONIBLE').length},policy:'FICHE_JOUEUR_CAY_SEPARE_STRICTEMENT_OBSERVATION_CAMERA_ET_METRIQUES_TERRAIN; METRIQUES_ET_VISUELS_TERRAIN PUBLIES_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_ET_PARTICIPATION_CONFIRMEE'};
+    const readiness=readinessSummary(cards);
+    const model={version:'CAY_PLAYER_CARD_VIEW_MODEL_V1',status:cards.length?'DISPONIBLE':'INDISPONIBLE',players:cards,summary:{players:cards.length,withObservedVisuals:cards.filter(c=>c.observedVisuals.status==='DISPONIBLE').length,withPitchVisuals:cards.filter(c=>c.pitchVisuals.status==='DISPONIBLE').length,withMetricDistance:cards.filter(c=>c.metrics.distanceM.status!=='INDISPONIBLE').length,...readiness},policy:'FICHE_JOUEUR_CAY_SEPARE_STRICTEMENT_OBSERVATION_CAMERA_ET_METRIQUES_TERRAIN; METRIQUES_ET_VISUELS_TERRAIN PUBLIES_UNIQUEMENT_APRES_LIAISON_ROSTER_FIABLE_ET_PARTICIPATION_CONFIRMEE'};
     return RosterBinding&&typeof RosterBinding.enrichModel==='function'&&rosterContext?RosterBinding.enrichModel(model,rosterContext):model;
   }
   function attach(report,rosterContext){return report?{...report,playerCards:build(report,rosterContext)}:report;}
@@ -110,5 +132,5 @@
   patchBridge();
   loadRenderer();
   if(typeof setTimeout==='function')setTimeout(loadClubRosterIdentityUI,0);
-  return {buildCard,build,attach,patchBridge,metricValue,spatialCoveragePct,rosterPitchVisuals,loadRenderer,loadClubRosterIdentityUI};
+  return {buildCard,build,attach,patchBridge,metricValue,spatialCoveragePct,metricAvailable,firstResultsReadiness,readinessSummary,rosterPitchVisuals,loadRenderer,loadClubRosterIdentityUI};
 });
