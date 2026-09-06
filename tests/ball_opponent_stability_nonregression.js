@@ -22,7 +22,7 @@ function row(time,ballX,cayX,oppX){
   const r=analyzeBallEvents(samples,{minStableOwnershipSec:.3,minCoverage:.5,minTurnoverTravelM:.75,maxTurnoverTransitionSec:1.5});
   assert.equal(r.quality,'FIABLE');
   assert.equal(r.thresholds.minStableOwnershipSec,.3);
-  assert.equal(r.thresholds.minOpponentStableOwnershipSec,.4);
+  assert(Math.abs(r.thresholds.minOpponentStableOwnershipSec-.4)<1e-9);
   assert.equal(r.turnovers,0);
   assert.equal(r.events.length,0);
   assert(r.opponentStabilityDeferrals>=1);
