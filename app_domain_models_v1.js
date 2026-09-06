@@ -147,12 +147,19 @@
     for(const [playerId,startMs] of open.entries())windows.get(playerId).push({startMs,endMs:finiteEnd});
     const byPlayerId={};
     for(const [playerId,intervals] of windows.entries())byPlayerId[playerId]=intervals;
-    return {teamId:String(team.id),byPlayerId,initialActivePlayerIds:initialActive,finalActivePlayerIds:active,analysisEndMs:finiteEnd,substitutionCount:events.length,source:'ROSTER_PARTICIPATION_WINDOWS_V1'};
+    return {teamId:String(team.id),byPlayerId,initialActivePlayerIds:initialActive,finalActivePlayerIds:active,analysisEndMs:finiteEnd,substitutionCount:events.length,boundaryPolicy:'HALF_OPEN_SUBSTITUTION_WINDOWS_[START,END)',source:'ROSTER_PARTICIPATION_WINDOWS_V1'};
+  }
+  function participationIntervalContains(interval,atMs){
+    const time=Number(atMs),start=Number(interval?.startMs);
+    if(!Number.isFinite(time)||!Number.isFinite(start)||time<start)return false;
+    if(interval?.endMs===null||interval?.endMs===undefined)return true;
+    const end=Number(interval.endMs);
+    return Number.isFinite(end)&&time<end;
   }
   function isPlayerActiveAt(participation,playerId,atMs){
     const time=Number(atMs);if(!participation||!Number.isFinite(time))return false;
     const intervals=participation.byPlayerId&&participation.byPlayerId[String(playerId)];
-    return Array.isArray(intervals)&&intervals.some(interval=>time>=Number(interval.startMs)&&(interval.endMs===null||interval.endMs===undefined||time<=Number(interval.endMs)));
+    return Array.isArray(intervals)&&intervals.some(interval=>participationIntervalContains(interval,time));
   }
   function splitTrackEvidenceByParticipation(participation,playerId,trackRaw={},options={}){
     const intervals=participation?.byPlayerId?.[String(playerId)];
@@ -171,11 +178,11 @@
       const time=Number(point?.time);
       if(!Number.isFinite(time)){invalidTimeObservations++;rejectedObservations++;continue;}
       const atMs=time*scale;
-      const target=windows.find(window=>atMs>=window.startMs&&(window.endMs===null||atMs<=window.endMs));
+      const target=windows.find(window=>participationIntervalContains(window,atMs));
       if(!target){rejectedObservations++;continue;}
       target.track.fullPath.push(point);acceptedObservations++;
     }
-    return {playerId:String(playerId),windows,acceptedObservations,rejectedObservations,invalidTimeObservations,totalObservations:path.length,timeScaleMs:scale,policy:'SEPARATE_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_METRIC_JOIN',source:'ROSTER_PARTICIPATION_TRACK_FILTER_V1'};
+    return {playerId:String(playerId),windows,acceptedObservations,rejectedObservations,invalidTimeObservations,totalObservations:path.length,timeScaleMs:scale,policy:'SEPARATE_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_METRIC_JOIN',boundaryPolicy:'HALF_OPEN_SUBSTITUTION_WINDOWS_[START,END)',source:'ROSTER_PARTICIPATION_TRACK_FILTER_V1'};
   }
   function createAnalysisProfile(raw={}){
     const settings=raw.settings||{};
