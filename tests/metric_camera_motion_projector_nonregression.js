@@ -11,12 +11,34 @@ assert.ok(Math.abs(q.x-20)<1e-9);
 assert.ok(Math.abs(q.y-20)<1e-9);
 assert.strictEqual(translated.validation.motionSupport,40);
 assert.ok(translated.validation.motionPlausibility);
+assert.strictEqual(translated.validation.motionForwardBackwardErrorPx,null);
 
 const scaled=M.createPropagatedProjector(anchor,{matrix:[1.1,0,2,0,1.1,-3,0,0,1],confidence:.96,support:60,inlierRatio:.92,residual:.004},{ageSec:.2,maxAgeSec:.35});
 assert.strictEqual(scaled.validated,true);
 q=scaled.project({x:24,y:19});
 assert.ok(Math.abs(q.x-20)<1e-8);
 assert.ok(Math.abs(q.y-20)<1e-8);
+
+// MatchVision-inspired clean-room contract: when a GMC provider exposes an
+// optical-flow round-trip error, CAY rejects inconsistent motion before it can
+// contaminate metric trajectories. Missing evidence remains backward-compatible
+// unless the caller explicitly requires the stricter provider contract.
+const fbConsistent=M.createPropagatedProjector(anchor,{matrix:[1,0,8,0,1,3],confidence:.96,support:55,inlierRatio:.91,residual:.004,fbErrorMedianPx:.6},{ageSec:.1});
+assert.strictEqual(fbConsistent.validated,true);
+assert.strictEqual(fbConsistent.validation.motionForwardBackwardErrorPx,.6);
+const fbSnakeCase=M.validateMotion({matrix:[1,0,8,0,1,3],confidence:.96,support:55,inlierRatio:.91,residual:.004,fb_error_median_px:.7});
+assert.strictEqual(fbSnakeCase.ok,true);
+assert.strictEqual(fbSnakeCase.forwardBackwardErrorPx,.7);
+const fbBad=M.createPropagatedProjector(anchor,{matrix:[1,0,8,0,1,3],confidence:.99,support:100,inlierRatio:.98,residual:.001,fb_error_median_px:2.2},{ageSec:.05});
+assert.strictEqual(fbBad.validated,false);
+assert.strictEqual(fbBad.reason,'MOTION_FORWARD_BACKWARD_ERROR_TOO_HIGH');
+assert.strictEqual(fbBad.motion.maxForwardBackwardErrorPx,1.5);
+const fbCustomLimit=M.validateMotion({matrix:[1,0,8,0,1,3],confidence:.99,support:100,inlierRatio:.98,residual:.001,forwardBackwardErrorPx:.8},{maxForwardBackwardErrorPx:.5});
+assert.strictEqual(fbCustomLimit.ok,false);
+assert.strictEqual(fbCustomLimit.reason,'MOTION_FORWARD_BACKWARD_ERROR_TOO_HIGH');
+const fbRequiredMissing=M.validateMotion({matrix:[1,0,8,0,1,3],confidence:.99,support:100,inlierRatio:.98,residual:.001},{requireForwardBackwardConsistency:true});
+assert.strictEqual(fbRequiredMissing.ok,false);
+assert.strictEqual(fbRequiredMissing.reason,'MOTION_FORWARD_BACKWARD_EVIDENCE_MISSING');
 
 const stale=M.createPropagatedProjector(anchor,{matrix:[1,0,1,0,1,1],confidence:.95,support:40,inlierRatio:.9,residual:.005},{ageSec:.5,maxAgeSec:.35});
 assert.strictEqual(stale.validated,false);

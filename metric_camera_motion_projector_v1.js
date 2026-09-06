@@ -39,6 +39,12 @@
     return Number.isFinite(X)&&Number.isFinite(Y)?{x:X,y:Y}:null;
   }
 
+  function readForwardBackwardErrorPx(motion){
+    const candidates=[motion?.forwardBackwardErrorPx,motion?.fbErrorMedianPx,motion?.fb_error_median_px];
+    for(const value of candidates)if(finite(value))return Number(value);
+    return null;
+  }
+
   function validateTransformPlausibility(matrix,options={}){
     const M=matrix3(matrix);
     if(!M)return {ok:false,reason:'MOTION_MATRIX_INVALID'};
@@ -101,18 +107,26 @@
     const support=finite(motion?.support)?Number(motion.support):0;
     const inlierRatio=finite(motion?.inlierRatio)?Number(motion.inlierRatio):0;
     const residual=finite(motion?.residual)?Number(motion.residual):Infinity;
+    const forwardBackwardErrorPx=readForwardBackwardErrorPx(motion);
+    const maxForwardBackwardErrorPx=finite(options.maxForwardBackwardErrorPx)?Math.max(0,Number(options.maxForwardBackwardErrorPx)):1.5;
     const maxResidual=finite(options.maxResidual)?Number(options.maxResidual):.02;
     const minConfidence=finite(options.minConfidence)?Number(options.minConfidence):.78;
     const minSupport=finite(options.minSupport)?Number(options.minSupport):20;
     const minInlierRatio=finite(options.minInlierRatio)?Number(options.minInlierRatio):.72;
-    if(confidence<minConfidence)return {ok:false,reason:'MOTION_CONFIDENCE_TOO_LOW',confidence,support,inlierRatio,residual};
-    if(support<minSupport)return {ok:false,reason:'MOTION_SUPPORT_TOO_LOW',confidence,support,inlierRatio,residual};
-    if(inlierRatio<minInlierRatio)return {ok:false,reason:'MOTION_INLIER_RATIO_TOO_LOW',confidence,support,inlierRatio,residual};
-    if(!(residual<=maxResidual))return {ok:false,reason:'MOTION_RESIDUAL_TOO_HIGH',confidence,support,inlierRatio,residual};
+    if(options.requireForwardBackwardConsistency===true&&forwardBackwardErrorPx===null){
+      return {ok:false,reason:'MOTION_FORWARD_BACKWARD_EVIDENCE_MISSING',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
+    }
+    if(forwardBackwardErrorPx!==null&&forwardBackwardErrorPx>maxForwardBackwardErrorPx){
+      return {ok:false,reason:'MOTION_FORWARD_BACKWARD_ERROR_TOO_HIGH',confidence,support,inlierRatio,residual,forwardBackwardErrorPx,maxForwardBackwardErrorPx};
+    }
+    if(confidence<minConfidence)return {ok:false,reason:'MOTION_CONFIDENCE_TOO_LOW',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
+    if(support<minSupport)return {ok:false,reason:'MOTION_SUPPORT_TOO_LOW',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
+    if(inlierRatio<minInlierRatio)return {ok:false,reason:'MOTION_INLIER_RATIO_TOO_LOW',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
+    if(!(residual<=maxResidual))return {ok:false,reason:'MOTION_RESIDUAL_TOO_HIGH',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
     const plausibility=validateTransformPlausibility(matrix,options);
-    if(!plausibility.ok)return {ok:false,reason:plausibility.reason,confidence,support,inlierRatio,residual,plausibility};
-    const inv=inverse3(matrix);if(!inv)return {ok:false,reason:'MOTION_MATRIX_SINGULAR',confidence,support,inlierRatio,residual};
-    return {ok:true,matrix,inverse:inv,confidence,support,inlierRatio,residual,plausibility};
+    if(!plausibility.ok)return {ok:false,reason:plausibility.reason,confidence,support,inlierRatio,residual,forwardBackwardErrorPx,plausibility};
+    const inv=inverse3(matrix);if(!inv)return {ok:false,reason:'MOTION_MATRIX_SINGULAR',confidence,support,inlierRatio,residual,forwardBackwardErrorPx};
+    return {ok:true,matrix,inverse:inv,confidence,support,inlierRatio,residual,forwardBackwardErrorPx,maxForwardBackwardErrorPx,plausibility};
   }
 
   function createPropagatedProjector(anchor,motion,options={}){
@@ -145,16 +159,16 @@
     return {
       validated:true,source:'guarded_camera_motion_propagation_cay_v1',confidence:+confidence.toFixed(3),reason:null,
       project:safeProject,homography:H,pitch,
-      validation:{derived:true,ageSec:+age.toFixed(4),maxAgeSec:maxAge,motionConfidence:checked.confidence,motionSupport:checked.support,motionInlierRatio:checked.inlierRatio,motionResidual:checked.residual,motionPlausibility:checked.plausibility},
+      validation:{derived:true,ageSec:+age.toFixed(4),maxAgeSec:maxAge,motionConfidence:checked.confidence,motionSupport:checked.support,motionInlierRatio:checked.inlierRatio,motionResidual:checked.residual,motionForwardBackwardErrorPx:checked.forwardBackwardErrorPx,motionPlausibility:checked.plausibility},
       provenance:{
-        designReferences:['OpenCV robust affine/homography estimation','BoT-SORT global motion compensation'],
+        designReferences:['OpenCV robust affine/homography estimation','BoT-SORT global motion compensation','MatchVision guarded forward/backward optical flow'],
         codeCopied:false,
         licenseDependency:'none',
-        referenceLicenses:['OpenCV Apache-2.0 (>=4.5)','BoT-SORT MIT'],
+        referenceLicenses:['OpenCV Apache-2.0 (>=4.5)','BoT-SORT MIT','MatchVision MIT'],
         rule:'ABSOLUTE_CALIBRATION_ANCHOR_PLUS_SHORT_HORIZON_GLOBAL_MOTION_ONLY'
       }
     };
   }
 
-  return {matrix3,multiply3,inverse3,projectMatrix,validateTransformPlausibility,validateMotion,createPropagatedProjector};
+  return {matrix3,multiply3,inverse3,projectMatrix,readForwardBackwardErrorPx,validateTransformPlausibility,validateMotion,createPropagatedProjector};
 });
