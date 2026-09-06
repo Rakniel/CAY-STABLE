@@ -12,6 +12,31 @@
     return [...new Set(input.map(x=>String(x||'').trim().toLowerCase()).filter(Boolean))];
   }
 
+  function isYellowOnlySource(source){
+    const s=String(source||'').trim().toLowerCase();
+    return s.includes('yellow')||s.includes('jaune');
+  }
+
+  function evaluateCayEvidence(detection){
+    const d=detection||{};
+    const explicitCay=d.cayEvidence===true||d.teamClassification==='cay'||d.teamLabel==='cay';
+    const sources=normalizeSources(d.cayEvidenceSources||d.teamEvidenceSources);
+    const explicitYellowOnly=d.yellowDetailOnly===true||d.falseCAYYellowDetail===true;
+    const yellowOnlySources=explicitCay&&sources.length>0&&sources.every(isYellowOnlySource);
+    if(!explicitCay)return {reject:false,reason:null,sources,policy:'no_positive_cay_inference'};
+    if(explicitYellowOnly||yellowOnlySources){
+      return {
+        reject:true,
+        reason:'yellow_detail_cannot_prove_cay',
+        sources,
+        policy:'yellow_is_never_positive_cay_evidence',
+        cayEligible:false,
+        teamEvidenceValid:false
+      };
+    }
+    return {reject:false,reason:null,sources,policy:'positive_cay_evidence_not_yellow_only'};
+  }
+
   function evaluate(detection,options){
     const d=detection||{},opts=options||{};
     const minConfidence=Math.max(.5,Math.min(.99,Number.isFinite(Number(opts.minConfidence))?Number(opts.minConfidence):.86));
@@ -40,12 +65,24 @@
   }
 
   function apply(detection,options){
-    const d=detection||{},decision=evaluate(d,options);
-    if(!decision.veto)return {...d,opponentVetoDecision:decision};
+    const d=detection||{};
+    const cayDecision=evaluateCayEvidence(d);
+    if(cayDecision.reject){
+      return {
+        ...d,
+        cayEligible:false,
+        teamEvidenceValid:false,
+        cayEvidenceDecision:cayDecision,
+        rejectionReason:cayDecision.reason
+      };
+    }
+    const decision=evaluate(d,options);
+    if(!decision.veto)return {...d,cayEvidenceDecision:cayDecision,opponentVetoDecision:decision};
     return {
       ...d,
       cayEligible:false,
       teamEvidenceValid:false,
+      cayEvidenceDecision:cayDecision,
       opponentVetoDecision:decision,
       rejectionReason:'strong_multi_source_opponent_evidence'
     };
@@ -55,11 +92,11 @@
     const accepted=[],rejected=[];
     for(const raw of (detections||[])){
       const decorated=apply(raw,options);
-      if(decorated.opponentVetoDecision&&decorated.opponentVetoDecision.veto)rejected.push(decorated);
+      if((decorated.cayEvidenceDecision&&decorated.cayEvidenceDecision.reject)||(decorated.opponentVetoDecision&&decorated.opponentVetoDecision.veto))rejected.push(decorated);
       else accepted.push(decorated);
     }
     return {accepted,rejected};
   }
 
-  return {evaluate,apply,filter,version:'1.0.0'};
+  return {evaluateCayEvidence,evaluate,apply,filter,version:'1.1.0'};
 });
