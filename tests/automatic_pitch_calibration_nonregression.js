@@ -1,5 +1,6 @@
 const assert = require('assert');
 const auto = require('../automatic_pitch_calibration_v1.js');
+const Homography = require('../metric_homography_projector_v1.js');
 
 const good = [
   { image:{x:0,y:0}, pitch:{x:0,y:0}, confidence:.99 },
@@ -14,6 +15,8 @@ let r = auto.splitFitValidation(good);
 assert.strictEqual(r.ok, true);
 assert.strictEqual(r.fit.length, 4);
 assert.strictEqual(r.validation.length, 2);
+assert.strictEqual(r.selectionPolicy,'MAXIMIZE_FIT_SUPPORT_WITH_VALIDATION_SPREAD');
+assert.ok(r.fitSupportRetention>0);
 
 r = auto.geometricSupport(good,{width:105,height:68},{lengthM:105,widthM:68});
 assert.strictEqual(r.ok,true);
@@ -26,7 +29,33 @@ assert.strictEqual(r.policy, 'AUTO_FIRST_MANUAL_ONLY_ON_FAILURE');
 assert.strictEqual(r.validationCount, 2);
 assert.strictEqual(r.bottomCornerCheck.checkedCorners, 'BOTTOM_ONLY');
 assert.strictEqual(r.geometricSupport.ok,true);
+assert.strictEqual(r.validationSelection.policy,'MAXIMIZE_FIT_SUPPORT_WITH_VALIDATION_SPREAD');
 assert.ok(r.confidence > 0);
+
+// Regression: the legacy farthest-pair holdout removes the two diagonal anchors
+// and leaves four collinear fit points, even though the complete six-point set
+// has enough geometric support for a valid identity homography.
+const farthestTrap = [
+  {image:{x:0,y:0},pitch:{x:0,y:0},confidence:.98},
+  {image:{x:105,y:68},pitch:{x:105,y:68},confidence:.98},
+  {image:{x:20,y:34},pitch:{x:20,y:34},confidence:.96},
+  {image:{x:40,y:34},pitch:{x:40,y:34},confidence:.96},
+  {image:{x:65,y:34},pitch:{x:65,y:34},confidence:.96},
+  {image:{x:85,y:34},pitch:{x:85,y:34},confidence:.96}
+];
+const legacy = Homography.createProjector({
+  correspondences:farthestTrap.slice(2),validationPoints:farthestTrap.slice(0,2),pitchLengthM:105,pitchWidthM:68
+});
+assert.strictEqual(legacy.validated,false,'legacy farthest-pair holdout should expose the degenerate-fit failure');
+
+r = auto.splitFitValidation(farthestTrap);
+assert.strictEqual(r.ok,true);
+assert.notDeepStrictEqual(r.validationIndices,[0,1],'validation selection must not sacrifice both geometric anchors');
+assert.ok(r.fitSupportRetention>=.99,'selected holdout should preserve essentially all fit support');
+
+r = auto.evaluateAutomaticCalibration({correspondences:farthestTrap,frameSize:{width:105,height:68}});
+assert.strictEqual(r.status,'ACCEPTED_AUTOMATIC','support-preserving holdout should recover a valid calibration from the same six points');
+assert.ok(r.validationSelection.fitSupportRetention>=.99);
 
 const clustered = [
   {image:{x:40,y:30},pitch:{x:40,y:30}},
