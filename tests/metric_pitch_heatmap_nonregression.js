@@ -13,11 +13,11 @@ const track={fullPath:[
   {time:3,segment:2,x:.90,y:.90}
 ]};
 
-const onlyFirst=Heat.build(track,{1:projector(1)},{cols:6,rows:4,minMetricCoverage:.35});
+const onlyFirst=Heat.build(track,{1:projector(1)},{cols:6,rows:4,minMetricCoverage:.35,minTemporalCoverage:.3});
 assert.equal(onlyFirst.status,'DISPONIBLE');
 assert.equal(onlyFirst.metricCoverage,.5);
 assert.equal(onlyFirst.minMetricCoverage,.35);
-assert.equal(onlyFirst.minTemporalCoverage,.35);
+assert.equal(onlyFirst.minTemporalCoverage,.3);
 assert.equal(onlyFirst.observations,2);
 assert.equal(onlyFirst.coordinateSystem,'PITCH_METERS');
 assert.equal(onlyFirst.policy,'AUCUN_FALLBACK_COORDONNEES_IMAGE_POUR_HEATMAP_TERRAIN');
@@ -26,9 +26,12 @@ assert(Math.abs(onlyFirst.normalizedCells.flat().reduce((a,b)=>a+b,0)-1)<1e-5);
 assert.equal(onlyFirst.heatmapBasis,'TIME_SECONDS');
 assert.equal(onlyFirst.timeAllocation,'LINEAR_PITCH_SEGMENT');
 assert.equal(onlyFirst.projectedIntervalSeconds,1);
-assert.equal(onlyFirst.temporalCoverage,.5);
+assert.equal(onlyFirst.eligibleIntervalSeconds,3);
+assert.equal(onlyFirst.segmentBoundarySeconds,1);
+assert.equal(onlyFirst.segmentBoundaryBreaks,1);
+assert.equal(onlyFirst.temporalCoverage,.3333);
 assert.equal(onlyFirst.observationDefendableScore,.5);
-assert.equal(onlyFirst.defendableScore,.25);
+assert.equal(onlyFirst.defendableScore,.1667);
 assert.equal(onlyFirst.quality,'PARTIEL');
 
 const strict=Heat.build(track,{1:projector(1)},{minMetricCoverage:.8});
@@ -141,5 +144,10 @@ const segmentCut=Heat.build({fullPath:[
 assert.equal(segmentCut.heatmapBasis,'OBSERVATIONS');
 assert.equal(segmentCut.timeAllocation,'NONE');
 assert.equal(segmentCut.projectedIntervalSeconds,0);
+assert.equal(segmentCut.eligibleIntervalSeconds,.5);
+assert.equal(segmentCut.segmentBoundarySeconds,.5);
+assert.equal(segmentCut.segmentBoundaryBreaks,1);
+assert.equal(segmentCut.temporalCoverage,0);
+assert.equal(segmentCut.status,'INDISPONIBLE');
 
 console.log('metric_pitch_heatmap_nonregression: OK');
