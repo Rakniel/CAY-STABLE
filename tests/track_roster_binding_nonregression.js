@@ -14,10 +14,14 @@ assert.throws(()=>Binding.bind(state,{trackId:13,playerId:'p10',source:'MANUAL',
 state=Binding.bind(state,{trackId:13,playerId:'p10',source:'REID_FUSED',confidence:.88,confirmed:true,evidence:['appearance-gallery','shirt-number-10']});
 assert.deepStrictEqual(Binding.reliableBindings(state).map(x=>x.playerId).sort(),['p10','p9']);
 
-const participation={byPlayerId:{p9:[{startMs:0,endMs:30000}],p10:[{startMs:30000,endMs:null}]}};
+const participation={boundaryPolicy:'HALF_OPEN_SUBSTITUTION_WINDOWS_[START,END)',byPlayerId:{p9:[{startMs:0,endMs:30000}],p10:[{startMs:30000,endMs:null}]}};
 assert.strictEqual(Binding.resolveAtTime(state,12,participation,29500).status,'FIABLE');
+assert.strictEqual(Binding.resolveAtTime(state,12,participation,30000).status,'INDISPONIBLE','sortant interdit exactement à la frontière de remplacement');
 assert.strictEqual(Binding.resolveAtTime(state,12,participation,30500).status,'INDISPONIBLE');
 assert.strictEqual(Binding.resolveAtTime(state,13,participation,29500).status,'INDISPONIBLE');
+const incomingAtBoundary=Binding.resolveAtTime(state,13,participation,30000);
+assert.strictEqual(incomingAtBoundary.status,'FIABLE','entrant actif exactement à la frontière de remplacement');
+assert.strictEqual(incomingAtBoundary.boundaryPolicy,'HALF_OPEN_SUBSTITUTION_WINDOWS_[START,END)');
 assert.strictEqual(Binding.resolveAtTime(state,13,participation,30500).status,'FIABLE');
 assert.strictEqual(Binding.resolveAtTime(state,13,participation,NaN).status,'INDISPONIBLE');
 
