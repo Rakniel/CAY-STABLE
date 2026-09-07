@@ -29,7 +29,34 @@
   const finitePresent=v=>present(v)&&Number.isFinite(Number(v));
   const validStage=stage=>STAGES.includes(stage);
 
-  function createArtifactDescriptor({stage,schemaVersion,inputFingerprint,analysisId,createdAt,provenance,coverage,confidence}={}){
+  function normalizeSpatialReference(value){
+    if(value===null||value===undefined)return null;
+    if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('spatialReference object required');
+    if(!present(value.coordinateSystem))throw new Error('spatialReference.coordinateSystem required');
+    const hasLength=finitePresent(value.pitchLengthM),hasWidth=finitePresent(value.pitchWidthM);
+    if(hasLength!==hasWidth)throw new Error('spatialReference pitch dimensions must be provided together');
+    const pitchLengthM=hasLength?Number(value.pitchLengthM):null;
+    const pitchWidthM=hasWidth?Number(value.pitchWidthM):null;
+    if((pitchLengthM!==null&&pitchLengthM<=0)||(pitchWidthM!==null&&pitchWidthM<=0))throw new Error('spatialReference pitch dimensions must be positive');
+    return {
+      coordinateSystem:String(value.coordinateSystem).trim(),
+      unit:present(value.unit)?String(value.unit).trim():null,
+      origin:present(value.origin)?String(value.origin).trim():null,
+      xAxisDirection:present(value.xAxisDirection)?String(value.xAxisDirection).trim():null,
+      yAxisDirection:present(value.yAxisDirection)?String(value.yAxisDirection).trim():null,
+      orientation:present(value.orientation)?String(value.orientation).trim():null,
+      normalized:value.normalized===true?true:(value.normalized===false?false:null),
+      pitchLengthM,
+      pitchWidthM
+    };
+  }
+
+  function spatialReferenceKey(value){
+    const normalized=normalizeSpatialReference(value);
+    return normalized===null?null:JSON.stringify(normalized);
+  }
+
+  function createArtifactDescriptor({stage,schemaVersion,inputFingerprint,analysisId,createdAt,provenance,coverage,confidence,spatialReference}={}){
     if(!validStage(stage))throw new Error('invalid artifact stage');
     if(!present(schemaVersion))throw new Error('schemaVersion required');
     if(!present(inputFingerprint))throw new Error('inputFingerprint required');
@@ -45,7 +72,8 @@
       createdAt:present(createdAt)?String(createdAt):null,
       provenance:provenance&&typeof provenance==='object'?{...provenance}:null,
       coverage:coverageNumber!==null?Math.max(0,Math.min(1,coverageNumber)):null,
-      confidence:confidenceNumber!==null?Math.max(0,Math.min(1,confidenceNumber)):null
+      confidence:confidenceNumber!==null?Math.max(0,Math.min(1,confidenceNumber)):null,
+      spatialReference:normalizeSpatialReference(spatialReference)
     };
   }
 
@@ -55,6 +83,14 @@
     if(expected.schemaVersion!==undefined&&String(descriptor.schemaVersion)!==String(expected.schemaVersion))return false;
     if(expected.inputFingerprint!==undefined&&String(descriptor.inputFingerprint)!==String(expected.inputFingerprint))return false;
     if(expected.analysisId!==undefined&&String(descriptor.analysisId)!==String(expected.analysisId))return false;
+    if(expected.spatialReference!==undefined){
+      let actualKey=null,expectedKey=null;
+      try{
+        actualKey=spatialReferenceKey(descriptor.spatialReference);
+        expectedKey=spatialReferenceKey(expected.spatialReference);
+      }catch(e){return false;}
+      if(actualKey!==expectedKey)return false;
+    }
     return true;
   }
 
@@ -78,5 +114,5 @@
     return {reusable,recompute,changed:[...changed]};
   }
 
-  return {VERSION,STAGES,DOWNSTREAM,createArtifactDescriptor,isReusable,invalidatedStages,planReuse};
+  return {VERSION,STAGES,DOWNSTREAM,normalizeSpatialReference,spatialReferenceKey,createArtifactDescriptor,isReusable,invalidatedStages,planReuse};
 });
