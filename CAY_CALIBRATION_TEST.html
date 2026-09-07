@@ -3,143 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CAY — Test calibration terrain</title>
+<title>C.A. Yenne — Calibration terrain STABLE</title>
 <style>
-:root{--bg:#09090b;--p:#111116;--p2:#17171d;--line:#303038;--red:#c71924;--txt:#f4f4f6;--muted:#a7a7b0;--ok:#63d889;--warn:#e4b95f}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:Arial,sans-serif}
-header{padding:18px 20px;border-bottom:1px solid var(--line);background:#0d0d10;position:sticky;top:0;z-index:10}
-h1{margin:0;font-size:20px}header p{margin:5px 0 0;color:var(--muted);font-size:12px}
-main{max-width:1500px;margin:auto;padding:18px}.card{background:var(--p);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
-.controls{display:grid;grid-template-columns:minmax(260px,1fr) minmax(240px,1fr) auto;gap:12px;align-items:end}
-label{display:block;font-size:11px;color:var(--muted)}input[type=file],input[type=number]{width:100%;margin-top:6px;background:var(--p2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px}
-input[type=range]{width:100%;accent-color:var(--red)}
-button{border:1px solid #5c1d24;background:linear-gradient(135deg,var(--red),#8f1118);color:white;border-radius:10px;padding:10px 13px;font-weight:800;cursor:pointer}
-button.secondary{background:var(--p2);border-color:var(--line)}button:disabled{opacity:.4;cursor:not-allowed}
-.grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(330px,.75fr);gap:14px}
-.canvaswrap{background:#050506;border:1px solid var(--line);border-radius:12px;overflow:auto}
-canvas{display:block;max-width:100%;height:auto}
-#imageCanvas{cursor:crosshair}.pitchbox{display:flex;flex-direction:column;gap:10px}
-.status{padding:10px 12px;border-radius:10px;background:#0d1410;border:1px solid #275438;color:#b9f3cc;font-size:12px;line-height:1.45}
-.status.warn{background:#17130b;border-color:#5f4b21;color:#ead497}
-.pairs{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#0c0c10}
-.pair{display:grid;grid-template-columns:30px 1fr 1fr auto;gap:8px;padding:8px 9px;border-bottom:1px solid #222228;font-size:11px;align-items:center}
-.pair:last-child{border-bottom:0}.n{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:var(--red);font-weight:900}.muted{color:var(--muted)}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{padding:10px;background:#0b0b0f;border:1px solid var(--line);border-radius:10px}.metric span{font-size:9px;color:var(--muted);display:block}.metric b{font-size:17px;display:block;margin-top:4px}
-.tip{font-size:11px;color:var(--muted);line-height:1.5}
-@media(max-width:900px){.controls,.grid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}
+:root{--bg:#08090b;--panel:#111217;--panel2:#18191f;--line:#30323a;--red:#c91d2a;--red2:#8f1019;--txt:#f7f7f8;--muted:#a8abb5;--ok:#65d78b;--warn:#e0b657;--bad:#ef6872}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,Arial,sans-serif}header{padding:16px 20px;border-bottom:1px solid var(--line);background:#0d0e12;position:sticky;top:0;z-index:5}h1{font-size:20px;margin:0}header p{margin:4px 0 0;color:var(--muted);font-size:12px}main{max-width:1500px;margin:auto;padding:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}.controls{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr) auto;gap:12px;align-items:end}label{font-size:11px;color:var(--muted)}input[type=file]{width:100%;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--txt)}input[type=range]{width:100%;accent-color:var(--red)}button{border:1px solid #67212a;background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;border-radius:10px;padding:10px 13px;font-weight:850;cursor:pointer}button.secondary{background:var(--panel2);border-color:var(--line)}button:disabled{opacity:.38;cursor:not-allowed}.layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(360px,.8fr);gap:14px}.canvaswrap{border:1px solid var(--line);border-radius:12px;overflow:auto;background:#050607}canvas{display:block;max-width:100%;height:auto}#imageCanvas{cursor:crosshair}.status{padding:10px 12px;border:1px solid #5a4922;background:#19150c;color:#ead49a;border-radius:10px;font-size:12px;line-height:1.45}.status.ok{border-color:#2e6741;background:#0d1711;color:#baf1cc}.status.bad{border-color:#70242a;background:#1e0e11;color:#ffb2b8}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:10px 0}.metric{background:#0c0d11;border:1px solid var(--line);border-radius:10px;padding:9px}.metric span{display:block;color:var(--muted);font-size:9px}.metric b{display:block;font-size:16px;margin-top:4px}.help{font-size:11px;color:var(--muted);line-height:1.45;margin-top:8px}.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-top:7px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}.red{background:var(--red)}.gold{background:var(--warn)}.green{background:var(--ok)}.selected{padding:9px 10px;border-radius:10px;background:#19150c;border:1px solid #5a4922;color:#ead49a;font-size:11px}.list{max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#0b0c10}.row{display:grid;grid-template-columns:30px 1fr auto;gap:8px;align-items:center;padding:7px 9px;border-bottom:1px solid #22242b;font-size:11px}.row:last-child{border:0}.badge{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--red);font-weight:900}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}@media(max-width:900px){.controls,.layout{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
-<header><h1>C.A. YENNE — TEST CALIBRATION TERRAIN</h1><p>Terrain fixe • caméra variable • points vidéo ↔ coordonnées terrain</p></header>
+<header><h1>C.A. YENNE — CALIBRATION TERRAIN STABLE</h1><p>Une frame réelle • 32 repères football • même moteur métrique que l’analyse STABLE</p></header>
 <main>
-<section class="card controls">
-<label>1. Charge une vidéo
-<input id="file" type="file" accept="video/*"></label>
-<label>2. Choisis l’instant
-<input id="time" type="range" min="0" max="1" step="0.04" value="0"><span id="timeLabel">0.00 s</span></label>
-<button id="capture" disabled>CAPTURER LA FRAME</button>
-</section>
-<section class="grid">
-<div class="card">
-<div class="status warn" id="status">Charge une vidéo. La frame choisie apparaîtra ici.</div>
-<div class="canvaswrap" style="margin-top:10px"><canvas id="imageCanvas" width="960" height="540"></canvas></div>
-<div class="tip" style="margin-top:8px">Clique d’abord un repère visible sur l’image (coin, intersection de ligne, point de penalty, intersection ligne médiane/touche…), puis clique le même repère sur le terrain à droite.</div>
-</div>
-<div class="card pitchbox">
-<div class="canvaswrap"><canvas id="pitchCanvas" width="525" height="340"></canvas></div>
-<div class="metrics">
-<div class="metric"><span>PAIRES</span><b id="pairCount">0</b></div>
-<div class="metric"><span>ERREUR MOY.</span><b id="meanErr">—</b></div>
-<div class="metric"><span>ERREUR MAX.</span><b id="maxErr">—</b></div>
-</div>
-<div style="display:flex;gap:8px;flex-wrap:wrap">
-<button id="solve" disabled>CALCULER</button>
-<button id="undo" class="secondary" disabled>ANNULER DERNIER</button>
-<button id="reset" class="secondary">RÉINITIALISER</button>
-<button id="export" class="secondary" disabled>EXPORT JSON</button>
-</div>
-<div class="pairs" id="pairs"></div>
-<div class="tip"><b>Minimum : 4 paires.</b> Idéal : 6 à 10 repères répartis dans l’image. Après calcul, les lignes blanches du terrain sont reprojetées sur la vidéo : si elles collent au terrain réel, le calibrage est cohérent.</div>
-</div>
-</section>
-<video id="video" playsinline muted style="position:fixed;left:-9999px;width:2px;height:2px"></video>
-</main>
+<section class="card controls"><label>1. Vidéo du match<input id="file" type="file" accept="video/*"></label><label>2. Cherche une image où plusieurs lignes sont visibles<input id="time" type="range" min="0" max="1" step="0.04" value="0"><span id="timeLabel">0.00 s</span></label><button id="capture" disabled>AFFICHER CETTE IMAGE</button></section>
+<section class="layout"><div class="card"><div id="status" class="status">Charge une vidéo. L’image choisie apparaîtra ici.</div><div class="canvaswrap" style="margin-top:10px"><canvas id="imageCanvas" width="960" height="540"></canvas></div><div class="help"><b>Mode d’emploi :</b> sélectionne d’abord un point rouge sur le terrain à droite, puis clique exactement le même repère sur la vidéo. Les pieds des joueurs ne servent pas au calibrage : utilise uniquement des intersections/lignes fixes du terrain.</div></div>
+<div class="card"><div class="selected" id="selected">Sélectionne un repère rouge sur le terrain.</div><div class="canvaswrap" style="margin-top:9px"><canvas id="pitchCanvas" width="525" height="340"></canvas></div><div class="legend"><span><i class="dot red"></i>repère disponible</span><span><i class="dot gold"></i>repère sélectionné</span><span><i class="dot green"></i>repère placé</span></div><div class="metrics"><div class="metric"><span>REPÈRES</span><b id="count">0 / 6</b></div><div class="metric"><span>VERDICT</span><b id="verdict">—</b></div><div class="metric"><span>ERREUR MOY.</span><b id="mean">—</b></div><div class="metric"><span>CONFIANCE</span><b id="confidence">—</b></div></div><div class="actions"><button id="validate" disabled>VALIDER LE CALIBRAGE</button><button id="undo" class="secondary" disabled>ANNULER</button><button id="reset" class="secondary">TOUT EFFACER</button><button id="export" class="secondary" disabled>EXPORT JSON</button></div><div id="points" class="list" style="margin-top:9px"></div><div class="help">Minimum STABLE : <b>6 repères visibles</b>, avec une géométrie suffisamment étendue. Deux repères sont réservés automatiquement à une validation indépendante. Si la preuve est insuffisante, le résultat reste <b>INDISPONIBLE</b>.</div></div></section>
+<video id="video" muted playsinline preload="metadata" style="position:fixed;left:-9999px;width:2px;height:2px"></video></main>
+<script src="./metric_homography_projector_v1.js"></script><script src="./pitch_geometry_guard_v1.js"></script><script src="./automatic_pitch_calibration_v1.js"></script><script src="./pitch_semantic_calibration_v2.js"></script>
 <script>
 'use strict';
-const $=id=>document.getElementById(id);
-const video=$('video'),file=$('file'),time=$('time'),timeLabel=$('timeLabel'),capture=$('capture');
-const ic=$('imageCanvas'),ix=ic.getContext('2d'),pc=$('pitchCanvas'),px=pc.getContext('2d');
-let objUrl=null,baseImage=null,pairs=[],pendingImage=null,H=null,lastResult=null;
-const L=105,W=68,M=18;
-function pitchToCanvas(p){return{x:M+p.x*(pc.width-2*M)/L,y:M+p.y*(pc.height-2*M)/W}}
-function canvasToPitch(p){return{x:(p.x-M)*L/(pc.width-2*M),y:(p.y-M)*W/(pc.height-2*M)}}
-function drawPitch(){
- px.clearRect(0,0,pc.width,pc.height);px.fillStyle='#17642f';px.fillRect(0,0,pc.width,pc.height);
- px.strokeStyle='white';px.lineWidth=2;
- const a=pitchToCanvas({x:0,y:0}),b=pitchToCanvas({x:L,y:W});px.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);
- const c=pitchToCanvas({x:L/2,y:0});px.beginPath();px.moveTo(c.x,a.y);px.lineTo(c.x,b.y);px.stroke();
- const center=pitchToCanvas({x:L/2,y:W/2});const r=9.15*(pc.width-2*M)/L;px.beginPath();px.arc(center.x,center.y,r,0,Math.PI*2);px.stroke();
- function rect(x0,y0,x1,y1){const q0=pitchToCanvas({x:x0,y:y0}),q1=pitchToCanvas({x:x1,y:y1});px.strokeRect(q0.x,q0.y,q1.x-q0.x,q1.y-q0.y)}
- rect(0,(W-40.32)/2,16.5,(W+40.32)/2);rect(L-16.5,(W-40.32)/2,L,(W+40.32)/2);
- rect(0,(W-18.32)/2,5.5,(W+18.32)/2);rect(L-5.5,(W-18.32)/2,L,(W+18.32)/2);
- [[11,W/2],[L-11,W/2],[L/2,W/2]].forEach(v=>{const q=pitchToCanvas({x:v[0],y:v[1]});px.fillStyle='white';px.beginPath();px.arc(q.x,q.y,3,0,Math.PI*2);px.fill()});
- pairs.forEach((pr,i)=>{const q=pitchToCanvas(pr.pitch);px.fillStyle='#ff3e49';px.beginPath();px.arc(q.x,q.y,7,0,Math.PI*2);px.fill();px.fillStyle='white';px.font='bold 11px Arial';px.fillText(String(i+1),q.x+9,q.y-7)});
- if(pendingImage){px.fillStyle='#ffdd7a';px.font='bold 12px Arial';px.fillText('Clique ici le même repère',16,pc.height-12)}
-}
-function drawImage(){
- ix.clearRect(0,0,ic.width,ic.height);if(baseImage)ix.drawImage(baseImage,0,0,ic.width,ic.height);
- pairs.forEach((pr,i)=>{ix.fillStyle='#ff3e49';ix.beginPath();ix.arc(pr.image.x,pr.image.y,7,0,Math.PI*2);ix.fill();ix.fillStyle='white';ix.font='bold 12px Arial';ix.fillText(String(i+1),pr.image.x+9,pr.image.y-8)});
- if(pendingImage){ix.strokeStyle='#ffdd7a';ix.lineWidth=2;ix.beginPath();ix.arc(pendingImage.x,pendingImage.y,9,0,Math.PI*2);ix.stroke()}
- if(H)drawOverlay();
-}
-function getPos(canvas,e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}
-function gaussian(A,b){
- const n=b.length,M=A.map((r,i)=>r.slice().concat([b[i]]));
- for(let i=0;i<n;i++){let p=i;for(let r=i+1;r<n;r++)if(Math.abs(M[r][i])>Math.abs(M[p][i]))p=r;[M[i],M[p]]=[M[p],M[i]];if(Math.abs(M[i][i])<1e-10)return null;const d=M[i][i];for(let c=i;c<=n;c++)M[i][c]/=d;for(let r=0;r<n;r++)if(r!==i){const f=M[r][i];for(let c=i;c<=n;c++)M[r][c]-=f*M[i][c]}}
- return M.map(r=>r[n]);
-}
-function solveHomography(){
- if(pairs.length<4)return null;
- const rows=[],vals=[];
- for(const p of pairs){const u=p.image.x,v=p.image.y,x=p.pitch.x,y=p.pitch.y;
-  rows.push([u,v,1,0,0,0,-x*u,-x*v]);vals.push(x);
-  rows.push([0,0,0,u,v,1,-y*u,-y*v]);vals.push(y);
- }
- const ATA=Array.from({length:8},()=>Array(8).fill(0)),ATb=Array(8).fill(0);
- for(let r=0;r<rows.length;r++)for(let i=0;i<8;i++){ATb[i]+=rows[r][i]*vals[r];for(let j=0;j<8;j++)ATA[i][j]+=rows[r][i]*rows[r][j]}
- const h=gaussian(ATA,ATb);return h?[...h,1]:null;
-}
-function project(M,p){const d=M[6]*p.x+M[7]*p.y+M[8];if(Math.abs(d)<1e-10)return null;return{x:(M[0]*p.x+M[1]*p.y+M[2])/d,y:(M[3]*p.x+M[4]*p.y+M[5])/d}}
-function inverse3(m){const[a,b,c,d,e,f,g,h,i]=m,A=e*i-f*h,B=-(d*i-f*g),C=d*h-e*g,D=-(b*i-c*h),E=a*i-c*g,F=-(a*h-b*g),G=b*f-c*e,Hh=-(a*f-c*d),I=a*e-b*d,det=a*A+b*B+c*C;if(Math.abs(det)<1e-12)return null;return[A,D,G,B,E,Hh,C,F,I].map(v=>v/det)}
-function drawOverlay(){
- const inv=inverse3(H);if(!inv)return;
- ix.save();ix.strokeStyle='#63d889';ix.lineWidth=2.2;ix.globalAlpha=.9;
- function line(a,b,steps=60){ix.beginPath();let started=false;for(let k=0;k<=steps;k++){const t=k/steps,q=project(inv,{x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t});if(!q)continue;if(!started){ix.moveTo(q.x,q.y);started=true}else ix.lineTo(q.x,q.y)}ix.stroke()}
- line({x:0,y:0},{x:L,y:0});line({x:L,y:0},{x:L,y:W});line({x:L,y:W},{x:0,y:W});line({x:0,y:W},{x:0,y:0});line({x:L/2,y:0},{x:L/2,y:W});
- const center={x:L/2,y:W/2},r=9.15;for(let k=0;k<=80;k++){const a=2*Math.PI*k/80,q=project(inv,{x:center.x+r*Math.cos(a),y:center.y+r*Math.sin(a)});if(!q)continue;if(k===0)ix.beginPath(),ix.moveTo(q.x,q.y);else ix.lineTo(q.x,q.y)}ix.stroke();
- ix.restore();
-}
-function renderPairs(){
- $('pairCount').textContent=pairs.length;$('solve').disabled=pairs.length<4;$('undo').disabled=!pairs.length;$('export').disabled=!lastResult;
- $('pairs').innerHTML=pairs.map((p,i)=>`<div class="pair"><span class="n">${i+1}</span><span>img ${p.image.x.toFixed(0)}, ${p.image.y.toFixed(0)}</span><span>terrain ${p.pitch.x.toFixed(2)}m, ${p.pitch.y.toFixed(2)}m</span><span></span></div>`).join('');
-}
-file.onchange=()=>{const f=file.files&&file.files[0];if(!f)return;if(objUrl)URL.revokeObjectURL(objUrl);objUrl=URL.createObjectURL(f);video.src=objUrl;video.load();video.onloadedmetadata=()=>{time.max=Math.max(0,video.duration-.05);time.value=Math.min(5,Math.max(0,video.duration*.05));time.step=video.duration>0?Math.min(.04,1/25):.04;timeLabel.textContent=Number(time.value).toFixed(2)+' s';capture.disabled=false;$('status').className='status';$('status').textContent=`Vidéo prête — ${video.videoWidth}×${video.videoHeight} — choisis un instant puis capture.`}};
-time.oninput=()=>timeLabel.textContent=Number(time.value).toFixed(2)+' s';
-capture.onclick=async()=>{const t=Number(time.value);await new Promise((res,rej)=>{const ok=()=>{cleanup();res()},bad=()=>{cleanup();rej(new Error('seek impossible'))},cleanup=()=>{video.removeEventListener('seeked',ok);video.removeEventListener('error',bad)};video.addEventListener('seeked',ok,{once:true});video.addEventListener('error',bad,{once:true});video.currentTime=t});
- const scale=Math.min(1,1100/video.videoWidth),w=Math.round(video.videoWidth*scale),h=Math.round(video.videoHeight*scale);
- ic.width=w;ic.height=h;baseImage=document.createElement('canvas');baseImage.width=w;baseImage.height=h;baseImage.getContext('2d').drawImage(video,0,0,w,h);pairs=[];pendingImage=null;H=null;lastResult=null;$('meanErr').textContent='—';$('maxErr').textContent='—';$('status').textContent='Frame affichée. Clique un repère sur la vidéo puis le même sur le terrain.';drawImage();drawPitch();renderPairs()};
-ic.onclick=e=>{if(!baseImage)return;pendingImage=getPos(ic,e);drawImage();drawPitch()};
-pc.onclick=e=>{if(!pendingImage)return;const q=canvasToPitch(getPos(pc,e));if(q.x<0||q.x>L||q.y<0||q.y>W)return;pairs.push({image:{...pendingImage},pitch:q});pendingImage=null;H=null;lastResult=null;renderPairs();drawImage();drawPitch()};
-$('undo').onclick=()=>{pairs.pop();pendingImage=null;H=null;lastResult=null;renderPairs();drawImage();drawPitch()};
-$('reset').onclick=()=>{pairs=[];pendingImage=null;H=null;lastResult=null;$('meanErr').textContent='—';$('maxErr').textContent='—';renderPairs();drawImage();drawPitch()};
-$('solve').onclick=()=>{H=solveHomography();if(!H){$('status').className='status warn';$('status').textContent='Calcul impossible : choisis des points mieux répartis.';return}
- const errs=pairs.map(p=>{const q=project(H,p.image);return q?Math.hypot(q.x-p.pitch.x,q.y-p.pitch.y):Infinity}),mean=errs.reduce((a,b)=>a+b,0)/errs.length,max=Math.max(...errs);
- lastResult={version:'CAY_CALIB_TEST_V1',timestampSec:Number(time.value),pitch:{lengthM:L,widthM:W},homographyImageToPitch:H,pairs,meanReprojectionErrorM:mean,maxReprojectionErrorM:max,createdAt:new Date().toISOString()};
- $('meanErr').textContent=mean.toFixed(2)+' m';$('maxErr').textContent=max.toFixed(2)+' m';$('export').disabled=false;
- $('status').className=mean<=1.5&&max<=3?'status':'status warn';$('status').textContent=mean<=1.5&&max<=3?'Calibration cohérente sur les points fournis. Vérifie maintenant si les lignes vertes collent visuellement au terrain.':'Calibration calculée mais erreur élevée : ajoute/corrige des points mieux répartis.';
- drawImage()};
-$('export').onclick=()=>{if(!lastResult)return;const blob=new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='CAY_CALIBRATION_TEST.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-drawPitch();renderPairs();
-</script>
-</body>
-</html>
+const $=id=>document.getElementById(id),video=$('video'),file=$('file'),time=$('time'),capture=$('capture'),ic=$('imageCanvas'),ix=ic.getContext('2d'),pc=$('pitchCanvas'),px=pc.getContext('2d'),Semantic=globalThis.CAYPitchSemanticCalibrationV2,L=105,W=68,M=18;let objectUrl=null,baseFrame=null,selectedIndex=null,observations=new Map(),lastResult=null,frameTime=0;
+function pitchToCanvas(p){return{x:M+p.x*(pc.width-2*M)/L,y:M+p.y*(pc.height-2*M)/W}}function getPos(canvas,e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}function nearestVertex(pos){if(!Semantic)return null;const verts=Semantic.canonicalVertices({lengthM:L,widthM:W});let best=null;verts.forEach((p,index)=>{const q=pitchToCanvas(p),d=Math.hypot(q.x-pos.x,q.y-pos.y);if(!best||d<best.d)best={index,d,q,p}});return best&&best.d<=16?best:null}
+function drawPitch(){px.clearRect(0,0,pc.width,pc.height);px.fillStyle='#176330';px.fillRect(0,0,pc.width,pc.height);px.strokeStyle='#fff';px.lineWidth=2;const a=pitchToCanvas({x:0,y:0}),b=pitchToCanvas({x:L,y:W});px.strokeRect(a.x,a.y,b.x-a.x,b.y-a.y);const mid=pitchToCanvas({x:L/2,y:0});px.beginPath();px.moveTo(mid.x,a.y);px.lineTo(mid.x,b.y);px.stroke();function rect(x0,y0,x1,y1){const q0=pitchToCanvas({x:x0,y:y0}),q1=pitchToCanvas({x:x1,y:y1});px.strokeRect(q0.x,q0.y,q1.x-q0.x,q1.y-q0.y)}rect(0,(W-40.32)/2,16.5,(W+40.32)/2);rect(L-16.5,(W-40.32)/2,L,(W+40.32)/2);rect(0,(W-18.32)/2,5.5,(W+18.32)/2);rect(L-5.5,(W-18.32)/2,L,(W+18.32)/2);const c=pitchToCanvas({x:L/2,y:W/2}),r=9.15*(pc.width-2*M)/L;px.beginPath();px.arc(c.x,c.y,r,0,Math.PI*2);px.stroke();if(!Semantic)return;Semantic.canonicalVertices({lengthM:L,widthM:W}).forEach((p,index)=>{const q=pitchToCanvas(p),placed=observations.has(index),sel=index===selectedIndex;px.fillStyle=placed?'#65d78b':sel?'#e0b657':'#c91d2a';px.beginPath();px.arc(q.x,q.y,sel?7:5,0,Math.PI*2);px.fill();if(sel||placed){px.fillStyle='#fff';px.font='bold 9px Arial';px.fillText(String(index+1),q.x+7,q.y-6)}})}
+function drawImage(){ix.clearRect(0,0,ic.width,ic.height);if(baseFrame)ix.drawImage(baseFrame,0,0,ic.width,ic.height);observations.forEach((o,index)=>{ix.fillStyle='#65d78b';ix.beginPath();ix.arc(o.x,o.y,6,0,Math.PI*2);ix.fill();ix.fillStyle='#fff';ix.font='bold 10px Arial';ix.fillText(String(index+1),o.x+8,o.y-7)})}
+function resetMetrics(){$('verdict').textContent='—';$('mean').textContent='—';$('confidence').textContent='—';$('export').disabled=true}function update(){$('count').textContent=`${observations.size} / 6`;$('validate').disabled=!baseFrame||observations.size<6;$('undo').disabled=!observations.size;$('export').disabled=!lastResult;$('selected').textContent=selectedIndex===null?'Sélectionne un repère rouge sur le terrain.':`Repère ${selectedIndex+1} sélectionné — clique maintenant le même point sur la vidéo.`;$('points').innerHTML=[...observations.entries()].sort((a,b)=>a[0]-b[0]).map(([i,o])=>`<div class="row"><span class="badge">${i+1}</span><span>image ${o.x.toFixed(0)}, ${o.y.toFixed(0)}</span><button class="secondary" data-remove="${i}" style="padding:5px 8px">×</button></div>`).join('');document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{observations.delete(Number(b.dataset.remove));lastResult=null;resetMetrics();drawPitch();drawImage();update()})}function keypoints(){return[...observations.entries()].map(([index,o])=>({index,x:o.x,y:o.y,confidence:1,visible:true}))}function setStatus(text,kind=''){$('status').className='status'+(kind?' '+kind:'');$('status').textContent=text}
+file.onchange=()=>{const f=file.files&&file.files[0];if(!f)return;if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=URL.createObjectURL(f);video.src=objectUrl;video.load();video.onloadedmetadata=()=>{time.max=Math.max(0,video.duration-.05);time.value=Math.min(5,Math.max(0,video.duration*.05));$('timeLabel').textContent=Number(time.value).toFixed(2)+' s';capture.disabled=false;setStatus(`Vidéo prête — ${video.videoWidth}×${video.videoHeight}. Choisis un instant puis affiche l’image.`,'ok')}};time.oninput=()=>$('timeLabel').textContent=Number(time.value).toFixed(2)+' s';
+capture.onclick=async()=>{frameTime=Number(time.value);try{await new Promise((resolve,reject)=>{const ok=()=>{clean();resolve()},bad=()=>{clean();reject(new Error('Lecture vidéo impossible'))},clean=()=>{video.removeEventListener('seeked',ok);video.removeEventListener('error',bad)};video.addEventListener('seeked',ok,{once:true});video.addEventListener('error',bad,{once:true});video.currentTime=Math.min(Math.max(frameTime,0),Math.max(0,video.duration-.05))});const scale=Math.min(1,1100/video.videoWidth),w=Math.max(1,Math.round(video.videoWidth*scale)),h=Math.max(1,Math.round(video.videoHeight*scale));ic.width=w;ic.height=h;baseFrame=document.createElement('canvas');baseFrame.width=w;baseFrame.height=h;baseFrame.getContext('2d').drawImage(video,0,0,w,h);observations.clear();selectedIndex=null;lastResult=null;resetMetrics();drawImage();drawPitch();update();setStatus('Image affichée. Choisis maintenant un repère rouge sur le terrain à droite.','ok')}catch(err){setStatus(String(err.message||err),'bad')}};
+pc.onclick=e=>{if(!baseFrame)return;const hit=nearestVertex(getPos(pc,e));if(!hit)return;selectedIndex=hit.index;drawPitch();update()};ic.onclick=e=>{if(!baseFrame||selectedIndex===null)return;const p=getPos(ic,e);observations.set(selectedIndex,{x:p.x,y:p.y});selectedIndex=null;lastResult=null;resetMetrics();drawImage();drawPitch();update()};$('undo').onclick=()=>{const keys=[...observations.keys()];if(!keys.length)return;observations.delete(keys[keys.length-1]);lastResult=null;resetMetrics();drawImage();drawPitch();update()};$('reset').onclick=()=>{observations.clear();selectedIndex=null;lastResult=null;resetMetrics();drawImage();drawPitch();update()};
+$('validate').onclick=()=>{if(!Semantic){setStatus('Moteur de calibration STABLE indisponible.','bad');return}const result=Semantic.evaluate({keypoints:keypoints(),frameSize:{width:ic.width,height:ic.height},lengthM:L,widthM:W,minConfidence:.5});lastResult=result;const accepted=result&&result.status==='ACCEPTED_AUTOMATIC'&&result.projector&&result.projector.validated;$('verdict').textContent=accepted?'FIABLE':String(result&&result.status||'INDISPONIBLE');$('mean').textContent=result&&result.validation&&Number.isFinite(result.validation.meanM)?result.validation.meanM.toFixed(2)+' m':'—';$('confidence').textContent=accepted&&Number.isFinite(result.confidence)?Math.round(result.confidence*100)+' %':'—';$('export').disabled=false;if(accepted)setStatus(`Calibration FIABLE — ${result.visibleKeypoints} repères, ${result.fitCount} pour l’ajustement, ${result.validationCount} pour la validation indépendante.`,'ok');else setStatus(`Calibration refusée : ${String(result&&result.reason||'preuves insuffisantes')}. Ajoute ou corrige des repères bien répartis.`,'bad')};
+$('export').onclick=()=>{if(!lastResult)return;const payload={version:'CAY_SEMANTIC_CALIBRATION_TEST_V1',time:frameTime,frameSize:{width:ic.width,height:ic.height},keypoints:keypoints(),verdict:{status:lastResult.status,reason:lastResult.reason||null,confidence:lastResult.confidence??null,validation:lastResult.validation||null,geometricSupport:lastResult.geometricSupport||null},projector:lastResult.projector&&lastResult.projector.validated?{homography:lastResult.projector.homography,pitch:lastResult.projector.pitch,confidence:lastResult.projector.confidence}:null};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));a.download='CAY_CALIBRATION_SEMANTIQUE.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000)};drawPitch();update();
+</script></body></html>
