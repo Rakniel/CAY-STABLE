@@ -23,12 +23,14 @@ const p=api.createProvider(base);
 assert.strictEqual(p.runtimeDefaultAllowed,true);
 assert.strictEqual(p.maxCalibrationAgeSec,.25);
 assert.strictEqual(p.minConfidence,.6);
+assert.strictEqual(p.keypointIndexMapping,null);
 
 (async()=>{
   let r=await p.inferPitchKeypoints({width:1000,height:500},{time:1.1,segment:0,width:1000,height:500});
   assert.strictEqual(r.keypoints.length,6);
   assert.strictEqual(r.keypoints[0].x,100);
   assert.strictEqual(r.keypoints[0].y,100);
+  assert.strictEqual(r.keypoints[0].sourceIndex,0);
   assert.ok(Math.abs(r.sampleAgeSec-.1)<1e-9);
 
   r=await p.inferPitchKeypoints({width:1000,height:500},{time:1.5,segment:0,width:1000,height:500});
@@ -49,6 +51,31 @@ assert.strictEqual(p.minConfidence,.6);
   const lowProvider=api.createProvider(low);
   r=await lowProvider.inferPitchKeypoints({width:1000,height:500},{time:1,segment:0,width:1000,height:500});
   assert.deepStrictEqual(r.keypoints.map(k=>k.index),[0],'duplicates, out-of-range points and low confidence must be rejected');
+
+  const mapped={
+    ...base,
+    providerId:'external-33-keypoint-model',
+    keypointIndexMap:{0:3,7:9,32:31},
+    frames:[{time:1,segment:0,keypoints:[
+      {index:0,x:.10,y:.20,confidence:.90},
+      {index:7,x:.30,y:.40,confidence:.91},
+      {index:32,x:.50,y:.60,confidence:.92},
+      {index:12,x:.70,y:.80,confidence:.99}
+    ]}]
+  };
+  assert.strictEqual(api.validateArtifact(mapped).ok,true);
+  const mappedProvider=api.createProvider(mapped);
+  assert.deepStrictEqual(mappedProvider.keypointIndexMapping,{'0':3,'7':9,'32':31});
+  r=await mappedProvider.inferPitchKeypoints({width:1000,height:500},{time:1,segment:0,width:1000,height:500});
+  assert.deepStrictEqual(r.keypoints.map(k=>k.index),[3,9,31],'only explicitly mapped foreign indices may enter CAY semantic calibration');
+  assert.deepStrictEqual(r.keypoints.map(k=>k.sourceIndex),[0,7,32]);
+  assert.deepStrictEqual(r.keypoints.map(k=>k.x),[100,300,500]);
+
+  const ambiguous={...mapped,keypointIndexMap:{0:3,1:3}};
+  assert.strictEqual(api.validateArtifact(ambiguous).reason,'PITCH_KEYPOINT_INDEX_MAP_AMBIGUOUS');
+  assert.throws(()=>api.createProvider(ambiguous),/INDEX_MAP_AMBIGUOUS/);
+  assert.strictEqual(api.validateArtifact({...mapped,keypointIndexMap:{32:99}}).reason,'PITCH_KEYPOINT_INDEX_MAP_INVALID');
+  assert.strictEqual(api.validateArtifact({...mapped,keypointIndexMap:{}}).reason,'PITCH_KEYPOINT_INDEX_MAP_EMPTY');
 
   console.log('pitch_keypoint_artifact_provider_nonregression: PASS');
 })().catch(err=>{console.error(err);process.exitCode=1;});
