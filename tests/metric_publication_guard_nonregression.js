@@ -74,13 +74,23 @@ const fragmented=Guard.applyPublicationPolicy({...reliable,speedSamples:[
   {time:0,segment:1,kmh:18},{time:.5,segment:1,kmh:18},
   {time:4,segment:1,kmh:19},{time:4.5,segment:1,kmh:19},
   {time:9,segment:2,kmh:20},{time:9.5,segment:2,kmh:20}
-]});
-assert.equal(fragmented.publication.status,'INDISPONIBLE','scattered evidence must not publish physical stats');
-assert.match(fragmented.publication.reason,/continus/);
+]},{identityQuality:'FIABLE'});
+assert.equal(fragmented.publication.status,'FIABLE','reliable accumulated distance remains publishable even when speed continuity is insufficient');
 assert.equal(fragmented.continuousSpeedEvidenceSeconds,.5);
-assert.equal(fragmented.metricCoverage,0);
-assert.equal(fragmented.diagnosticMetricCoverage,1);
-assert.equal(fragmented.distanceM,null);
+assert.equal(fragmented.metricCoverage,1);
+assert.equal(fragmented.distanceM,123.4,'distance may sum validated disjoint metric windows without interpolating gaps');
+assert.equal(fragmented.avgSpeedKmh,null,'average speed remains fail-closed without continuous speed evidence');
+assert.equal(fragmented.maxSpeedKmh,null,'max speed remains fail-closed without continuous speed evidence');
+assert.equal(fragmented.sprintCount,null,'sprints remain fail-closed without continuous speed evidence');
+assert.equal(fragmented.publication.fieldStatus.distanceM.status,'FIABLE');
+assert.equal(fragmented.publication.fieldStatus.avgSpeedKmh.status,'INDISPONIBLE');
+assert.equal(fragmented.publication.fieldStatus.sprintCount.status,'INDISPONIBLE');
+assert.match(fragmented.publication.fieldStatus.avgSpeedKmh.reason,/continus/);
+
+const fragmentedLowEvidence=Guard.applyPublicationPolicy({...reliable,defendableScore:.79,quality:'PARTIEL',speedSamples:fragmented.speedSamples},{identityQuality:'FIABLE'});
+assert.equal(fragmentedLowEvidence.publication.status,'INDISPONIBLE','fragmentation never bypasses the global evidence-score gate');
+assert.equal(fragmentedLowEvidence.distanceM,null);
+assert.equal(fragmentedLowEvidence.metricCoverage,0);
 
 const crossSegment=Guard.longestContinuousSpeedEvidenceSeconds([
   {time:0,segment:1,kmh:18},{time:1,segment:1,kmh:18},{time:2,segment:1,kmh:18},
