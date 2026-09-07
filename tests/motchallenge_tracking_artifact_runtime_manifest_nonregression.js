@@ -22,5 +22,16 @@ if(occurrences===1){
 }
 
 const adapter=require('../motchallenge_tracking_artifact_adapter_v1.js');
-assert.strictEqual(typeof adapter.adapt,'function','runtime manifest must point at a usable adapter module');
+assert.strictEqual(typeof adapter.createArtifact,'function','runtime manifest must point at the artifact constructor');
+assert.strictEqual(typeof adapter.detectionsAt,'function','runtime manifest must point at the guarded temporal query API');
+const artifact=adapter.createArtifact([
+  {frame:1,track_id:7,bbox_ltwh:[100,50,20,40],score:.9,category_id:1}
+],{
+  width:640,height:360,fps:25,classMap:{'1':'team'},requireWeightProvenance:false,
+  provenance:{source:'runtime-manifest-test',license:'MIT',revision:'test-v1'}
+});
+const sample=adapter.detectionsAt(artifact,0,{maxAgeSec:.01});
+assert.strictEqual(sample.status,'AVAILABLE','loaded runtime adapter must return a fresh guarded sample');
+assert.strictEqual(sample.detections.length,1);
+assert.strictEqual(sample.detections[0].sourceTrackId,7);
 console.log('motchallenge_tracking_artifact_runtime_manifest_nonregression: PASS');
