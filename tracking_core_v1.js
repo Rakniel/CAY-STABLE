@@ -125,7 +125,14 @@
     for(const tr of state.active)archiveTrack(state,tr,reason||'camera_cut');
     state.active=[]; state.segment++; state.segments++;
   }
-  function pointFor(state,d,t){ return {x:clamp01(d.x),y:clamp01(d.y),time:t,segment:state.segment}; }
+  function pointFor(state,d,t){
+    const point={x:clamp01(d.x),y:clamp01(d.y),time:t,segment:state.segment};
+    const anchorKind=typeof d?.anchorKind==='string'?d.anchorKind.trim():'';
+    if(anchorKind)point.anchorKind=anchorKind;
+    if(d?.sourceTrackId!==undefined&&d.sourceTrackId!==null&&String(d.sourceTrackId).trim()!=='')point.sourceTrackId=d.sourceTrackId;
+    if(Number.isFinite(Number(d?.score)))point.detectionScore=clamp01(d.score);
+    return point;
+  }
   function recordObservation(tr,p,score){
     const prev=tr.fullPath[tr.fullPath.length-1]||null;
     tr.x=p.x; tr.y=p.y; tr.missed=0; tr.seen++; tr.lastTime=p.time;
