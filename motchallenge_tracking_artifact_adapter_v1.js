@@ -65,6 +65,15 @@
     return src.map(rowObject).filter(Boolean);
   }
 
+  function l2NormalizeFeature(feature){
+    if(!Array.isArray(feature)||!feature.length||!feature.every(finite))return null;
+    const values=feature.map(Number);
+    let norm2=0;for(const v of values)norm2+=v*v;
+    const norm=Math.sqrt(norm2);
+    if(!(norm>1e-12))return null;
+    return values.map(v=>v/norm);
+  }
+
   function categoryFor(row,classMap){
     const key=row.category_id==null?'':String(row.category_id);
     const mapped=classMap&&Object.prototype.hasOwnProperty.call(classMap,key)?classMap[key]:null;
@@ -86,20 +95,32 @@
     const frameBase=Number.isInteger(options.frameBase)?options.frameBase:1;
     const maxCayActive=Math.max(1,Math.min(11,Number(options.maxCayActive)||11));
     const minScore=finite(options.minScore)?clamp01(options.minScore):0;
+    const normalizeEmbeddings=options.normalizeEmbeddings!==false;
+    const expectedFeatureDim=Number.isInteger(options.expectedFeatureDim)&&options.expectedFeatureDim>0?options.expectedFeatureDim:null;
     const classMap=options.classMap||{};
     const rows=normalizeRows(input);
     const byFrame=new Map();
-    let rejectedGeometry=0,rejectedScore=0,rejectedId=0,accepted=0;
+    let rejectedGeometry=0,rejectedScore=0,rejectedId=0,rejectedFeature=0,accepted=0,embeddingRows=0;
+    let observedFeatureDim=expectedFeatureDim;
     for(const row of rows){
       if(!Number.isInteger(row.frame)||row.frame<frameBase||!Number.isInteger(row.track_id)||row.track_id<0){rejectedId++;continue;}
       const b=row.bbox_ltwh;
       if(!Array.isArray(b)||b.length!==4||!b.every(finite)||b[2]<=0||b[3]<=0){rejectedGeometry++;continue;}
       const score=finite(row.score)?clamp01(row.score):1;if(score<minScore){rejectedScore++;continue;}
+      let feature=null;
+      if(Array.isArray(row.feature)){
+        if(!row.feature.length||!row.feature.every(finite)){rejectedFeature++;continue;}
+        if(observedFeatureDim==null)observedFeatureDim=row.feature.length;
+        if(row.feature.length!==observedFeatureDim){rejectedFeature++;continue;}
+        feature=normalizeEmbeddings?l2NormalizeFeature(row.feature):row.feature.map(Number);
+        if(!feature){rejectedFeature++;continue;}
+        embeddingRows++;
+      }
       const left=Number(b[0]),top=Number(b[1]),bw=Number(b[2]),bh=Number(b[3]);
       const cat=categoryFor(row,classMap);
       const anchor=metricAnchorForBox(left,top,bw,bh,cat,width,height);
       const {x,y,kind:anchorKind}=anchor;
-      const track={sourceTrackId:row.track_id,personId:row.person_id??null,videoId:row.video_id??null,cat,score,bboxPx:{left,top,width:bw,height:bh},anchor:{x,y,kind:anchorKind},detection:{x,y,anchorKind,score,cat,feature:Array.isArray(row.feature)&&row.feature.every(finite)?row.feature.map(Number):null}};
+      const track={sourceTrackId:row.track_id,personId:row.person_id??null,videoId:row.video_id??null,cat,score,bboxPx:{left,top,width:bw,height:bh},anchor:{x,y,kind:anchorKind},detection:{x,y,anchorKind,score,cat,feature}};
       if(!byFrame.has(row.frame))byFrame.set(row.frame,[]);byFrame.get(row.frame).push(track);accepted++;
     }
     const frames=[];let overCapacityFrames=0,cayEligibleFrames=0,activeSlots=0;
@@ -116,7 +137,7 @@
     const analysisId=text(options.analysisId||'external-tracking-import');
     const spatialReference={coordinateSystem:'image_normalized',unit:'ratio',origin:'top_left',xAxisDirection:'right',yAxisDirection:'down',normalized:true};
     const descriptor=Contract&&typeof Contract.createArtifactDescriptor==='function'?Contract.createArtifactDescriptor({stage:'tracking_v1',schemaVersion:VERSION,inputFingerprint,analysisId,createdAt:options.createdAt||null,provenance,coverage,confidence:coverage,spatialReference}):{stage:'tracking_v1',schemaVersion:VERSION,inputFingerprint,analysisId,coverage,confidence:coverage,spatialReference,provenance};
-    return {version:VERSION,descriptor,provenance,frameGeometry:{width,height,fps,frameBase},policy:{maxCayActive,minScore,failClosedOnOverCapacity:true,noTeamInference:true,metricAnchorPolicy:'PERSON_BOTTOM_CENTER_BALL_CENTER'},frames,summary:{inputRows:rows.length,acceptedRows:accepted,rejectedGeometry,rejectedScore,rejectedId,frameCount:frames.length,cayEligibleFrames,overCapacityFrames,cayEligibilityCoverage:+coverage.toFixed(4),observedCaySlots:activeSlots}};
+    return {version:VERSION,descriptor,provenance,frameGeometry:{width,height,fps,frameBase},policy:{maxCayActive,minScore,failClosedOnOverCapacity:true,noTeamInference:true,metricAnchorPolicy:'PERSON_BOTTOM_CENTER_BALL_CENTER',embeddingPolicy:normalizeEmbeddings?'L2_NORMALIZED_EUCLIDEAN_EQUIV_COSINE':'PASSTHROUGH',featureDim:observedFeatureDim},frames,summary:{inputRows:rows.length,acceptedRows:accepted,rejectedGeometry,rejectedScore,rejectedId,rejectedFeature,embeddingRows,featureDim:observedFeatureDim,frameCount:frames.length,cayEligibleFrames,overCapacityFrames,cayEligibilityCoverage:+coverage.toFixed(4),observedCaySlots:activeSlots}};
   }
 
   function detectionsAt(artifact,timeSec,options={}){
@@ -131,5 +152,5 @@
     return {status:'AVAILABLE',reason:null,frame:best.frame,ageSec:+age.toFixed(4),detections};
   }
 
-  return {VERSION,PERMISSIVE_LICENSES:[...PERMISSIVE_LICENSES],licenseAllowed,normalizeProvenance,parseMotText,normalizeRows,metricAnchorForBox,createArtifact,detectionsAt};
+  return {VERSION,PERMISSIVE_LICENSES:[...PERMISSIVE_LICENSES],licenseAllowed,normalizeProvenance,parseMotText,normalizeRows,l2NormalizeFeature,metricAnchorForBox,createArtifact,detectionsAt};
 });
