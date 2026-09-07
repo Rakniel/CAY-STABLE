@@ -20,6 +20,21 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Safety guards: requires >=3-player consensus; rejects strong zoom/geometry changes; caps candidate displacement; records compensation provenance; never creates a new ID by itself.
 - Expected benefit: fewer ID switches/breaks during camera pans and lower false player motion caused by camera movement at association time.
 
+## BoT-SORT camera-motion evidence + OpenCV
+- BoT-SORT source: https://github.com/NirAharon/BoT-SORT
+- BoT-SORT audited revision: `251985436d6712aaf682aaaf5f71edb4987224bd`.
+- BoT-SORT license: MIT.
+- OpenCV source: https://github.com/opencv/opencv
+- OpenCV license boundary: Apache-2.0 for OpenCV 4.5.0 and later.
+- Upstream concepts used: BoT-SORT exposes global camera-motion compensation choices including VideoStab GMC, sparse optical flow, ORB and ECC; OpenCV provides mature affine/homography/optical-flow primitives behind this class of motion estimation.
+- Status in CAY-STABLE: artifact/adapter contract adapted in clean-room JavaScript; no BoT-SORT or OpenCV source code copied and neither project is a mandatory browser runtime dependency.
+- Local implementation: `camera_motion_artifact_provider_v1.js` transports externally estimated camera transforms plus confidence/support/inlier/residual/forward-backward/pitch-line evidence into the already-existing `metric_camera_motion_projector_v1.js`.
+- What this replaces: no per-backend camera-motion import logic is needed for a future OpenCV, BoT-SORT, TrackLab or native producer. A producer only has to emit the audited CAY artifact contract.
+- Safety policy: source/license/revision provenance is mandatory; GPL/AGPL artifacts are rejected; samples are isolated by camera segment and calibration-anchor time; stale or missing samples return unavailable; propagation still passes every existing transform plausibility, support, inlier, residual, forward/backward and age guard before metres are exposed.
+- Test: `tests/camera_motion_artifact_provider_nonregression.js` covers license rejection, ordering, freshness, segment/anchor isolation and inverse camera-motion projection against a validated absolute calibration anchor.
+- Dependency impact: zero mandatory Python/OpenCV/PyTorch dependency in STABLE. A future native/offline producer must document its own exact dependency/model/weight provenance separately.
+- Expected benefit: moving-camera footage can reuse one validated absolute calibration over short, evidenced motion intervals instead of forcing continuous manual calibration, while still failing closed whenever evidence is weak. No accuracy percentage is claimed until representative C.A. Yenne video benchmarks are run.
+
 ## Torchreid / OSNet ReID evidence
 - Source: https://github.com/KaiyangZhou/deep-person-reid
 - License: MIT (declared by upstream package metadata).
