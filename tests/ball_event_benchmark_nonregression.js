@@ -28,4 +28,42 @@ assert.ok(cmp.delta.f1>0);
 assert.strictEqual(cmp.delta.falsePositives,-2);
 assert.strictEqual(cmp.delta.falseNegatives,-2);
 assert.strictEqual(evaluateBallEvents([],after).quality,'INDISPONIBLE');
+
+// When the annotated reference contains attribution, a temporally correct event
+// credited to the wrong player/team must not count as a true positive.
+const attributedTruth=[
+ {type:'PASS',time:50,fromPlayerId:'CAY-8',toPlayerId:'CAY-10',fromTeam:'CAY',toTeam:'CAY'},
+ {type:'TURNOVER',time:61,fromPlayerId:'CAY-6',fromTeam:'CAY'}
+];
+const wrongAttribution=[
+ {type:'PASS',time:50.1,fromPlayerId:'CAY-7',toPlayerId:'CAY-10',fromTeam:'CAY',toTeam:'CAY'},
+ {type:'TURNOVER',time:61.1,fromPlayerId:'CAY-6',fromTeam:'OPP'}
+];
+const wrong=evaluateBallEvents(attributedTruth,wrongAttribution,{timeToleranceSec:.75});
+assert.strictEqual(wrong.truePositives,0);
+assert.strictEqual(wrong.falsePositives,2);
+assert.strictEqual(wrong.falseNegatives,2);
+assert.strictEqual(wrong.identityEvidence.identityRejectedCandidates,2);
+assert.strictEqual(wrong.identityEvidence.rejectedByReason.ACTOR_ID_MISMATCH,1);
+assert.strictEqual(wrong.identityEvidence.rejectedByReason.TEAM_ID_MISMATCH,1);
+
+const correctAttribution=[
+ {type:'PASS',time:50.1,fromPlayerId:'CAY-8',toPlayerId:'CAY-10',fromTeam:'CAY',toTeam:'CAY'},
+ {type:'TURNOVER',time:61.1,fromPlayerId:'CAY-6',fromTeam:'CAY'}
+];
+const correct=evaluateBallEvents(attributedTruth,correctAttribution,{timeToleranceSec:.75});
+assert.strictEqual(correct.truePositives,2);
+assert.strictEqual(correct.identityEvidence.identityCheckedMatches,2);
+
+// Receiver attribution is also part of a defended PASS when the reference has it.
+const wrongReceiver=evaluateBallEvents(
+ [{type:'PASS',time:70,fromPlayerId:'CAY-8',toPlayerId:'CAY-10',fromTeam:'CAY',toTeam:'CAY'}],
+ [{type:'PASS',time:70.1,fromPlayerId:'CAY-8',toPlayerId:'CAY-9',fromTeam:'CAY',toTeam:'CAY'}]
+);
+assert.strictEqual(wrongReceiver.truePositives,0);
+assert.strictEqual(wrongReceiver.identityEvidence.rejectedByReason.RECEIVER_ID_MISMATCH,1);
+
+// Explicit compatibility escape hatch remains available for old timing-only studies.
+const timingOnly=evaluateBallEvents(attributedTruth,wrongAttribution,{identityMode:'off'});
+assert.strictEqual(timingOnly.truePositives,2);
 console.log('ball_event_benchmark_nonregression: PASS');
