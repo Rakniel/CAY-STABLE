@@ -19,6 +19,37 @@
     const ids=normalizeSequenceIds(row);
     return ids?ids.join('\n'):null;
   }
+  function evaluateLabelledIdentityEvidence(baseline,candidate,options){
+    const cfg=Object.assign({minValidSamples:300,requireStrictIdSwitchReduction:true,maxCoverageDrop:0,maxFalseCayIncrease:0,maxBenchSpectatorIncrease:0,requireSameSequenceSet:true,requireSameTotalSamples:true},options||{});
+    const shape=row=>({
+      status:row&&row.status?String(row.status):null,
+      totalSamples:metric(row,'totalSamples'),validSamples:metric(row,'validSamples'),comparableTransitions:metric(row,'comparableTransitions'),
+      idSwitches:metric(row,'idSwitches','IDSW','idsw'),coverage:metric(row,'coverage'),falseCay:metric(row,'falseCay','falseCAY'),
+      benchSpectatorFalseTracks:metric(row,'benchSpectatorFalseTracks','benchSpectatorFalsePositives'),sequenceSetId:sequenceSetId(row)
+    });
+    const b=shape(baseline),c=shape(candidate);
+    const missing=[];
+    for(const k of ['totalSamples','validSamples','comparableTransitions','idSwitches','coverage','falseCay','benchSpectatorFalseTracks']){
+      if(b[k]===null)missing.push(`baseline.${k}`);if(c[k]===null)missing.push(`candidate.${k}`);
+    }
+    if(!b.status)missing.push('baseline.status');if(!c.status)missing.push('candidate.status');
+    if(cfg.requireSameSequenceSet){if(b.sequenceSetId===null)missing.push('baseline.sequenceSetId|sequenceIds');if(c.sequenceSetId===null)missing.push('candidate.sequenceSetId|sequenceIds');}
+    if(missing.length)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'MISSING_LABELLED_IDENTITY_FIELDS',missing};
+    if(b.status!=='DISPONIBLE'||c.status!=='DISPONIBLE')return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'LABELLED_IDENTITY_BENCHMARK_UNAVAILABLE',baselineStatus:b.status,candidateStatus:c.status};
+    if(cfg.requireSameSequenceSet&&b.sequenceSetId!==c.sequenceSetId)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'CAY_SEQUENCE_SET_MISMATCH',baselineSequenceSetId:b.sequenceSetId,candidateSequenceSetId:c.sequenceSetId};
+    if(cfg.requireSameTotalSamples&&b.totalSamples!==c.totalSamples)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'CAY_LABELLED_SAMPLE_SET_MISMATCH',baselineTotalSamples:b.totalSamples,candidateTotalSamples:c.totalSamples};
+    const validFloor=Math.min(b.validSamples,c.validSamples);
+    if(validFloor<cfg.minValidSamples)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'NOT_ENOUGH_LABELLED_CAY_SAMPLES',validFloor,minValidSamples:cfg.minValidSamples};
+    if(b.comparableTransitions<=0||c.comparableTransitions<=0)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'NO_COMPARABLE_IDENTITY_TRANSITIONS'};
+    const delta={idSwitches:c.idSwitches-b.idSwitches,coverage:c.coverage-b.coverage,falseCay:c.falseCay-b.falseCay,benchSpectatorFalseTracks:c.benchSpectatorFalseTracks-b.benchSpectatorFalseTracks};
+    const blockers=[];
+    if(delta.falseCay>cfg.maxFalseCayIncrease)blockers.push('FALSE_CAY_REGRESSION');
+    if(delta.benchSpectatorFalseTracks>cfg.maxBenchSpectatorIncrease)blockers.push('BENCH_SPECTATOR_REGRESSION');
+    if(delta.coverage<(-Math.abs(cfg.maxCoverageDrop)))blockers.push('IDENTITY_COVERAGE_REGRESSION');
+    if(cfg.requireStrictIdSwitchReduction?delta.idSwitches>=0:delta.idSwitches>0)blockers.push('IDENTITY_SWITCH_NOT_IMPROVED');
+    const pass=blockers.length===0;
+    return {status:pass?'PRECHECK_PASS':'PRECHECK_REJECT',pass,fullPromotion:false,reason:pass?'LABELLED_IDENTITY_PRECHECK_PASSED':'LABELLED_IDENTITY_PRECHECK_BLOCKED',delta,blockers,validFloor,sequenceSetId:b.sequenceSetId,thresholds:{...cfg},policy:'LABELLED_IDENTITY_PRECHECK_ONLY_DOES_NOT_REPLACE_HOTA_IDF1_MOTA_PROMOTION_GATE'};
+  }
   function evaluate(baseline,candidate,options){
     const cfg=Object.assign({minSequences:3,minHotaGain:0.5,minIdf1Gain:0,maxMotaDrop:0,maxIdSwitchIncrease:0,maxFalseCayIncrease:0,maxBenchSpectatorIncrease:0,requireSameSequenceSet:true},options||{});
     const required=['hota','idf1','mota','idSwitches','falseCay','benchSpectatorFalseTracks'];
@@ -53,5 +84,5 @@
     const promote=blockers.length===0;
     return {status:promote?'PROMOTE':'REJECT',promote,reason:promote?'CAY_BENCHMARK_GATE_PASSED':'CAY_BENCHMARK_GATE_BLOCKED',delta,blockers,sequenceFloor,sequenceSetId:b.sequenceSetId,thresholds:{...cfg},policy:'TRACKER_CHANGES_REQUIRE_IDENTICAL_CAY_SEQUENCE_SET_GAINS_WITH_ZERO_TOLERANCE_FOR_FALSE_CAY_BENCH_SPECTATOR_OR_IDENTITY_REGRESSION_BY_DEFAULT'};
   }
-  return {evaluate,normalizeSequenceIds,sequenceSetId};
+  return {evaluate,evaluateLabelledIdentityEvidence,normalizeSequenceIds,sequenceSetId};
 });
