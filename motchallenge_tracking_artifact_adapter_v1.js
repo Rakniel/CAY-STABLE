@@ -72,6 +72,13 @@
     return ['team','goalkeeper','opponent','referee','ball','unknown'].includes(cat)?cat:'unknown';
   }
 
+  function metricAnchorForBox(left,top,bw,bh,cat,width,height){
+    const x=clamp01((left+bw/2)/width);
+    const isBall=cat==='ball';
+    const y=clamp01((isBall?(top+bh/2):(top+bh))/height);
+    return {x,y,kind:isBall?'bbox_center':'bbox_bottom_center'};
+  }
+
   function createArtifact(input,options={}){
     const width=Number(options.width),height=Number(options.height),fps=Number(options.fps);
     if(!(width>0&&height>0&&fps>0))throw new Error('TRACKING_FRAME_GEOMETRY_REQUIRED');
@@ -89,9 +96,10 @@
       if(!Array.isArray(b)||b.length!==4||!b.every(finite)||b[2]<=0||b[3]<=0){rejectedGeometry++;continue;}
       const score=finite(row.score)?clamp01(row.score):1;if(score<minScore){rejectedScore++;continue;}
       const left=Number(b[0]),top=Number(b[1]),bw=Number(b[2]),bh=Number(b[3]);
-      const x=clamp01((left+bw/2)/width),y=clamp01((top+bh)/height);
       const cat=categoryFor(row,classMap);
-      const track={sourceTrackId:row.track_id,personId:row.person_id??null,videoId:row.video_id??null,cat,score,bboxPx:{left,top,width:bw,height:bh},anchor:{x,y},detection:{x,y,score,cat,feature:Array.isArray(row.feature)&&row.feature.every(finite)?row.feature.map(Number):null}};
+      const anchor=metricAnchorForBox(left,top,bw,bh,cat,width,height);
+      const {x,y,kind:anchorKind}=anchor;
+      const track={sourceTrackId:row.track_id,personId:row.person_id??null,videoId:row.video_id??null,cat,score,bboxPx:{left,top,width:bw,height:bh},anchor:{x,y,kind:anchorKind},detection:{x,y,anchorKind,score,cat,feature:Array.isArray(row.feature)&&row.feature.every(finite)?row.feature.map(Number):null}};
       if(!byFrame.has(row.frame))byFrame.set(row.frame,[]);byFrame.get(row.frame).push(track);accepted++;
     }
     const frames=[];let overCapacityFrames=0,cayEligibleFrames=0,activeSlots=0;
@@ -108,7 +116,7 @@
     const analysisId=text(options.analysisId||'external-tracking-import');
     const spatialReference={coordinateSystem:'image_normalized',unit:'ratio',origin:'top_left',xAxisDirection:'right',yAxisDirection:'down',normalized:true};
     const descriptor=Contract&&typeof Contract.createArtifactDescriptor==='function'?Contract.createArtifactDescriptor({stage:'tracking_v1',schemaVersion:VERSION,inputFingerprint,analysisId,createdAt:options.createdAt||null,provenance,coverage,confidence:coverage,spatialReference}):{stage:'tracking_v1',schemaVersion:VERSION,inputFingerprint,analysisId,coverage,confidence:coverage,spatialReference,provenance};
-    return {version:VERSION,descriptor,provenance,frameGeometry:{width,height,fps,frameBase},policy:{maxCayActive,minScore,failClosedOnOverCapacity:true,noTeamInference:true},frames,summary:{inputRows:rows.length,acceptedRows:accepted,rejectedGeometry,rejectedScore,rejectedId,frameCount:frames.length,cayEligibleFrames,overCapacityFrames,cayEligibilityCoverage:+coverage.toFixed(4),observedCaySlots:activeSlots}};
+    return {version:VERSION,descriptor,provenance,frameGeometry:{width,height,fps,frameBase},policy:{maxCayActive,minScore,failClosedOnOverCapacity:true,noTeamInference:true,metricAnchorPolicy:'PERSON_BOTTOM_CENTER_BALL_CENTER'},frames,summary:{inputRows:rows.length,acceptedRows:accepted,rejectedGeometry,rejectedScore,rejectedId,frameCount:frames.length,cayEligibleFrames,overCapacityFrames,cayEligibilityCoverage:+coverage.toFixed(4),observedCaySlots:activeSlots}};
   }
 
   function detectionsAt(artifact,timeSec,options={}){
@@ -123,5 +131,5 @@
     return {status:'AVAILABLE',reason:null,frame:best.frame,ageSec:+age.toFixed(4),detections};
   }
 
-  return {VERSION,PERMISSIVE_LICENSES:[...PERMISSIVE_LICENSES],licenseAllowed,normalizeProvenance,parseMotText,normalizeRows,createArtifact,detectionsAt};
+  return {VERSION,PERMISSIVE_LICENSES:[...PERMISSIVE_LICENSES],licenseAllowed,normalizeProvenance,parseMotText,normalizeRows,metricAnchorForBox,createArtifact,detectionsAt};
 });
