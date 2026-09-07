@@ -13,10 +13,12 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 ## BoT-SORT
 - Source: https://github.com/NirAharon/BoT-SORT
 - License: MIT
-- Status in CAY-STABLE: design pattern adapted, no source code copied.
-- CAY use: confidence cascade for tracking. High-confidence detections may initialize tracks; lower-confidence detections are reserved for recovering an already-existing track and must not create new player IDs.
-- Local implementation: `tracking_confidence_cascade_v1.js` + `tracking_two_stage_adapter_v1.js`.
-- Expected benefit: fewer ID breaks when a player is briefly blurred, partly hidden or poorly detected, without increasing false CAY IDs from weak detections.
+- Upstream concept used: compensate global camera motion before associating tracks and detections. BoT-SORT supports GMC methods such as ORB/ECC/OpenCV VideoStab.
+- Status in CAY-STABLE: design principle adapted; no BoT-SORT source code copied.
+- Local adaptation: `tracking_two_stage_runtime_patch_v1.js` contains a lightweight browser-first consensus translation estimator. When at least three active players agree on a coherent global displacement and the existing field-geometry signals indicate a pan rather than a zoom/warp, only the track motion state used for association is moved into the current camera coordinate frame. Historical `fullPath` evidence is left untouched.
+- Why adapted instead of importing upstream GMC: avoids making Python/OpenCV/PyTorch mandatory for amateur-club use while preserving the useful MOT principle.
+- Safety guards: requires >=3-player consensus; rejects strong zoom/geometry changes; caps candidate displacement; records compensation provenance; never creates a new ID by itself.
+- Expected benefit: fewer ID switches/breaks during camera pans and lower false player motion caused by camera movement at association time.
 
 ## BoT-SORT camera-motion evidence + OpenCV
 - BoT-SORT source: https://github.com/NirAharon/BoT-SORT
@@ -24,7 +26,7 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - BoT-SORT license: MIT.
 - OpenCV source: https://github.com/opencv/opencv
 - OpenCV license boundary: Apache-2.0 for OpenCV 4.5.0 and later.
-- Upstream concepts used: BoT-SORT exposes global camera-motion compensation choices including VideoStab GMC, sparse optical flow, ORB and ECC; OpenCV provides the mature affine/homography/optical-flow primitives behind this class of motion estimation.
+- Upstream concepts used: BoT-SORT exposes global camera-motion compensation choices including VideoStab GMC, sparse optical flow, ORB and ECC; OpenCV provides mature affine/homography/optical-flow primitives behind this class of motion estimation.
 - Status in CAY-STABLE: artifact/adapter contract adapted in clean-room JavaScript; no BoT-SORT or OpenCV source code copied and neither project is a mandatory browser runtime dependency.
 - Local implementation: `camera_motion_artifact_provider_v1.js` transports externally estimated camera transforms plus confidence/support/inlier/residual/forward-backward/pitch-line evidence into the already-existing `metric_camera_motion_projector_v1.js`.
 - What this replaces: no per-backend camera-motion import logic is needed for a future OpenCV, BoT-SORT, TrackLab or native producer. A producer only has to emit the audited CAY artifact contract.
