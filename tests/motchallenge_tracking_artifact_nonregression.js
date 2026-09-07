@@ -35,7 +35,11 @@ assert.strictEqual(q.reason,'CAY_ACTIVE_CAP_EXCEEDED');
 
 const tracklab=A.createArtifact([{frame:1,track_id:44,bbox_ltwh:[20,30,50,100],bbox_conf:.88,category_id:7,person_id:12,embedding:[.1,.2,.3]}],{width:640,height:360,fps:25,provenance,classMap:{'7':'goalkeeper'}});
 assert.strictEqual(tracklab.frames[0].tracks[0].personId,12);
-assert.deepStrictEqual(tracklab.frames[0].tracks[0].detection.feature,[.1,.2,.3]);
+const feature=tracklab.frames[0].tracks[0].detection.feature;
+const norm=Math.hypot(.1,.2,.3);
+assert.strictEqual(feature.length,3);
+for(let i=0;i<feature.length;i++) assert.ok(Math.abs(feature[i]-[.1,.2,.3][i]/norm)<1e-12);
+assert.ok(Math.abs(Math.hypot(...feature)-1)<1e-12);
 assert.strictEqual(tracklab.frames[0].tracks[0].cat,'goalkeeper');
 
 assert.throws(()=>A.createArtifact(mot,{width:640,height:360,fps:25,provenance:{source:'bad',license:'AGPL-3.0',revision:'x',weights:{source:'x',license:'MIT',revision:'x'}}}),/TRACKING_LICENSE_REJECTED/);
