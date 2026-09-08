@@ -14,6 +14,8 @@ const published=Guard.applyPublicationPolicy(reliable,{identityQuality:'FIABLE'}
 assert.equal(published.publication.status,'FIABLE');
 assert.equal(published.publication.identityQuality,'FIABLE');
 assert.equal(published.publication.requiresReliableIdentity,true);
+assert.equal(published.publication.anyPhysicalFieldAvailable,true);
+assert.equal(published.publication.allPhysicalFieldsAvailable,true);
 assert.equal(published.metricCoverage,1);
 assert.equal(published.diagnosticMetricCoverage,1);
 assert.equal(published.distanceM,123.4);
@@ -75,12 +77,21 @@ const fragmented=Guard.applyPublicationPolicy({...reliable,speedSamples:[
   {time:4,segment:1,kmh:19},{time:4.5,segment:1,kmh:19},
   {time:9,segment:2,kmh:20},{time:9.5,segment:2,kmh:20}
 ]});
-assert.equal(fragmented.publication.status,'INDISPONIBLE','scattered evidence must not publish physical stats');
-assert.match(fragmented.publication.reason,/continus/);
+assert.equal(fragmented.publication.status,'FIABLE','distance may be publishable even when speed continuity is insufficient');
+assert.equal(fragmented.publication.fieldStatus.distanceM.status,'FIABLE');
+assert.equal(fragmented.publication.fieldStatus.avgSpeedKmh.status,'INDISPONIBLE');
+assert.equal(fragmented.publication.fieldStatus.sprintCount.status,'INDISPONIBLE');
+assert.equal(fragmented.publication.fieldStatus.maxSpeedKmh.status,'INDISPONIBLE');
+assert.match(fragmented.publication.fieldStatus.avgSpeedKmh.reason,/continus/);
 assert.equal(fragmented.continuousSpeedEvidenceSeconds,.5);
-assert.equal(fragmented.metricCoverage,0);
+assert.equal(fragmented.metricCoverage,1,'metric coverage remains visible because at least one physical field is defensible');
 assert.equal(fragmented.diagnosticMetricCoverage,1);
-assert.equal(fragmented.distanceM,null);
+assert.equal(fragmented.distanceM,123.4,'distance must not be discarded solely because speed evidence is fragmented');
+assert.equal(fragmented.avgSpeedKmh,null);
+assert.equal(fragmented.maxSpeedKmh,null);
+assert.equal(fragmented.sprintCount,null);
+assert.equal(fragmented.publication.anyPhysicalFieldAvailable,true);
+assert.equal(fragmented.publication.allPhysicalFieldsAvailable,false);
 
 const crossSegment=Guard.longestContinuousSpeedEvidenceSeconds([
   {time:0,segment:1,kmh:18},{time:1,segment:1,kmh:18},{time:2,segment:1,kmh:18},
