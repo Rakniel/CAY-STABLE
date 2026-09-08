@@ -30,6 +30,16 @@ The previous two-factor score remains exposed as `observationDefendableScore` fo
 
 A second fail-closed guard now requires temporal evidence to exist at all. Metric-valid positions with missing timestamps, or positions separated only by camera-plan cuts, can no longer pass the heatmap publication gate merely because their point coverage and calibration confidence are high. With no same-segment positive-duration interval, `temporalCoverage = null`, `defendableScore = 0`, quality is `INDISPONIBLE`, and the reason explicitly reports missing temporal evidence. This closes the former observation-only publication bypass while preserving observations for audit and preserving the independent trajectory contract.
 
+### 2026-09-09 multi-window unit consistency refinement
+`roster_metric_pipeline_v1.js` now refuses to aggregate a coherent pitch geometry when its heatmap windows mix temporal occupancy (`timeCells`, seconds) and observation density (`cells`, counts). Previously, one legacy or malformed window without a valid temporal matrix could silently downgrade the whole merged heatmap to observation counts and reintroduce sampling-rate bias.
+
+The aggregation now follows a strict unit contract:
+- all participating heatmaps have valid `timeCells` → aggregate seconds;
+- none has valid `timeCells` → observation-count aggregation remains diagnostic/legacy-compatible;
+- only some have valid `timeCells` → merged heatmap is rejected rather than mixing or silently changing units.
+
+The independent trajectory contract is preserved: if metric trajectories remain defensible, the spatial result stays explicitly `PARTIEL` with no fabricated heatmap. This is an extension of the existing Kloppy-inspired time-indexed evidence model, not a new implementation or runtime dependency.
+
 ## Exposed evidence
 - `timeCells`
 - `normalizedTimeCells`
@@ -45,16 +55,16 @@ A second fail-closed guard now requires temporal evidence to exist at all. Metri
 - `temporalPolicy`
 
 ## Replaced weakness
-The first adaptation removed sampling-density bias by weighting heatmaps with time. The 2026-08-30 extension removed a second bias: an accepted interval is no longer assigned entirely to its starting cell when the player demonstrably crosses pitch-grid boundaries before the next observation. The first 2026-09-05 refinement prevents temporal holes from disappearing from the quality score. The latest refinement removes the remaining bypass where zero temporal evidence could be treated as automatically sufficient and allow an observation-only pitch heatmap to be published.
+The first adaptation removed sampling-density bias by weighting heatmaps with time. The 2026-08-30 extension removed a second bias: an accepted interval is no longer assigned entirely to its starting cell when the player demonstrably crosses pitch-grid boundaries before the next observation. The first 2026-09-05 refinement prevents temporal holes from disappearing from the quality score. The second 2026-09-05 refinement removes the remaining bypass where zero temporal evidence could be treated as automatically sufficient and allow an observation-only pitch heatmap to be published. The 2026-09-09 refinement closes the multi-window downgrade path where seconds and observation counts could otherwise be merged under one visual.
 
 ## Validation
-`tests/metric_pitch_heatmap_nonregression.js` covers irregular sampling, exact multi-cell dwell allocation, excessive temporal gaps, camera-segment cuts, calibrated partial coverage, strict coverage rejection and temporal-quality degradation when accepted dwell covers only part of eligible time. `tests/metric_pitch_heatmap_temporal_evidence_required_nonregression.js` adds explicit fail-closed coverage for missing timestamps and cut-only observations, plus a positive same-plan timed control. Tests assert that allocated cell seconds conserve the full accepted interval duration.
+`tests/metric_pitch_heatmap_nonregression.js` covers irregular sampling, exact multi-cell dwell allocation, excessive temporal gaps, camera-segment cuts, calibrated partial coverage, strict coverage rejection and temporal-quality degradation when accepted dwell covers only part of eligible time. `tests/metric_pitch_heatmap_temporal_evidence_required_nonregression.js` adds explicit fail-closed coverage for missing timestamps and cut-only observations, plus a positive same-plan timed control. `tests/roster_metric_trajectory_first_results_nonregression.js` now covers the multi-window mixed-unit case and asserts that the heatmap is rejected while the independent trajectory remains partial and available. Tests assert that allocated cell seconds conserve the full accepted interval duration.
 
 ## Dependency / legal impact
-Zero new runtime dependency. BSD-3-Clause design/data-contract reference only; no external code incorporated. The grid-boundary dwell allocator and temporal publication contract are CAY-specific JavaScript written for STABLE.
+Zero new runtime dependency. BSD-3-Clause design/data-contract reference only; no external code incorporated. The grid-boundary dwell allocator, temporal publication contract and mixed-unit aggregation guard are CAY-specific JavaScript written for STABLE.
 
 ## Work avoided / expected impact
-Reusing the mature time-indexed tracking principle avoids inventing a second heatmap evidence model and keeps the correction inside the existing CAY metric artifact. Estimated design/plumbing avoided: **0.1–0.25 day**. The measurable regression target is binary: a fixture with perfect metric point coverage and calibration but no valid temporal interval changes from potentially publishable to `INDISPONIBLE`, while a normal same-segment timed sequence remains `FIABLE`.
+Reusing the mature time-indexed tracking principle avoids inventing a second heatmap evidence model and keeps the correction inside the existing CAY metric artifact. Estimated design/plumbing avoided across the adaptations: **0.1–0.25 day**. The new measurable regression target is binary: a same-geometry two-window fixture containing one timed heatmap and one observation-only heatmap must produce `heatmap = null` and a `PARTIEL` spatial result when trajectory evidence remains available, instead of silently publishing observation-density aggregation.
 
 ## Risks / limits
-This is intentionally conservative. Sparse or cut-heavy footage can leave pitch heatmaps unavailable even when isolated projected positions look plausible. CAY keeps those observations diagnostic rather than presenting them as time occupancy. Threshold relaxation should only follow benchmark evidence on real C.A. Yenne footage.
+This is intentionally conservative. Sparse, cut-heavy or legacy footage can leave pitch heatmaps unavailable even when isolated projected positions look plausible. CAY keeps those observations diagnostic rather than presenting them as time occupancy. Threshold or compatibility relaxation should only follow benchmark evidence on real C.A. Yenne footage.
