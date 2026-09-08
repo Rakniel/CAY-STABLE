@@ -112,7 +112,10 @@
     const first=rowsIn[0],rows=Number(first.rows),cols=Number(first.cols);
     if(!Number.isInteger(rows)||!Number.isInteger(cols)||rows<=0||cols<=0||!finite(first.pitchLengthM)||!finite(first.pitchWidthM))return null;
     if(!rowsIn.every(h=>Number(h.rows)===rows&&Number(h.cols)===cols&&samePitch(first,h)))return null;
-    const useTime=rowsIn.every(h=>matrixOk(h.timeCells,rows,cols));
+    const timed=rowsIn.map(h=>matrixOk(h.timeCells,rows,cols));
+    const hasTimed=timed.some(Boolean);
+    const useTime=timed.every(Boolean);
+    if(hasTimed&&!useTime)return null;
     const key=useTime?'timeCells':'cells';
     if(!rowsIn.every(h=>matrixOk(h[key],rows,cols)))return null;
     const cells=Array.from({length:rows},()=>Array(cols).fill(0));
@@ -123,7 +126,7 @@
       rows,cols,cells,normalizedCells:cells.map(row=>row.map(v=>max>0?v/max:0)),windowCount:rowsIn.length,
       sourceWindowIndexes:rowsIn.map(h=>h.windowIndex).filter(v=>v!==null&&v!==undefined),
       heatmapBasis:useTime?'TIME_WEIGHTED_CONFIRMED_PARTICIPATION':'OBSERVATION_COUNT_CONFIRMED_PARTICIPATION',
-      policy:'AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE'
+      policy:'AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE_ET_SANS_MELANGE_D_UNITE_TEMPS_OBSERVATIONS'
     };
   }
 
