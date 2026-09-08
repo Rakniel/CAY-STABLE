@@ -30,15 +30,23 @@ assert.strictEqual(attached.players[0].metric.diagnosticPhysicalMetrics.distance
 assert.strictEqual(attached.players[0].metric.publication.status,'INDISPONIBLE');
 assert.strictEqual(attached.players[0].rosterMetric.participation.acceptedObservations,4);
 assert.strictEqual(attached.players[0].rosterMetric.participation.rejectedObservations,2);
-assert.strictEqual(attached.rosterMetricRuntime.status,'INDISPONIBLE');
+assert.strictEqual(attached.rosterMetricRuntime.status,'INDISPONIBLE','physical metric runtime remains unavailable when distance/speed evidence is insufficient');
 assert.strictEqual(attached.rosterMetricRuntime.publishablePlayers,0);
 assert.strictEqual(attached.rosterMetricRuntime.reliablePlayers,0);
-assert.strictEqual(attached.rosterMetricRuntime.spatiallyAvailablePlayers,0,'a 27 s tracking blackout must make pitch visuals unavailable even though physical diagnostics remain auditable');
+assert.strictEqual(attached.rosterMetricRuntime.spatiallyAvailablePlayers,1,'a defendable partial trajectory can be shown independently of heatmap and physical metrics');
 
 const card=VM.buildCard(attached.players[0]);
 assert.strictEqual(card.metrics.distanceM.status,'INDISPONIBLE');
 assert.strictEqual(card.metrics.distanceM.value,null);
-assert.strictEqual(card.pitchVisuals.status,'INDISPONIBLE','pitch visuals must fail closed when temporal coverage is below the heatmap publication threshold');
+assert.strictEqual(card.pitchVisuals.status,'DISPONIBLE','partial trajectory evidence must reach the player card even when heatmap publication fails');
+assert.strictEqual(card.pitchVisuals.quality,'PARTIEL');
+assert.strictEqual(card.pitchVisuals.trajectory.status,'DISPONIBLE');
+assert.strictEqual(card.pitchVisuals.heatmap,null,'partial trajectory must never fabricate a heatmap');
+assert.strictEqual(card.pitchVisuals.spatialCoverage,7,'27 s blackout must remain visible as about 7% terrain coverage rather than 100%');
+assert.strictEqual(card.pitchVisuals.physicalMetricCoverage,0,'terrain trajectory availability must not imply physical metric coverage');
+assert.strictEqual(card.firstResults.trajectory,true);
+assert.strictEqual(card.firstResults.heatmap,false);
+assert.strictEqual(card.firstResults.physicalMetrics,false);
 
 const noContext=CardBinding.attachRosterMetrics(report,state,projectors,null);
 assert.strictEqual(noContext.players[0].metric.distanceM,9999,'diagnostic report must remain untouched when no roster context is requested');
