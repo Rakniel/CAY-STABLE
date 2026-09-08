@@ -24,7 +24,32 @@ const selected=Adapter.preselectAssociationCandidates(
 assert.strictEqual(selected.length,1,'une seule place de présélection');
 assert.strictEqual(selected[0],clutter,'la présélection suit le coût Core et retombe sur le meilleur score quand aucun match n’est admissible');
 
+// Les options du coût canonique doivent également atteindre la présélection.
+// Sans la garde directionnelle, les deux candidats sont spatialement symétriques
+// autour de la prédiction et l’ordre d’entrée favoriserait artificiellement le retour arrière.
+const directionalTrack={
+  globalId:99,cat:'team',missed:0,seen:3,archived:false,
+  x:.40,y:.50,feature:[.25,.25,.25],appearanceGallery:[],
+  motionHistory:[{x:.30,y:.50,time:0},{x:.40,y:.50,time:1}]
+};
+const directionalState={active:[directionalTrack]};
+const reverse={cat:'team',x:.39,y:.50,score:.99,feature:[.25,.25,.25]};
+const forward={cat:'team',x:.61,y:.50,score:.80,feature:[.25,.25,.25]};
+const directionOpts={
+  associationPreselectionThreshold:.72,
+  directionConsistencyEnabled:true,
+  directionPenaltyWeight:.18,
+  directionMinMotion:.003
+};
+assert(Core.matchCost(directionalTrack,reverse,2,directionOpts)>Core.matchCost(directionalTrack,forward,2,directionOpts),
+  'fixture: le coût canonique avec options doit pénaliser le retour arrière');
+const directionalSelected=Adapter.preselectAssociationCandidates(
+  directionalState,[reverse,forward],2,1,directionOpts
+);
+assert.strictEqual(directionalSelected[0],forward,
+  'la présélection doit transmettre les options Core et conserver le candidat cohérent avec la direction');
+
 // Garde de structure: l’adaptateur ne doit plus réimplémenter le coût d’association.
 assert.strictEqual(typeof Core.matchCost,'function','Core.matchCost reste la source canonique exportée');
 
-console.log('PASS tracking preselection/core-cost non-regression: 4/4');
+console.log('PASS tracking preselection/core-cost non-regression: 6/6');
