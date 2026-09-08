@@ -99,7 +99,9 @@ assert.strictEqual(strictSpatial.windows[0].spatial.minTemporalCoverage,.5);
 assert.strictEqual(strictSpatial.windows[0].spatial.temporalCoverage,.069);
 assert.match(strictSpatial.windows[0].spatial.reason,/couverture temporelle insuffisante/i);
 
-// Two individually short participation windows must never be stitched into 4 s of fake continuous speed evidence.
+// Two individually short participation windows must never be stitched into fake continuous speed evidence.
+// Distance is additive across confirmed participation windows; speed/sprints/max must remain unavailable
+// unless one single participation window independently satisfies the continuous-speed proof gate.
 const rawAggregate=Pipeline.aggregateMetrics([
   {eligibleSeconds:2,metricCoveredSeconds:2,distanceM:2,maxSpeedKmh:3.6,sprintCount:0,sprintQualifiedSeconds:0,avgCalibrationConfidence:.95,defendableScore:.95,quality:'FIABLE',speedSamples:[{time:0,segment:0,kmh:3.6},{time:1,segment:0,kmh:3.6},{time:2,segment:0,kmh:3.6}]},
   {eligibleSeconds:2,metricCoveredSeconds:2,distanceM:2,maxSpeedKmh:3.6,sprintCount:0,sprintQualifiedSeconds:0,avgCalibrationConfidence:.95,defendableScore:.95,quality:'FIABLE',speedSamples:[{time:2,segment:0,kmh:3.6},{time:3,segment:0,kmh:3.6},{time:4,segment:0,kmh:3.6}]}
@@ -107,8 +109,15 @@ const rawAggregate=Pipeline.aggregateMetrics([
 assert.notStrictEqual(rawAggregate.speedSamples[0].segment,rawAggregate.speedSamples[3].segment,'window namespace must make participation discontinuity explicit');
 const guardedAggregate=PublicationGuard.applyPublicationPolicy(rawAggregate,{identityQuality:'FIABLE'});
 assert.strictEqual(guardedAggregate.continuousSpeedEvidenceSeconds,2,'publication evidence must stay bounded by the longest single participation window');
-assert.strictEqual(guardedAggregate.publication.status,'INDISPONIBLE');
-assert.strictEqual(guardedAggregate.distanceM,null,'4 m accumulated across separate short windows stays diagnostic only');
+assert.strictEqual(guardedAggregate.publication.status,'FIABLE','a defensible additive distance may be published without promoting fragmented speed evidence');
+assert.strictEqual(guardedAggregate.publication.fieldStatus.distanceM.status,'FIABLE');
+assert.strictEqual(guardedAggregate.publication.fieldStatus.avgSpeedKmh.status,'INDISPONIBLE');
+assert.strictEqual(guardedAggregate.publication.fieldStatus.sprintCount.status,'INDISPONIBLE');
+assert.strictEqual(guardedAggregate.publication.fieldStatus.maxSpeedKmh.status,'INDISPONIBLE');
+assert.strictEqual(guardedAggregate.distanceM,4,'distance accumulated only inside confirmed windows remains defensible');
+assert.strictEqual(guardedAggregate.avgSpeedKmh,null,'fragmented speed evidence must not publish average speed');
+assert.strictEqual(guardedAggregate.sprintCount,null,'fragmented speed evidence must not publish sprint count');
+assert.strictEqual(guardedAggregate.maxSpeedKmh,null,'fragmented speed evidence must not publish max speed');
 assert.strictEqual(guardedAggregate.diagnosticPhysicalMetrics.distanceM,4);
 
 function spatialWindow(index,pitchLengthM,pitchWidthM,x,timeValue){
