@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 
-const VERSION='1.0.0';
+const VERSION='1.1.0';
 const candidates={
   'legacy-lukasiktar11-yolo':{
     id:'legacy-lukasiktar11-yolo',family:'yolo',license:'AGPL-3.0',status:'REJECTED',
@@ -29,6 +29,20 @@ function list(){return Object.values(candidates).map(c=>({...c}));}
 function provenanceValid(p){
   return !!(p&&typeof p==='object'&&String(p.source||'').trim()&&String(p.license||'').trim()&&String(p.weightId||p.sha256||p.revision||'').trim());
 }
+function resolveLicenseGuard(){
+  if(root.CAYDetectorLicenseGuard?.inspectLicense)return root.CAYDetectorLicenseGuard;
+  if(typeof require==='function'){
+    try{return require('./detector_license_guard_v1.js');}catch(_){return null;}
+  }
+  return null;
+}
+function provenanceLicenseVerdict(provenance){
+  if(!provenanceValid(provenance))return {allowed:false,reason:'WEIGHT_PROVENANCE_REQUIRED'};
+  const guard=resolveLicenseGuard();
+  if(!guard?.inspectLicense)return {allowed:false,reason:'LICENSE_GUARD_UNAVAILABLE'};
+  const verdict=guard.inspectLicense(provenance.license);
+  return verdict.allowed?{allowed:true,reason:'PROVENANCE_LICENSE_ALLOWED',license:verdict.license}:{allowed:false,reason:'PROVENANCE_LICENSE_REJECTED',license:verdict.license,licenseReason:verdict.reason};
+}
 function benchmarkValid(report){
   return !!(report&&report.version==='CAY_DETECTOR_BENCHMARK_V1'&&report.summary&&report.summary.promotionEligible===true);
 }
@@ -37,10 +51,10 @@ function promotionVerdict(id,benchmarkReport,provenance){
   if(!c)return {allowed:false,reason:'UNKNOWN_CANDIDATE'};
   if(c.status==='REJECTED')return {allowed:false,reason:'REJECTED_CANDIDATE',candidate:c};
   if(c.requiresWeightProvenance&&!provenanceValid(provenance))return {allowed:false,reason:'WEIGHT_PROVENANCE_REQUIRED',candidate:c};
+  const licenseVerdict=provenanceLicenseVerdict(provenance);
+  if(!licenseVerdict.allowed)return {allowed:false,reason:licenseVerdict.reason,candidate:c,license:licenseVerdict.license,licenseReason:licenseVerdict.licenseReason};
   if(c.requiresRealVideoBenchmark&&!benchmarkValid(benchmarkReport))return {allowed:false,reason:'REAL_VIDEO_BENCHMARK_REQUIRED',candidate:c};
-  const declaredLicense=String(provenance?.license||'').toLowerCase();
-  if(declaredLicense.includes('agpl')||declaredLicense.includes('gpl-'))return {allowed:false,reason:'PROVENANCE_LICENSE_REJECTED',candidate:c};
-  return {allowed:true,reason:'PROMOTION_ELIGIBLE',candidate:{...c,status:'ELIGIBLE_AFTER_BENCHMARK'},benchmarkVersion:benchmarkReport.version};
+  return {allowed:true,reason:'PROMOTION_ELIGIBLE',candidate:{...c,status:'ELIGIBLE_AFTER_BENCHMARK'},benchmarkVersion:benchmarkReport.version,license:licenseVerdict.license};
 }
 function assertPromotable(id,benchmarkReport,provenance){
   const v=promotionVerdict(id,benchmarkReport,provenance);
@@ -48,6 +62,6 @@ function assertPromotable(id,benchmarkReport,provenance){
   return v;
 }
 
-root.CAYDetectorCandidateRegistry={version:VERSION,get,list,provenanceValid,benchmarkValid,promotionVerdict,assertPromotable};
+root.CAYDetectorCandidateRegistry={version:VERSION,get,list,provenanceValid,provenanceLicenseVerdict,benchmarkValid,promotionVerdict,assertPromotable};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.CAYDetectorCandidateRegistry;
 })(typeof globalThis!=='undefined'?globalThis:this);
