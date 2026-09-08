@@ -46,7 +46,8 @@
   }
   function rosterPitchVisuals(player){
     const rm=player&&player.rosterMetric||null,spatial=rm&&rm.spatial||null;
-    if(!rm||rm.status!=='FIABLE'||!spatial||spatial.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory:null,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,reason:rm?.reason||spatial?.reason||'liaison roster fiable et participation confirmées pour les visuels terrain',source:'ROSTER_METRIC_PIPELINE_V1'};
+    const rosterEvidenceAvailable=rm&&(rm.status==='FIABLE'||rm.status==='PARTIEL');
+    if(!rosterEvidenceAvailable||!spatial||spatial.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory:null,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,reason:rm?.reason||spatial?.reason||'liaison roster fiable et participation confirmées pour les visuels terrain',source:'ROSTER_METRIC_PIPELINE_V1'};
 
     const heatmap=spatial?.heatmap&&spatial.heatmap.status==='DISPONIBLE'?spatial.heatmap:null;
     const geometry=spatial?.geometry||null;
@@ -67,13 +68,13 @@
     const excludedGeometryWindowCount=Number(spatial.excludedGeometryWindowCount||0);
     const spatialCoverage=spatialCoveragePct(spatial);
     const physicalMetricCoverage=pct(player?.metric?.metricCoverage);
-    const quality=spatial.status==='FIABLE'?'FIABLE':'PARTIEL';
+    const quality=rm.status==='FIABLE'&&spatial.status==='FIABLE'?'FIABLE':'PARTIEL';
     return {
       status:'DISPONIBLE',quality,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,trajectory,heatmap,
       metricCoverage:spatialCoverage,spatialCoverage,physicalMetricCoverage,participationWindowCount,availableWindowCount,renderedWindowCount,
-      excludedGeometryWindowCount,coverageNote:spatial.coverageNote||null,reason:null,source:'ROSTER_METRIC_PIPELINE_V1',
+      excludedGeometryWindowCount,coverageNote:spatial.coverageNote||rm.reason||null,reason:null,source:'ROSTER_METRIC_PIPELINE_V1',
       coveragePolicy:'COUVERTURE_TERRAIN = FENETRES_SPATIALES_RENDUEES / FENETRES_DE_PARTICIPATION; LA_COUVERTURE_DES_METRIQUES_PHYSIQUES_RESTE_SEPAREE',
-      policy:'VISUELS_TERRAIN_CONSOMMES_EXCLUSIVEMENT_DEPUIS_LE_CONTRAT_SPATIAL_CENTRALISE_ROSTER_METRIC_PIPELINE_V1'
+      policy:'VISUELS_TERRAIN_CONSOMMES_EXCLUSIVEMENT_DEPUIS_LE_CONTRAT_SPATIAL_CENTRALISE_ROSTER_METRIC_PIPELINE_V1; UN_STATUT_PARENT_PARTIEL_PEUT_ETRE_AFFICHE_MAIS_JAMAIS_PROMU_EN_QUALITE_FIABLE'
     };
   }
   function buildCard(player){

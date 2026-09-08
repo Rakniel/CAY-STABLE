@@ -21,7 +21,7 @@ const starterTrack={globalId:'t1',fullPath:[
   {time:31,segment:0,x:30,y:0},{time:32,segment:0,x:31,y:0}
 ]};
 const starter=Pipeline.build({trackId:'t1',trackRaw:starterTrack,bindingState:bindings,participation,projectors});
-assert.strictEqual(starter.status,'FIABLE','a defendable partial trajectory may publish even when physical metrics and heatmap remain unavailable');
+assert.strictEqual(starter.status,'PARTIEL','a defendable partial trajectory must stay explicitly partial when physical metrics and heatmap remain unavailable');
 assert.strictEqual(starter.playerId,'p1');
 assert.strictEqual(starter.participation.acceptedObservations,4);
 assert.strictEqual(starter.participation.rejectedObservations,2);
@@ -90,6 +90,7 @@ const strictSpatial=Pipeline.build({
   trackId:'t1',trackRaw:starterTrack,bindingState:bindings,participation,projectors,
   heatmapOptions:{minMetricCoverage:.5,minCalibrationConfidence:.5,maxDwellGapSec:1}
 });
+assert.strictEqual(strictSpatial.status,'PARTIEL');
 assert.strictEqual(strictSpatial.spatial.status,'PARTIEL','strict heatmap coverage must not erase a separately defendable trajectory');
 assert.strictEqual(strictSpatial.spatial.heatmap,null);
 assert.strictEqual(strictSpatial.spatial.trajectory.runs.length,1);

@@ -198,10 +198,10 @@
     const metric=MetricPublicationGuard.applyPublicationPolicy(rawMetric,{identityQuality:'FIABLE'});
     const spatial=summarizeSpatial(windows);
     const metricAvailable=metric?.publication?.status==='FIABLE';
-    const status=metricAvailable||spatial.status!=='INDISPONIBLE'?'FIABLE':'INDISPONIBLE';
+    const status=metricAvailable||spatial.status==='FIABLE'?'FIABLE':spatial.status==='PARTIEL'?'PARTIEL':'INDISPONIBLE';
     return {
       status,
-      reason:status==='FIABLE'?null:'aucune métrique, trajectoire ou heatmap terrain défendable dans les fenêtres de participation confirmées',
+      reason:status==='INDISPONIBLE'?'aucune métrique, trajectoire ou heatmap terrain défendable dans les fenêtres de participation confirmées':status==='PARTIEL'?(spatial.coverageNote||'résultat terrain disponible mais couverture insuffisante pour le qualifier de fiable'):null,
       playerId:resolved.playerId,
       trackId:String(trackId??''),
       binding:resolved,
@@ -210,7 +210,7 @@
       metric,
       spatial,
       source:'ROSTER_METRIC_PIPELINE_V1',
-      policy:'TRACK_BINDING_FIABLE_ET_PARTICIPATION_CONFIRMEE_REQUISES_AVANT_PUBLICATION_METRIQUE_OU_SPATIALE; METRIQUES_PHYSIQUES_REUTILISENT_LES_GARDES_QUALITE_ET_PUBLICATION_STABLE'
+      policy:'TRACK_BINDING_FIABLE_ET_PARTICIPATION_CONFIRMEE_REQUISES_AVANT_PUBLICATION_METRIQUE_OU_SPATIALE; METRIQUES_PHYSIQUES_REUTILISENT_LES_GARDES_QUALITE_ET_PUBLICATION_STABLE; LE_STATUT_PARENT_NE_PEUT_PAS_PROMOUVOIR_UN_RESULTAT_SPATIAL_PARTIEL_EN_FIABLE'
     };
   }
 
