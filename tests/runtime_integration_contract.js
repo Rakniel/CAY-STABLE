@@ -20,7 +20,9 @@ check('does not draw path across segments',src.includes('filter(p=>p.segment===s
 check('shows team per-instant coverage',src.includes('Équipe par instant'));
 check('confirmed substitutions stay unavailable without validated event',src.includes('Remplacements confirmés : <b>INDISPONIBLE</b>'));
 check('does not silently skip frames without a field polygon',!src.includes('poly=trackingPoly(t,c);if(!poly)continue'));
-check('marks missing-field frame explicitly unavailable',src.includes("reason:'FIELD_POLYGON_UNAVAILABLE'"));
+check('marks missing-field frame explicitly unavailable',src.includes("markUnavailableTrackingFrame(bridge,frames,t,c,i,times.length,'FIELD_POLYGON_UNAVAILABLE'"));
+check('marks detector inference failure explicitly unavailable',src.includes("markUnavailableTrackingFrame(bridge,frames,t,c,i,times.length,'DETECTOR_INFERENCE_FAILED'"));
+check('continues after detector frame failure',/try\{raw=await detectTracking\(model,c\);\}\s*catch\(_\)\{[\s\S]*DETECTOR_INFERENCE_FAILED[\s\S]*continue;\s*\}/.test(src));
 check('fails closed if unavailable-frame guard is missing',src.includes("throw new Error('garde couverture frames indisponibles absent')"));
 check('exports attempted usable unavailable observation coverage',src.includes('observationCoverage:{attempted:')&&src.includes('usable:playerStats.bridge?.usableObservationFrames')&&src.includes('unavailable:playerStats.bridge?.unavailableObservationFrames'));
 check('shows attempted and unavailable frames in UI',src.includes('frame(s) tentée(s)')&&src.includes('indisponible(s)'));

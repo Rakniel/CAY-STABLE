@@ -147,6 +147,16 @@ function drawLongTrackFrame(c,assigned){
   }
   x.textBaseline='alphabetic';
 }
+async function markUnavailableTrackingFrame(bridge,frames,t,c,i,total,reason,message){
+  if(typeof bridge?.processUnavailableFrame!=='function')throw new Error('garde couverture frames indisponibles absent');
+  bridge.processUnavailableFrame(t,{width:c.width,height:c.height,maxPlayers:11,reason});
+  frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,status:'INDISPONIBLE',reason,detections:[]});
+  const sum=bridge.summary(),stable=sum.tracks.filter(s=>s.observations>=5).length,longest=sum.tracks.reduce((m,s)=>Math.max(m,s.observations||0),0);
+  $('tFrames').textContent=i+1;$('tIds').textContent=sum.rosterTotal;$('tStable').textContent=stable;$('tLongest').textContent=longest+' img';$('tMatches').textContent=sum.totalAssociations;$('tSegments').textContent=sum.segments;$('trackingBar').style.width=Math.round((i+1)/total*100)+'%';
+  status($('trackingStatus'),'Tracking longue durée '+(i+1)+'/'+total+' • '+tf(t)+' • '+message);
+  await new Promise(r=>setTimeout(r,0));
+}
+root.CAYStableUnavailableFrameRuntime={mark:markUnavailableTrackingFrame};
 async function runTrackingLongTermStable(){
   if(typeof root.CAYStableTrackingBridge?.create!=='function')throw new Error('bridge tracking longue durée indisponible');
   if(!currentFile){ status($('trackingStatus'),'Charge d’abord une vidéo.','warning');return; }
@@ -163,15 +173,15 @@ async function runTrackingLongTermStable(){
     for(let i=0;i<times.length;i++){
       const t=times[i],c=await frame(t,900),poly=trackingPoly(t,c);
       if(!poly){
-        if(typeof bridge.processUnavailableFrame!=='function')throw new Error('garde couverture frames indisponibles absent');
-        bridge.processUnavailableFrame(t,{width:c.width,height:c.height,maxPlayers:11,reason:'FIELD_POLYGON_UNAVAILABLE'});
-        frames.push({time:+t.toFixed(2),label:tf(t),segment:bridge.state.segment,status:'INDISPONIBLE',reason:'FIELD_POLYGON_UNAVAILABLE',detections:[]});
-        const sum=bridge.summary(),stable=sum.tracks.filter(s=>s.observations>=5).length,longest=sum.tracks.reduce((m,s)=>Math.max(m,s.observations||0),0);
-        $('tFrames').textContent=i+1;$('tIds').textContent=sum.rosterTotal;$('tStable').textContent=stable;$('tLongest').textContent=longest+' img';$('tMatches').textContent=sum.totalAssociations;$('tSegments').textContent=sum.segments;$('trackingBar').style.width=Math.round((i+1)/times.length*100)+'%';
-        status($('trackingStatus'),'Tracking longue durée '+(i+1)+'/'+times.length+' • '+tf(t)+' • terrain indisponible, frame exclue des stats');await new Promise(r=>setTimeout(r,0));
+        await markUnavailableTrackingFrame(bridge,frames,t,c,i,times.length,'FIELD_POLYGON_UNAVAILABLE','terrain indisponible, frame exclue des stats');
         continue;
       }
-      let raw=await detectTracking(model,c);
+      let raw;
+      try{raw=await detectTracking(model,c);}
+      catch(_){
+        await markUnavailableTrackingFrame(bridge,frames,t,c,i,times.length,'DETECTOR_INFERENCE_FAILED','détection indisponible, frame exclue des stats');
+        continue;
+      }
       const inField=[];for(const b of raw){const fs=playerFieldState(b,poly,c.width,c.height);if(fs.state==='IN'||fs.state==='EDGE')inField.push(b);}
       if(typeof classifyFrameDetections!=='function')throw new Error('classifieur CAY non tronqué indisponible');
       const frameCls=classifyFrameDetections(c,inField),dets=[];
