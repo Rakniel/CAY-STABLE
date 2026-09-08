@@ -11,16 +11,12 @@ check('feeds visual segment-break evidence to bridge',src.includes('sceneCutScor
 check('does not split camera segment from sparse detections alone',!src.includes('sparseFrames')&&!src.includes("segmentReason:strongCut?'visual_cut':'sparse_team'"));
 check('appearance vector for re-identification',src.includes('appearanceVector(cls.feature)'));
 check('no metric projector is invented',src.includes('bridge.report({})'));
-check('shows metric unavailable when uncalibrated',src.includes('projection métrique non validée'));
 check('exports player stats in tracking report',src.includes('playerStats,unavailable:playerStats.unavailable'));
 check('renders individual player cards',src.includes('renderPlayerStats(playerStats)'));
-check('labels persistent global player id',src.includes("+' #'+a.trackId"));
+check('delegates cards to canonical renderer',src.includes('CAYPlayerCardRenderer')&&src.includes('report.playerCards')&&src.includes('renderer.render(model,cards)'));
+check('fails closed instead of rendering parallel stats',src.includes('Aucune statistique parallèle n’est affichée')&&!src.includes('cards.innerHTML=players.map'));
+check('labels persistent global player id on video overlay',src.includes("+' #'+a.trackId"));
 check('does not draw path across segments',src.includes('filter(p=>p.segment===seg)'));
-check('shows roster visibility state',src.includes('stateBadge(rs.visibility)'));
-check('late appearance is not promoted to confirmed substitution',src.includes('Apparu plus tard — remplacement NON confirmé'));
-check('shows first and last appearance',src.includes('Première / dernière apparition'));
-check('shows presence intervals',src.includes('Intervalles : '+"'+intervalsHtml(p.presenceIntervals)+'"));
-check('shows identity confidence',src.includes('identité '+"'+conf+'"));
 check('shows team per-instant coverage',src.includes('Équipe par instant'));
 check('confirmed substitutions stay unavailable without validated event',src.includes('Remplacements confirmés : <b>INDISPONIBLE</b>'));
 check('does not silently skip frames without a field polygon',!src.includes('poly=trackingPoly(t,c);if(!poly)continue'));
@@ -29,5 +25,7 @@ check('fails closed if unavailable-frame guard is missing',src.includes("throw n
 check('exports attempted usable unavailable observation coverage',src.includes('observationCoverage:{attempted:')&&src.includes('usable:playerStats.bridge?.usableObservationFrames')&&src.includes('unavailable:playerStats.bridge?.unavailableObservationFrames'));
 check('shows attempted and unavailable frames in UI',src.includes('frame(s) tentée(s)')&&src.includes('indisponible(s)'));
 check('success status exposes observation coverage',src.includes("• couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %"));
+check('uses C.A. Yenne player-card terminology',src.includes('FICHES JOUEURS — ANALYSE C.A. YENNE'));
+check('legacy duplicate player-card renderer stays removed',!src.includes('function stateBadge(')&&!src.includes('function heatmapHtml(')&&!src.includes('Première / dernière apparition'));
 console.log(`runtime integration: ${pass} PASS / ${fail} FAIL`);
 if(fail)process.exit(1);
