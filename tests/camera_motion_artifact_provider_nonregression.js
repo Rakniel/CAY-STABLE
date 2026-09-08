@@ -15,6 +15,11 @@ const base={
 
 assert.strictEqual(Provider.validateArtifact(base).ok,true);
 assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'x',license:'GPL-3.0',revision:'r'}}).reason,'CAMERA_MOTION_ARTIFACT_LICENSE_REJECTED');
+assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'x',license:'Proprietary',revision:'r'}}).reason,'CAMERA_MOTION_ARTIFACT_LICENSE_UNVERIFIED');
+assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'x',license:'Unknown',revision:'r'}}).reason,'CAMERA_MOTION_ARTIFACT_LICENSE_UNVERIFIED');
+assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'x',license:'MIT + Mystery-1.0',revision:'r'}}).reason,'CAMERA_MOTION_ARTIFACT_LICENSE_UNVERIFIED');
+assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'CAY native motion estimator',license:'CAY-INTERNAL',revision:'r',kind:'internal'}}).ok,true);
+assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'CAY native motion estimator',license:'MIT',revision:'r',kind:'internal'}}).reason,'CAMERA_MOTION_ARTIFACT_INTERNAL_LICENSE_INVALID');
 assert.strictEqual(Provider.validateArtifact({...base,samples:[base.samples[1],base.samples[0]]}).reason,'CAMERA_MOTION_ARTIFACT_SAMPLES_NOT_SORTED');
 
 const p=Provider.createProvider(base);
