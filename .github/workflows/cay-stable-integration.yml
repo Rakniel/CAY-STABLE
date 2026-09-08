@@ -102,16 +102,37 @@ jobs:
 
           print(f'HTML integration guards: PASS ({len(tags)} canonical runtime scripts)')
           PY
-      - name: Commit validated HTML integration
+      - name: Commit validated canonical HTML integration
         if: github.event_name != 'pull_request'
         run: |
-          if git diff --quiet -- CAY_ANALYZER_STABLE.html; then
-            echo 'HTML already integrated; nothing to commit.'
-            exit 0
-          fi
+          set -e
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add CAY_ANALYZER_STABLE.html
-          git commit -m 'feat(stable): enable canonical stable bundle'
-          git pull --rebase origin main
-          git push origin HEAD:main
+
+          # This is the only workflow allowed to write shipped HTML. Always rebuild
+          # from the latest main before committing so a stale checkout cannot be
+          # rebased into a non-canonical script order.
+          for attempt in 1 2 3; do
+            echo "Canonical STABLE delivery attempt ${attempt}/3"
+            git fetch origin main
+            git reset --hard origin/main
+            python3 tools/integrate_stable_bundle.py
+            node tests/canonical_stable_bundle_workflows_nonregression.js
+
+            if git diff --quiet -- CAY_ANALYZER_STABLE.html; then
+              echo 'HTML already canonical on latest main; nothing to commit.'
+              exit 0
+            fi
+
+            git add CAY_ANALYZER_STABLE.html
+            git commit -m 'feat(stable): enable canonical stable bundle'
+            if git push origin HEAD:main; then
+              echo 'Canonical STABLE HTML delivered to main.'
+              exit 0
+            fi
+            echo 'Concurrent main update detected; rebuilding from latest main.'
+            sleep 1
+          done
+
+          echo 'ERROR: unable to deliver canonical STABLE bundle after 3 race-safe attempts'
+          exit 1
