@@ -12,6 +12,7 @@ on:
       - 'pitch_geometry_guard_v1.js'
       - 'tools/integrate_tracking_v2.py'
       - 'tools/integrate_calibration_v2.py'
+      - 'tools/integrate_stable_bundle.py'
       - 'tests/**'
   pull_request:
     branches: [main]
@@ -24,6 +25,7 @@ on:
       - 'pitch_geometry_guard_v1.js'
       - 'tools/integrate_tracking_v2.py'
       - 'tools/integrate_calibration_v2.py'
+      - 'tools/integrate_stable_bundle.py'
       - 'tests/**'
   workflow_dispatch:
 
@@ -40,21 +42,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Build shipped STABLE HTML
-        run: |
-          python3 tools/integrate_tracking_v2.py
-          python3 tools/integrate_calibration_v2.py
-      - name: Verify both integrators are idempotent
+      - name: Build shipped STABLE HTML from canonical bundle
+        run: python3 tools/integrate_stable_bundle.py
+      - name: Verify canonical bundle is idempotent
         run: |
           cp CAY_ANALYZER_STABLE.html /tmp/cay-stable-v2.html
-          python3 tools/integrate_tracking_v2.py
-          python3 tools/integrate_calibration_v2.py
+          python3 tools/integrate_stable_bundle.py
           cmp --silent /tmp/cay-stable-v2.html CAY_ANALYZER_STABLE.html || {
-            echo 'ERROR: STABLE calibration V2 integration is not idempotent'
+            echo 'ERROR: canonical STABLE bundle is not idempotent'
             diff -u /tmp/cay-stable-v2.html CAY_ANALYZER_STABLE.html || true
             exit 1
           }
-          echo 'Calibration V2 integrator idempotency: PASS'
+          echo 'Canonical STABLE bundle idempotency: PASS'
       - name: Syntax checks
         run: |
           node --check pitch_semantic_calibration_v2.js
@@ -96,15 +95,13 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-          # Another CAY workflow can regenerate the same HTML at almost the same
-          # time. Always rebuild V2 from the latest remote main before committing;
-          # if a push still races, retry from the new remote instead of overwriting.
+          # Both delivery workflows must converge on the exact same canonical
+          # fixed point. Rebuild from latest main before each push attempt.
           for attempt in 1 2 3; do
-            echo "V2 delivery attempt ${attempt}/3"
+            echo "Canonical STABLE delivery attempt ${attempt}/3"
             git fetch origin main
             git reset --hard origin/main
-            python3 tools/integrate_tracking_v2.py
-            python3 tools/integrate_calibration_v2.py
+            python3 tools/integrate_stable_bundle.py
             node tests/calibration_v2_shipped_nonregression.js
 
             if git diff --quiet -- CAY_ANALYZER_STABLE.html; then
@@ -113,14 +110,14 @@ jobs:
             fi
 
             git add CAY_ANALYZER_STABLE.html
-            git commit -m 'feat(stable): ship semantic pitch calibration v2'
+            git commit -m 'feat(stable): enable canonical stable bundle'
             if git push origin HEAD:main; then
-              echo 'Calibration V2 HTML delivered to main.'
+              echo 'Canonical STABLE HTML delivered to main.'
               exit 0
             fi
             echo 'Concurrent main update detected; rebuilding from latest main.'
             sleep 1
           done
 
-          echo 'ERROR: unable to deliver calibration V2 after 3 race-safe attempts'
+          echo 'ERROR: unable to deliver canonical STABLE bundle after 3 race-safe attempts'
           exit 1
