@@ -1,15 +1,22 @@
 (function(root,factory){
   const api=factory(
     typeof module==='object'&&module.exports?require('./automatic_pitch_calibration_v1.js'):root.CAYAutomaticPitchCalibration,
-    typeof module==='object'&&module.exports?require('./pitch_geometry_guard_v1.js'):root.CAYPitchGeometryGuard
+    typeof module==='object'&&module.exports?require('./pitch_geometry_guard_v1.js'):root.CAYPitchGeometryGuard,
+    root
   );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYPitchSemanticCalibrationV2=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(AutoCalibration,PitchGeometry){
+})(typeof globalThis!=='undefined'?globalThis:this,function(AutoCalibration,PitchGeometry,Root){
 'use strict';
 
 const finite=v=>v!==null&&v!==''&&v!==undefined&&Number.isFinite(Number(v));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function calibrationEngine(){
+  if(AutoCalibration&&typeof AutoCalibration.evaluateAutomaticCalibration==='function')return AutoCalibration;
+  const late=Root&&Root.CAYAutomaticPitchCalibration;
+  return late&&typeof late.evaluateAutomaticCalibration==='function'?late:null;
+}
 
 function canonicalVertices(options={}){
   const lengthM=finite(options.lengthM)?Number(options.lengthM):105;
@@ -110,14 +117,15 @@ function buildCorrespondences(keypoints,options={}){
 }
 
 function evaluate(options={}){
-  if(!AutoCalibration||typeof AutoCalibration.evaluateAutomaticCalibration!=='function'){
+  const engine=calibrationEngine();
+  if(!engine){
     return {status:'INDISPONIBLE',reason:'AUTO_CALIBRATION_ENGINE_UNAVAILABLE',policy:'SEMANTIC_KEYPOINTS_ONLY'};
   }
   const correspondences=buildCorrespondences(options.keypoints,options);
   if(correspondences.length<6){
     return {status:'INSUFFICIENT_EVIDENCE',reason:'PITCH_KEYPOINTS_NEED_SIX_VISIBLE',visibleKeypoints:correspondences.length,policy:'SEMANTIC_KEYPOINTS_ONLY'};
   }
-  const result=AutoCalibration.evaluateAutomaticCalibration({
+  const result=engine.evaluateAutomaticCalibration({
     ...options,
     correspondences,
     pitchLengthM:finite(options.lengthM)?Number(options.lengthM):105,
@@ -142,7 +150,7 @@ function evaluate(options={}){
 }
 
 return {
-  VERSION:'2.0.0',
+  VERSION:'2.0.1',
   POLICY:'SEMANTIC_PITCH_KEYPOINTS_NOT_FREE_POLYGON',
   KEYPOINT_COUNT:32,
   canonicalVertices,
