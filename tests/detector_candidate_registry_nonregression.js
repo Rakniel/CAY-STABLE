@@ -14,6 +14,9 @@ ok(R.promotionVerdict('rfdetr-core-apache',pass,null).reason==='WEIGHT_PROVENANC
 ok(R.promotionVerdict('rfdetr-core-apache',pass,provenance).allowed===true,'Apache RF-DETR can become eligible only after benchmark + provenance');
 ok(R.promotionVerdict('dfine-football-rudrasinghm',pass,provenance).allowed===true,'D-FINE follows the same benchmark gate');
 ok(R.promotionVerdict('rfdetr-soccernet-julianzu9612',pass,{...provenance,license:'AGPL-3.0'}).reason==='PROVENANCE_LICENSE_REJECTED','actual weight provenance overrides optimistic registry declaration');
+ok(R.promotionVerdict('rfdetr-core-apache',pass,{...provenance,license:'Proprietary'}).reason==='PROVENANCE_LICENSE_REJECTED','proprietary detector provenance is fail-closed');
+ok(R.promotionVerdict('rfdetr-core-apache',pass,{...provenance,license:'Unknown'}).reason==='PROVENANCE_LICENSE_REJECTED','unknown detector provenance is fail-closed');
+ok(R.promotionVerdict('rfdetr-core-apache',pass,{...provenance,license:'Apache-2.0 AND Unknown'}).reason==='PROVENANCE_LICENSE_REJECTED','mixed provenance with unknown terms is fail-closed');
 ok(R.promotionVerdict('unknown',pass,provenance).reason==='UNKNOWN_CANDIDATE','unknown detector is never silently accepted');
 assert.throws(()=>R.assertPromotable('rfdetr-core-apache',fail,provenance),e=>e&&e.code==='CAY_DETECTOR_PROMOTION_BLOCKED');checks++;
 
