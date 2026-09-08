@@ -43,8 +43,9 @@ assert.deepStrictEqual(trajectoryOnly.trajectory.sourceWindowIndexes,[0]);
 assert.strictEqual(trajectoryOnly.renderedWindowCount,.5,'rendered-window equivalent must preserve measured temporal coverage');
 assert.strictEqual(PlayerCards.spatialCoveragePct(trajectoryOnly),50,'player card coverage must expose the measured partial trajectory coverage instead of 100%');
 assert.strictEqual(trajectoryOnly.geometry.pitchLengthM,105);
+assert.strictEqual(trajectoryOnly.geometry.evidenceWeight,.5);
 assert.match(trajectoryOnly.coverageNote,/sans heatmap/i);
-assert.match(trajectoryOnly.policy,/TRAJECTORY_AND_HEATMAP_AVAILABILITY_ARE_INDEPENDENT/);
+assert.match(trajectoryOnly.policy,/DOMINANT_GEOMETRY_IS_SELECTED_BY_RENDERABLE_EVIDENCE_COVERAGE/);
 
 const mixedGeometry=Pipeline.summarizeSpatial([
   trajectoryOnlyWindow(0,{pitchLengthM:100,pitchWidthM:64,x:5}),
@@ -58,6 +59,22 @@ assert.strictEqual(mixedGeometry.excludedGeometryWindowCount,1);
 assert.strictEqual(mixedGeometry.heatmap,null);
 assert.deepStrictEqual(mixedGeometry.trajectory.sourceWindowIndexes,[1,2]);
 assert.ok(!mixedGeometry.trajectory.runs.flatMap(run=>run.points).some(point=>point.x===5),'incompatible pitch geometry must still be excluded');
+
+const strongerEvidenceGeometry=Pipeline.summarizeSpatial([
+  trajectoryOnlyWindow(0,{pitchLengthM:100,pitchWidthM:64,x:5,temporalCoverage:.2}),
+  trajectoryOnlyWindow(1,{pitchLengthM:100,pitchWidthM:64,x:6,temporalCoverage:.2}),
+  trajectoryOnlyWindow(2,{pitchLengthM:105,pitchWidthM:68,x:40,temporalCoverage:.9})
+]);
+assert.strictEqual(strongerEvidenceGeometry.status,'PARTIEL');
+assert.strictEqual(strongerEvidenceGeometry.coherentWindowCount,1,'one strongly observed geometry must beat a larger set of weakly observed incompatible windows');
+assert.strictEqual(strongerEvidenceGeometry.renderedWindowCount,.9);
+assert.strictEqual(strongerEvidenceGeometry.excludedGeometryWindowCount,2);
+assert.strictEqual(strongerEvidenceGeometry.geometry.pitchLengthM,105);
+assert.strictEqual(strongerEvidenceGeometry.geometry.pitchWidthM,68);
+assert.strictEqual(strongerEvidenceGeometry.geometry.evidenceWeight,.9);
+assert.deepStrictEqual(strongerEvidenceGeometry.trajectory.sourceWindowIndexes,[2]);
+assert.ok(strongerEvidenceGeometry.trajectory.runs.flatMap(run=>run.points).some(point=>point.x===40));
+assert.ok(!strongerEvidenceGeometry.trajectory.runs.flatMap(run=>run.points).some(point=>point.x===5||point.x===6));
 
 const diagnosticOnly=Pipeline.summarizeSpatial([{
   index:0,startMs:0,endMs:1000,spatial:{
