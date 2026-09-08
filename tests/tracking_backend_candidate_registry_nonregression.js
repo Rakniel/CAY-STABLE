@@ -6,6 +6,13 @@ assert.strictEqual(Registry.runtimeLicenseCompatible('roboflow-trackers-apache')
 assert.strictEqual(Registry.runtimeLicenseCompatible('cameltrack-apache'),true,'CAMELTrack Apache code candidate must be license-compatible at repository level');
 assert.strictEqual(Registry.runtimeLicenseCompatible('sportslabkit-gpl'),false,'GPL backend must remain reference-only');
 assert.strictEqual(Registry.runtimeLicenseCompatible('soccertrack-v2-benchmark'),false,'dataset/license bundle is not a runtime backend license');
+assert.strictEqual(Registry.runtimeLicenseCompatible({license:'MIT'}),true,'central guard must allow MIT tracking backends');
+assert.strictEqual(Registry.runtimeLicenseCompatible({license:'ISC'}),true,'tracking registry must inherit new permissive licenses from the central guard');
+assert.strictEqual(Registry.runtimeLicenseCompatible({license:'CAY-INTERNAL'}),true,'explicit CAY internal providers must remain allowed');
+assert.strictEqual(Registry.runtimeLicenseCompatible({license:'Proprietary'}),false,'unknown/proprietary tracking licenses must fail closed');
+assert.strictEqual(Registry.runtimeLicenseCompatible({license:''}),false,'missing tracking licenses must fail closed');
+assert.strictEqual(Registry.runtimeLicenseCompatible({license:'MIT AND Unknown-1.0'}),false,'mixed unrecognized tracking license expressions must fail closed');
+assert.strictEqual(Registry.runtimeLicenseVerdict({license:'Proprietary'}).reason,'LICENSE_NOT_ALLOWLISTED');
 
 const camel=Registry.get('cameltrack-apache');
 assert.strictEqual(camel.status,'BENCHMARK_ONLY');
@@ -55,6 +62,8 @@ assert.strictEqual(Registry.identityBenchmarkValid(tooFewReidEpisodes),false,'to
 verdict=Registry.promotionVerdict('sportslabkit-gpl',good,{compatible:true});
 assert.strictEqual(verdict.allowed,false);
 assert.strictEqual(verdict.reason,'LICENSE_REFERENCE_ONLY');
+assert.strictEqual(verdict.licenseVerdict.allowed,false);
+assert.strictEqual(verdict.licenseVerdict.reason,'LICENSE_NOT_ALLOWLISTED');
 
 assert.strictEqual(Registry.shortTermBenchmarkValid({...good,frames:299}),false,'short benchmark must be rejected');
 assert.strictEqual(Registry.shortTermBenchmarkValid({...good,afterIdSwitchRate:.13}),false,'no measurable ID-switch gain must be rejected');
