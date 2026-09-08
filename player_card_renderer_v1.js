@@ -72,6 +72,13 @@ function physicalMetricCoverage(metrics){
   if(!values.length)return null;
   return Math.max(0,Math.min(100,Math.round(Math.max(...values))));
 }
+function readinessHtml(summary){
+  if(!summary||!Number.isFinite(Number(summary.players))||Number(summary.players)<=0)return '';
+  const n=key=>Math.max(0,Number(summary[key])||0),players=n('players'),status=String(summary.status||'INDISPONIBLE').toUpperCase();
+  const stage=status==='TERRAIN_DISPONIBLE'?'PREMIERS RÉSULTATS TERRAIN DISPONIBLES':status==='TRACKING_DISPONIBLE'?'TRACKING DISPONIBLE — TERRAIN EN COURS':'PREMIERS RÉSULTATS INDISPONIBLES';
+  return '<div class="cay-first-results-readiness-v1" aria-label="disponibilité premiers résultats C.A. Yenne" style="grid-column:1/-1;padding:10px 12px;border-radius:11px;background:linear-gradient(90deg,rgba(141,16,24,.28),rgba(0,0,0,.34));border:1px solid rgba(205,31,45,.42);font-size:11px;line-height:1.45">'+
+    '<b style="letter-spacing:.04em">'+esc(stage)+'</b><br><span style="opacity:.78">'+players+' joueur(s) • tracking '+n('withTracking')+'/'+players+' • trajectoire '+n('withPitchTrajectory')+'/'+players+' • heatmap '+n('withPitchHeatmap')+'/'+players+' • distance '+n('withMetricDistance')+'/'+players+' • vitesse '+Math.max(n('withMetricAvgSpeed'),n('withMetricMaxSpeed'))+'/'+players+' • sprints '+n('withMetricSprints')+'/'+players+'</span><div style="margin-top:4px;opacity:.58;font-size:10px">Aucun résultat terrain n’est déduit sans preuve publiée ; les éléments non défendables restent INDISPONIBLE.</div></div>';
+}
 function cardHtml(card){
   const p=card?.presence||{},obs=card?.observedVisuals||{},pitch=card?.pitchVisuals||{},m=card?.metrics||{};
   const obsLabel=obs.status==='DISPONIBLE'?'CAMÉRA • '+(p.trackingCoverage||0)+' %':'CAMÉRA INDISPONIBLE';
@@ -97,7 +104,8 @@ function render(model,target){
   const el=typeof target==='string'?(typeof document!=='undefined'?document.getElementById(target):null):target;
   if(!el)return false;
   const cards=Array.isArray(model?.players)?model.players:[];
-  el.innerHTML=cards.length?cards.map(cardHtml).join(''):'<div style="opacity:.7">Aucune fiche joueur disponible.</div>';
+  const summary=readinessHtml(model?.summary);
+  el.innerHTML=summary+(cards.length?cards.map(cardHtml).join(''):'<div style="opacity:.7">Aucune fiche joueur disponible.</div>');
   return true;
 }
 function install(){
@@ -117,5 +125,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,pitchWindowText,physicalMetricCoverage,render,install};
+return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,pitchWindowText,physicalMetricCoverage,readinessHtml,render,install};
 });
