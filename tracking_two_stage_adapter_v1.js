@@ -44,7 +44,7 @@
       if(selected.length>=maxPlayers)break;
       let bestIndex=-1,bestCost=Infinity;
       for(const index of remaining){
-        const cost=coreMatchCost(tr,items[index],time);
+        const cost=coreMatchCost(tr,items[index],time,opts);
         if(cost<bestCost){bestCost=cost;bestIndex=index;}
       }
       if(bestIndex>=0&&bestCost<=threshold){
