@@ -67,13 +67,20 @@ function pitchWindowText(pitch){
   const quality=String(pitch.quality||'').toUpperCase();
   return ' • FENÊTRES '+Math.max(0,Number(pitch.renderedWindowCount))+'/'+Math.max(0,Number(pitch.participationWindowCount))+(quality==='PARTIEL'?' • PARTIEL':'');
 }
+function physicalMetricCoverage(metrics){
+  const values=['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount'].map(key=>metrics?.[key]?.coverage).filter(finite).map(Number);
+  if(!values.length)return null;
+  return Math.max(0,Math.min(100,Math.round(Math.max(...values))));
+}
 function cardHtml(card){
   const p=card?.presence||{},obs=card?.observedVisuals||{},pitch=card?.pitchVisuals||{},m=card?.metrics||{};
   const obsLabel=obs.status==='DISPONIBLE'?'CAMÉRA • '+(p.trackingCoverage||0)+' %':'CAMÉRA INDISPONIBLE';
-  const pitchLabel=pitch.status==='DISPONIBLE'?'TERRAIN • '+(pitch.metricCoverage||0)+' %'+pitchWindowText(pitch):'TERRAIN INDISPONIBLE';
+  const pitchLabel=pitch.status==='DISPONIBLE'?'VISUELS TERRAIN • '+(pitch.spatialCoverage??pitch.metricCoverage??0)+' %'+pitchWindowText(pitch):'TERRAIN INDISPONIBLE';
+  const physicalCoverage=physicalMetricCoverage(m),physicalLabel=physicalCoverage===null?'STATS PHYSIQUES • COUVERTURE INDISPONIBLE':'STATS PHYSIQUES • '+physicalCoverage+' %';
   return '<article class="cay-player-card-v1" style="padding:14px;border-radius:14px;background:linear-gradient(145deg,#151518,#09090b);border:1px solid rgba(205,31,45,.42);box-shadow:0 8px 24px rgba(0,0,0,.22);color:#fff">'+
     '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center">'+rosterHeader(card)+badge(card?.identity?.status)+'</div>'+
     '<div style="margin-top:5px;font-size:11px;opacity:.72">'+esc(obsLabel)+' • '+esc(pitchLabel)+'</div>'+
+    '<div style="margin-top:3px;font-size:11px;opacity:.72">'+esc(physicalLabel)+'</div>'+
     '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;font-size:12px">'+
       '<div><span style="opacity:.65">Temps observé</span><br><b>'+(finite(p.observedDuration)?Number(p.observedDuration).toFixed(1)+' s':'—')+'</b></div>'+
       '<div><span style="opacity:.65">Observations</span><br><b>'+esc(p.observations||0)+'</b></div>'+
@@ -84,7 +91,7 @@ function cardHtml(card){
     '</div>'+explainUnavailable(card)+
     '<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin-bottom:5px">PRÉSENCE CAMÉRA — PAS UNE CARTE TACTIQUE</div>'+heatmapHtml(obs.heatmap)+'</div>'+
     (pitch.status==='DISPONIBLE'?'<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin-bottom:5px">OCCUPATION TERRAIN VALIDÉE</div>'+heatmapHtml(pitch.heatmap)+'<div style="font-size:10px;font-weight:800;letter-spacing:.06em;margin:9px 0 5px">TRAJECTOIRE TERRAIN VALIDÉE</div>'+trajectoryHtml(pitch.trajectory,pitch.pitchLengthM,pitch.pitchWidthM)+'</div>':'')+
-    '<div style="margin-top:8px;font-size:10px;opacity:.58">Stats physiques publiées uniquement sur projection terrain validée.</div></article>';
+    '<div style="margin-top:8px;font-size:10px;opacity:.58">Couvertures visuelles terrain et métriques physiques séparées. Stats physiques publiées uniquement sur projection terrain validée.</div></article>';
 }
 function render(model,target){
   const el=typeof target==='string'?(typeof document!=='undefined'?document.getElementById(target):null):target;
@@ -110,5 +117,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,pitchWindowText,render,install};
+return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,pitchWindowText,physicalMetricCoverage,render,install};
 });
