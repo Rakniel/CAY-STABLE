@@ -35,6 +35,27 @@ const ignored=Drift.create();
 r=ignored.evaluate({x:.5,y:.5,confidence:.8,area:.001},[{id:'BENCH',x:.5,y:.5,bench:true}],0,{segmentId:'A'});
 assert.strictEqual(r.status,'CLEAR');
 
+// Two almost equally-near on-field players are not a defensible ball-player association.
+const ambiguous=Drift.create({playerNearImage:.08,ambiguityImage:.015});
+r=ambiguous.evaluate({x:.50,y:.50,confidence:.9,area:.001},[
+  {id:'P1',x:.49,y:.50,onField:true},
+  {id:'P2',x:.512,y:.50,onField:true}
+],0,{segmentId:'A'});
+assert.strictEqual(r.status,'CLEAR');
+assert.strictEqual(r.reason,'AMBIGUOUS_NEAREST_PLAYERS');
+assert.strictEqual(r.associationAvailable,false);
+assert.strictEqual(ambiguous.snapshot().ambiguousAssociations,1);
+assert.strictEqual(ambiguous.snapshot().attachment,null);
+
+// A clearly separated nearest player remains eligible.
+r=ambiguous.evaluate({x:.50,y:.50,confidence:.9,area:.001},[
+  {id:'P1',x:.505,y:.50,onField:true},
+  {id:'P2',x:.55,y:.50,onField:true}
+],.1,{segmentId:'A'});
+assert.strictEqual(r.status,'WATCH');
+assert.strictEqual(r.associationAvailable,true);
+assert.strictEqual(r.playerId,'P1');
+
 // Existing continuity selector must never re-select a candidate explicitly flagged as drifted.
 const continuity=Continuity.create({minConfidence:.35});
 const selected=continuity.select([
