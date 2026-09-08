@@ -1,7 +1,8 @@
 (function(root){
 'use strict';
 
-const VERSION='1.0.0';
+const VERSION='1.1.0';
+const PERMISSIVE_LICENSES=new Set(['MIT','APACHE-2.0','BSD-2-CLAUSE','BSD-3-CLAUSE','ISC','CC0-1.0','UNLICENSE','CAY-INTERNAL']);
 const blockedSources=[
   {
     match:'huggingface.co/lukasiktar11/football-player-detector/',
@@ -11,6 +12,13 @@ const blockedSources=[
   }
 ];
 
+function normalizeLicense(value){return String(value||'').trim().toUpperCase().replace(/\s+/g,' ');}
+function inspectLicense(value){
+  const normalized=normalizeLicense(value);
+  if(!normalized)return {allowed:false,license:normalized,reason:'LICENSE_MISSING'};
+  if(PERMISSIVE_LICENSES.has(normalized))return {allowed:true,license:normalized,reason:'LICENSE_ALLOWED'};
+  return {allowed:false,license:normalized,reason:'LICENSE_NOT_ALLOWLISTED'};
+}
 function urlOf(input){
   if(typeof input==='string')return input;
   if(input&&typeof input.url==='string')return input.url;
@@ -39,5 +47,7 @@ async function guardedFetch(input,init){
 if(nativeFetch){
   try{root.fetch=guardedFetch;}catch(_){/* read-only host: inspection API still available */}
 }
-root.CAYDetectorLicenseGuard={version:VERSION,inspect,blockedSources:blockedSources.map(x=>({...x}))};
+const api={version:VERSION,inspect,inspectLicense,normalizeLicense,allowedLicenses:Array.from(PERMISSIVE_LICENSES),blockedSources:blockedSources.map(x=>({...x}))};
+root.CAYDetectorLicenseGuard=api;
+if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof globalThis!=='undefined'?globalThis:window);
