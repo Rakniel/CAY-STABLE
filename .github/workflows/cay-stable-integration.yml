@@ -8,6 +8,8 @@ on:
       - 'CAY_ANALYZER_STABLE.html'
       - '*.js'
       - 'tools/integrate_tracking_v2.py'
+      - 'tools/integrate_calibration_v2.py'
+      - 'tools/integrate_stable_bundle.py'
       - 'tests/**'
   pull_request:
     branches: [main]
@@ -16,6 +18,8 @@ on:
       - 'CAY_ANALYZER_STABLE.html'
       - '*.js'
       - 'tools/integrate_tracking_v2.py'
+      - 'tools/integrate_calibration_v2.py'
+      - 'tools/integrate_stable_bundle.py'
       - 'tests/**'
   schedule:
     - cron: '*/15 * * * *'
@@ -34,18 +38,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Integrate runtime into STABLE HTML
-        run: python3 tools/integrate_tracking_v2.py
-      - name: Verify integrator idempotency
+      - name: Integrate canonical STABLE bundle
+        run: python3 tools/integrate_stable_bundle.py
+      - name: Verify bundle idempotency
         run: |
           cp CAY_ANALYZER_STABLE.html /tmp/cay-stable-integrated.html
-          python3 tools/integrate_tracking_v2.py
+          python3 tools/integrate_stable_bundle.py
           cmp --silent /tmp/cay-stable-integrated.html CAY_ANALYZER_STABLE.html || {
-            echo 'ERROR: runtime integrator is not idempotent'
+            echo 'ERROR: STABLE integration bundle is not idempotent'
             diff -u /tmp/cay-stable-integrated.html CAY_ANALYZER_STABLE.html || true
             exit 1
           }
-          echo 'Runtime integrator idempotency: PASS'
+          echo 'STABLE integration bundle idempotency: PASS'
       - name: Syntax check JavaScript modules
         run: |
           set -e
@@ -108,6 +112,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add CAY_ANALYZER_STABLE.html
-          git commit -m 'feat(stable): enable long-term player tracking runtime'
+          git commit -m 'feat(stable): enable canonical stable bundle'
           git pull --rebase origin main
           git push origin HEAD:main
