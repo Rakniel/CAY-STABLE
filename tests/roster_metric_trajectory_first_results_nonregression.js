@@ -76,6 +76,21 @@ assert.deepStrictEqual(strongerEvidenceGeometry.trajectory.sourceWindowIndexes,[
 assert.ok(strongerEvidenceGeometry.trajectory.runs.flatMap(run=>run.points).some(point=>point.x===40));
 assert.ok(!strongerEvidenceGeometry.trajectory.runs.flatMap(run=>run.points).some(point=>point.x===5||point.x===6));
 
+function heatmapWindow(index,{timed=true}={}){
+  const spatial={
+    status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,observations:2,
+    cells:[[2,0],[0,0]],temporalCoverage:1,metricCoverage:1,quality:'FIABLE',
+    trajectory:{status:'DISPONIBLE',metricCoverage:1,runs:[[{time:index,x:10+index,y:20,segment:0},{time:index+.5,x:11+index,y:20,segment:0}]]}
+  };
+  if(timed)spatial.timeCells=[[.5,0],[0,0]];
+  return {index,startMs:index*1000,endMs:index*1000+1000,spatial};
+}
+const mixedHeatmapBasis=Pipeline.summarizeSpatial([heatmapWindow(0,{timed:true}),heatmapWindow(1,{timed:false})]);
+assert.strictEqual(mixedHeatmapBasis.heatmap,null,'time seconds and observation counts must never be merged into one heatmap');
+assert.strictEqual(mixedHeatmapBasis.status,'PARTIEL','a mixed-unit heatmap must fail closed while an independently defendable trajectory remains available');
+assert.strictEqual(mixedHeatmapBasis.trajectory.runs.length,2);
+assert.match(mixedHeatmapBasis.coverageNote,/sans heatmap/i);
+
 const diagnosticOnly=Pipeline.summarizeSpatial([{
   index:0,startMs:0,endMs:1000,spatial:{
     status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:105,pitchWidthM:68,rows:4,cols:6,observations:2,
