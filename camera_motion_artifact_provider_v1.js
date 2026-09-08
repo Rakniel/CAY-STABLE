@@ -10,15 +10,39 @@
   const VERSION='CAY_CAMERA_MOTION_ARTIFACT_V1';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const present=v=>v!==null&&v!==undefined&&String(v).trim()!=='';
+  const ALLOWED_EXTERNAL_LICENSES=new Set(['MIT','APACHE-2.0','BSD-2-CLAUSE','BSD-3-CLAUSE','ISC','CC0-1.0','UNLICENSE']);
+
+  function normalizedLicenseTokens(value){
+    if(!present(value))return [];
+    return String(value)
+      .toUpperCase()
+      .replace(/APACHE\s*2(?:\.0)?/g,'APACHE-2.0')
+      .replace(/BSD\s*2[- ]CLAUSE/g,'BSD-2-CLAUSE')
+      .replace(/BSD\s*3[- ]CLAUSE/g,'BSD-3-CLAUSE')
+      .split(/\s*(?:\+|,|\/|\bAND\b)\s*/)
+      .map(v=>v.trim())
+      .filter(Boolean);
+  }
 
   function provenanceVerdict(provenance){
     if(!provenance||typeof provenance!=='object')return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_PROVENANCE_REQUIRED'};
     if(!present(provenance.source)||!present(provenance.license)||!(present(provenance.revision)||present(provenance.sha256))){
       return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_PROVENANCE_REQUIRED'};
     }
-    const license=String(provenance.license).toLowerCase();
-    if(license.includes('agpl')||license.includes('gpl-')||license==='gpl')return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_LICENSE_REJECTED'};
-    return {allowed:true,reason:null};
+    const rawLicense=String(provenance.license).trim();
+    const upper=rawLicense.toUpperCase();
+    if(upper.includes('AGPL')||upper.includes('GPL'))return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_LICENSE_REJECTED'};
+
+    if(provenance.kind==='internal'){
+      if(upper==='CAY-INTERNAL')return {allowed:true,reason:null,licenses:['CAY-INTERNAL']};
+      return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_INTERNAL_LICENSE_INVALID'};
+    }
+
+    const tokens=normalizedLicenseTokens(rawLicense);
+    if(!tokens.length||tokens.some(token=>!ALLOWED_EXTERNAL_LICENSES.has(token))){
+      return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_LICENSE_UNVERIFIED',licenses:tokens};
+    }
+    return {allowed:true,reason:null,licenses:tokens};
   }
 
   function normalizeMatrix(value){
@@ -90,5 +114,5 @@
     };
   }
 
-  return {VERSION,provenanceVerdict,normalizeSample,validateArtifact,createProvider};
+  return {VERSION,ALLOWED_EXTERNAL_LICENSES,normalizedLicenseTokens,provenanceVerdict,normalizeSample,validateArtifact,createProvider};
 });
