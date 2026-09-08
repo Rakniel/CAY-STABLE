@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 
-const VERSION='1.2.0';
+const VERSION='1.3.0';
 const candidates={
   'roboflow-trackers-apache':{
     id:'roboflow-trackers-apache',family:'mot',license:'Apache-2.0',status:'BENCHMARK_ONLY',
@@ -30,14 +30,26 @@ const candidates={
     note:'Candidate benchmark format/data for persistent IDs, pitch coordinates and ball-action labels. Dataset attribution must be retained if used.'
   }
 };
-const compatibleRuntimeLicenses=new Set(['apache-2.0','mit','bsd-2-clause','bsd-3-clause']);
 function get(id){const c=candidates[String(id||'')];return c?{...c}:null;}
 function list(){return Object.values(candidates).map(c=>({...c}));}
-function runtimeLicenseCompatible(candidate){
-  const c=typeof candidate==='string'?get(candidate):candidate;
-  if(!c)return false;
-  return compatibleRuntimeLicenses.has(String(c.license||'').toLowerCase());
+function resolveLicenseGuard(){
+  if(root.CAYDetectorLicenseGuard&&typeof root.CAYDetectorLicenseGuard.inspectLicense==='function')return root.CAYDetectorLicenseGuard;
+  if(typeof module!=='undefined'&&module.exports&&typeof require==='function'){
+    try{
+      const guard=require('./detector_license_guard_v1.js');
+      if(guard&&typeof guard.inspectLicense==='function')return guard;
+    }catch(_){/* fail closed below */}
+  }
+  return null;
 }
+function runtimeLicenseVerdict(candidate){
+  const c=typeof candidate==='string'?get(candidate):candidate;
+  if(!c)return {allowed:false,license:'',reason:'UNKNOWN_CANDIDATE'};
+  const guard=resolveLicenseGuard();
+  if(!guard)return {allowed:false,license:String(c.license||''),reason:'LICENSE_GUARD_UNAVAILABLE'};
+  return guard.inspectLicense(c.license);
+}
+function runtimeLicenseCompatible(candidate){return runtimeLicenseVerdict(candidate).allowed===true;}
 function shortTermBenchmarkValid(report){
   if(!report||typeof report!=='object')return false;
   const before=Number(report.beforeIdSwitchRate),after=Number(report.afterIdSwitchRate);
@@ -63,7 +75,8 @@ function benchmarkReportValid(report){return shortTermBenchmarkValid(report)&&id
 function promotionVerdict(id,report,dependencyAudit){
   const c=get(id);
   if(!c)return {allowed:false,reason:'UNKNOWN_CANDIDATE'};
-  if(!runtimeLicenseCompatible(c))return {allowed:false,reason:'LICENSE_REFERENCE_ONLY',candidate:c};
+  const licenseVerdict=runtimeLicenseVerdict(c);
+  if(!licenseVerdict.allowed)return {allowed:false,reason:'LICENSE_REFERENCE_ONLY',licenseVerdict,candidate:c};
   if(c.requiresDependencyAudit&&dependencyAudit?.compatible!==true)return {allowed:false,reason:'DEPENDENCY_AUDIT_REQUIRED',candidate:c};
   if(c.requiresBenchmark&&!shortTermBenchmarkValid(report))return {allowed:false,reason:'REAL_VIDEO_GAIN_REQUIRED',candidate:c};
   if(c.requiresIdentityBenchmark&&!identityBenchmarkValid(report))return {allowed:false,reason:'PERSISTENT_IDENTITY_GAIN_REQUIRED',candidate:c};
@@ -74,6 +87,6 @@ function assertPromotable(id,report,dependencyAudit){
   if(!verdict.allowed){const e=new Error('CAY tracking backend promotion blocked: '+verdict.reason);e.code='CAY_TRACKING_BACKEND_PROMOTION_BLOCKED';e.reason=verdict.reason;throw e;}
   return verdict;
 }
-root.CAYTrackingBackendCandidateRegistry={version:VERSION,get,list,runtimeLicenseCompatible,shortTermBenchmarkValid,identityBenchmarkValid,benchmarkReportValid,promotionVerdict,assertPromotable};
+root.CAYTrackingBackendCandidateRegistry={version:VERSION,get,list,resolveLicenseGuard,runtimeLicenseVerdict,runtimeLicenseCompatible,shortTermBenchmarkValid,identityBenchmarkValid,benchmarkReportValid,promotionVerdict,assertPromotable};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.CAYTrackingBackendCandidateRegistry;
 })(typeof globalThis!=='undefined'?globalThis:this);
