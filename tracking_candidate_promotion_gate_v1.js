@@ -20,17 +20,33 @@
     return ids?ids.join('\n'):null;
   }
   function evaluateLabelledIdentityEvidence(baseline,candidate,options){
-    const cfg=Object.assign({minValidSamples:300,requireStrictIdSwitchReduction:true,maxCoverageDrop:0,maxFalseCayIncrease:0,maxBenchSpectatorIncrease:0,requireSameSequenceSet:true,requireSameTotalSamples:true},options||{});
+    const cfg=Object.assign({
+      minValidSamples:300,
+      requireStrictIdSwitchReduction:true,
+      maxCoverageDrop:0,
+      maxFragmentIncrease:0,
+      maxFalseCayIncrease:0,
+      maxBenchSpectatorIncrease:0,
+      requireSameSequenceSet:true,
+      requireSameTotalSamples:true
+    },options||{});
     const shape=row=>({
       status:row&&row.status?String(row.status):null,
-      totalSamples:metric(row,'totalSamples'),validSamples:metric(row,'validSamples'),comparableTransitions:metric(row,'comparableTransitions'),
-      idSwitches:metric(row,'idSwitches','IDSW','idsw'),coverage:metric(row,'coverage'),falseCay:metric(row,'falseCay','falseCAY'),
-      benchSpectatorFalseTracks:metric(row,'benchSpectatorFalseTracks','benchSpectatorFalsePositives'),sequenceSetId:sequenceSetId(row)
+      totalSamples:metric(row,'totalSamples'),
+      validSamples:metric(row,'validSamples'),
+      comparableTransitions:metric(row,'comparableTransitions'),
+      idSwitches:metric(row,'idSwitches','IDSW','idsw'),
+      fragments:metric(row,'fragments','Frag','frag'),
+      coverage:metric(row,'labelledCoverage','coverage'),
+      falseCay:metric(row,'falseCay','falseCAY'),
+      benchSpectatorFalseTracks:metric(row,'benchSpectatorFalseTracks','benchSpectatorFalsePositives'),
+      sequenceSetId:sequenceSetId(row)
     });
     const b=shape(baseline),c=shape(candidate);
     const missing=[];
-    for(const k of ['totalSamples','validSamples','comparableTransitions','idSwitches','coverage','falseCay','benchSpectatorFalseTracks']){
-      if(b[k]===null)missing.push(`baseline.${k}`);if(c[k]===null)missing.push(`candidate.${k}`);
+    for(const k of ['totalSamples','validSamples','comparableTransitions','idSwitches','fragments','coverage','falseCay','benchSpectatorFalseTracks']){
+      if(b[k]===null)missing.push(`baseline.${k}`);
+      if(c[k]===null)missing.push(`candidate.${k}`);
     }
     if(!b.status)missing.push('baseline.status');if(!c.status)missing.push('candidate.status');
     if(cfg.requireSameSequenceSet){if(b.sequenceSetId===null)missing.push('baseline.sequenceSetId|sequenceIds');if(c.sequenceSetId===null)missing.push('candidate.sequenceSetId|sequenceIds');}
@@ -41,14 +57,15 @@
     const validFloor=Math.min(b.validSamples,c.validSamples);
     if(validFloor<cfg.minValidSamples)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'NOT_ENOUGH_LABELLED_CAY_SAMPLES',validFloor,minValidSamples:cfg.minValidSamples};
     if(b.comparableTransitions<=0||c.comparableTransitions<=0)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:'NO_COMPARABLE_IDENTITY_TRANSITIONS'};
-    const delta={idSwitches:c.idSwitches-b.idSwitches,coverage:c.coverage-b.coverage,falseCay:c.falseCay-b.falseCay,benchSpectatorFalseTracks:c.benchSpectatorFalseTracks-b.benchSpectatorFalseTracks};
+    const delta={idSwitches:c.idSwitches-b.idSwitches,fragments:c.fragments-b.fragments,coverage:c.coverage-b.coverage,falseCay:c.falseCay-b.falseCay,benchSpectatorFalseTracks:c.benchSpectatorFalseTracks-b.benchSpectatorFalseTracks};
     const blockers=[];
     if(delta.falseCay>cfg.maxFalseCayIncrease)blockers.push('FALSE_CAY_REGRESSION');
     if(delta.benchSpectatorFalseTracks>cfg.maxBenchSpectatorIncrease)blockers.push('BENCH_SPECTATOR_REGRESSION');
     if(delta.coverage<(-Math.abs(cfg.maxCoverageDrop)))blockers.push('IDENTITY_COVERAGE_REGRESSION');
+    if(delta.fragments>cfg.maxFragmentIncrease)blockers.push('IDENTITY_FRAGMENTATION_REGRESSION');
     if(cfg.requireStrictIdSwitchReduction?delta.idSwitches>=0:delta.idSwitches>0)blockers.push('IDENTITY_SWITCH_NOT_IMPROVED');
     const pass=blockers.length===0;
-    return {status:pass?'PRECHECK_PASS':'PRECHECK_REJECT',pass,fullPromotion:false,reason:pass?'LABELLED_IDENTITY_PRECHECK_PASSED':'LABELLED_IDENTITY_PRECHECK_BLOCKED',delta,blockers,validFloor,sequenceSetId:b.sequenceSetId,thresholds:{...cfg},policy:'LABELLED_IDENTITY_PRECHECK_ONLY_DOES_NOT_REPLACE_HOTA_IDF1_MOTA_PROMOTION_GATE'};
+    return {status:pass?'PRECHECK_PASS':'PRECHECK_REJECT',pass,fullPromotion:false,reason:pass?'LABELLED_IDENTITY_PRECHECK_PASSED':'LABELLED_IDENTITY_PRECHECK_BLOCKED',delta,blockers,validFloor,sequenceSetId:b.sequenceSetId,thresholds:{...cfg},policy:'LABELLED_IDENTITY_PRECHECK_REQUIRES_NON_REGRESSING_FRAGMENTATION_AND_DOES_NOT_REPLACE_HOTA_IDF1_MOTA_PROMOTION_GATE'};
   }
   function evaluate(baseline,candidate,options){
     const cfg=Object.assign({minSequences:3,minHotaGain:0.5,minIdf1Gain:0,maxMotaDrop:0,maxIdSwitchIncrease:0,maxFalseCayIncrease:0,maxBenchSpectatorIncrease:0,requireSameSequenceSet:true},options||{});
