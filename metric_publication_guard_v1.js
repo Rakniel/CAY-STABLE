@@ -97,7 +97,7 @@
     if(!speedDecision?.publishable)return {publishable:false,status:'INDISPONIBLE',reason:speedDecision?.reason||'preuve vitesse de base indisponible'};
     if(metric?.maxSpeedSourceValid===false)return {publishable:false,status:'INDISPONIBLE',reason:'vitesse maximale source invalide ou absente'};
     if(!finite(metric?.sustainedMaxSpeedKmh))return {publishable:false,status:'INDISPONIBLE',reason:`pic de vitesse non soutenu pendant au moins ${MIN_SUSTAINED_MAX_SPEED_SECONDS}s sur ${MIN_SUSTAINED_MAX_SPEED_INTERVALS} intervalles continus`};
-    if(!finite(metric?.instantaneousMaxSpeedKmh)||Number(metric.sustainedMaxSpeedKmh)>Number(metric.instantaneousMaxSpeedKmh)+MAX_SPEED_SOURCE_TOLERANCE_KMH)return {publishable:false,status:'INDISPONIBLE',reason:'vitesse maximale soutenue incohérente avec la vitesse maximale source'};
+    if(finite(metric?.instantaneousMaxSpeedKmh)&&Number(metric.sustainedMaxSpeedKmh)>Number(metric.instantaneousMaxSpeedKmh)+MAX_SPEED_SOURCE_TOLERANCE_KMH)return {publishable:false,status:'INDISPONIBLE',reason:'vitesse maximale soutenue incohérente avec la vitesse maximale source'};
     return {publishable:true,status:'FIABLE',reason:null};
   }
 
