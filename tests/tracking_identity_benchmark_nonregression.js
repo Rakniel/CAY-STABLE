@@ -51,7 +51,7 @@ const partial=B.evaluateIdentityStability([
 assert.strictEqual(partial.validSamples,2);
 assert.strictEqual(partial.rejectedSamples,2);
 assert.strictEqual(partial.coverage,.5);
-assert.strictEqual(partial.labelledCoverage,2/3);
+assert.strictEqual(partial.labelledCoverage,.666667);
 assert.strictEqual(partial.idSwitches,0);
 assert.strictEqual(partial.fragments,1,'tracked -> missed -> reacquired inside one continuous segment must count as one fragmentation');
 assert.strictEqual(partial.fragmentEvents.length,1);
@@ -86,7 +86,7 @@ const coverageTradeoff=B.compareIdentityStability(after,B.evaluateIdentityStabil
   {frame:2,gtId:'A',trackId:null,segment:1},
   {frame:3,gtId:'A',trackId:7,segment:1}
 ]));
-assert.strictEqual(coverageTradeoff.improved,false,'a tracker cannot be promoted by reducing IDs switches if labelled coverage regresses');
+assert.strictEqual(coverageTradeoff.improved,false,'a tracker cannot be promoted by reducing ID switches if labelled coverage regresses');
 
 const unavailable=B.evaluateIdentityStability([{frame:0,gtId:'A',trackId:1,segment:1}]);
 assert.strictEqual(unavailable.status,'INDISPONIBLE');
