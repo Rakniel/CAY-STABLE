@@ -10,7 +10,7 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYRosterMetricPipeline=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(Domain,Binding,PlayerStats,MetricPitchHeatmap,MetricQualityGuard,MetricPublicationGuard){
-  const finite=v=>Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const sum=(rows,key)=>rows.reduce((acc,row)=>acc+(finite(row?.[key])?Number(row[key]):0),0);
 
