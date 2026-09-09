@@ -17,8 +17,12 @@ function badge(status){
   return '<span style="padding:3px 8px;border-radius:999px;background:'+bg+';font-size:10px;font-weight:900;letter-spacing:.03em">'+esc(s)+'</span>';
 }
 function heatmapCells(h){
-  if(Array.isArray(h?.cells)&&h.cells.length)return h.cells;
+  const basis=String(h?.heatmapBasis||h?.basis||'').trim().toUpperCase();
+  if((basis==='TIME_SECONDS'||basis.startsWith('TIME_'))&&Array.isArray(h?.timeCells)&&h.timeCells.length)return h.timeCells;
+  if((basis==='OBSERVATIONS'||basis.startsWith('OBSERVATION_'))&&Array.isArray(h?.cells)&&h.cells.length)return h.cells;
   if(Array.isArray(h?.normalizedCells)&&h.normalizedCells.length)return h.normalizedCells;
+  if(Array.isArray(h?.cells)&&h.cells.length)return h.cells;
+  if(Array.isArray(h?.timeCells)&&h.timeCells.length)return h.timeCells;
   return null;
 }
 function heatmapHtml(h){
