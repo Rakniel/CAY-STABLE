@@ -13,7 +13,7 @@
   const MIN_SUSTAINED_MAX_SPEED_INTERVALS=2;
   const MAX_SPEED_SOURCE_TOLERANCE_KMH=0.1;
   const PHYSICAL_FIELDS=['distanceM','avgSpeedKmh','sprintCount','sprintQualifiedSeconds','maxSpeedKmh'];
-  const finite=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
 
   function normalizedSpeedRows(samples){
     return (Array.isArray(samples)?samples:[])
