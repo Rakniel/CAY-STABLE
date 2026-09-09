@@ -32,9 +32,11 @@
     const eligibleSeconds=sum(input,'eligibleSeconds');
     const metricCoveredSeconds=sum(input,'metricCoveredSeconds');
     const distanceM=sum(input,'distanceM');
-    const sprintCount=input.some(row=>row?.sprintCount!==null&&row?.sprintCount!==undefined)?sum(input,'sprintCount'):null;
-    const sprintQualifiedSeconds=input.some(row=>row?.sprintQualifiedSeconds!==null&&row?.sprintQualifiedSeconds!==undefined)?sum(input,'sprintQualifiedSeconds'):null;
-    const maxSpeedValues=input.map(row=>Number(row?.maxSpeedKmh)).filter(Number.isFinite);
+    const sprintCountValues=input.filter(row=>finite(row?.sprintCount)).map(row=>Number(row.sprintCount));
+    const sprintQualifiedValues=input.filter(row=>finite(row?.sprintQualifiedSeconds)).map(row=>Number(row.sprintQualifiedSeconds));
+    const maxSpeedValues=input.filter(row=>finite(row?.maxSpeedKmh)).map(row=>Number(row.maxSpeedKmh));
+    const sprintCount=sprintCountValues.length?sprintCountValues.reduce((acc,value)=>acc+value,0):null;
+    const sprintQualifiedSeconds=sprintQualifiedValues.length?sprintQualifiedValues.reduce((acc,value)=>acc+value,0):null;
     const metricCoverage=eligibleSeconds>0?metricCoveredSeconds/eligibleSeconds:0;
     const avgSpeedKmh=metricCoveredSeconds>0?(distanceM/metricCoveredSeconds)*3.6:null;
     const confidenceWeighted=input.reduce((acc,row)=>acc+(finite(row?.avgCalibrationConfidence)&&finite(row?.metricCoveredSeconds)?Number(row.avgCalibrationConfidence)*Number(row.metricCoveredSeconds):0),0);
