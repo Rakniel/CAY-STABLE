@@ -106,16 +106,24 @@
     return groups[0]||null;
   }
 
+  function heatmapUnit(heatmap,rows,cols){
+    const basis=String(heatmap?.heatmapBasis||'').trim().toUpperCase();
+    if(basis==='TIME_SECONDS'||basis.startsWith('TIME_'))return matrixOk(heatmap?.timeCells,rows,cols)?'TIME':null;
+    if(basis==='OBSERVATIONS'||basis.startsWith('OBSERVATION_'))return matrixOk(heatmap?.cells,rows,cols)?'OBSERVATIONS':null;
+    if(matrixOk(heatmap?.timeCells,rows,cols))return 'TIME';
+    if(matrixOk(heatmap?.cells,rows,cols))return 'OBSERVATIONS';
+    return null;
+  }
+
   function mergeHeatmaps(heatmaps){
     const rowsIn=Array.isArray(heatmaps)?heatmaps:[];
     if(!rowsIn.length)return null;
     const first=rowsIn[0],rows=Number(first.rows),cols=Number(first.cols);
     if(!Number.isInteger(rows)||!Number.isInteger(cols)||rows<=0||cols<=0||!finite(first.pitchLengthM)||!finite(first.pitchWidthM))return null;
     if(!rowsIn.every(h=>Number(h.rows)===rows&&Number(h.cols)===cols&&samePitch(first,h)))return null;
-    const timed=rowsIn.map(h=>matrixOk(h.timeCells,rows,cols));
-    const hasTimed=timed.some(Boolean);
-    const useTime=timed.every(Boolean);
-    if(hasTimed&&!useTime)return null;
+    const units=rowsIn.map(h=>heatmapUnit(h,rows,cols));
+    if(units.some(unit=>unit===null)||units.some(unit=>unit!==units[0]))return null;
+    const useTime=units[0]==='TIME';
     const key=useTime?'timeCells':'cells';
     if(!rowsIn.every(h=>matrixOk(h[key],rows,cols)))return null;
     const cells=Array.from({length:rows},()=>Array(cols).fill(0));
@@ -218,5 +226,5 @@
     };
   }
 
-  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,dominantGeometryGroup,mergeHeatmaps};
+  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,dominantGeometryGroup,mergeHeatmaps,heatmapUnit};
 });
