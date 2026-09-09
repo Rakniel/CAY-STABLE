@@ -41,6 +41,10 @@ ok(invalidSprint.distanceM===124.5&&invalidSprint.avgSpeedKmh===7.2&&invalidSpri
 const invalidPeak=guard.applyPublicationPolicy({...base,maxSpeedKmh:Infinity});
 ok(invalidPeak.distanceM===124.5&&invalidPeak.avgSpeedKmh===7.2&&invalidPeak.sprintCount===2&&invalidPeak.maxSpeedKmh===null,'une vitesse max source infinie masque uniquement la vitesse max lorsque les autres preuves restent valides');
 
+const inconsistentPeak=guard.applyPublicationPolicy({...base,maxSpeedKmh:7.0});
+ok(inconsistentPeak.distanceM===124.5&&inconsistentPeak.avgSpeedKmh===7.2&&inconsistentPeak.sprintCount===2&&inconsistentPeak.maxSpeedKmh===null,'un pic soutenu supérieur au maximum source ferme uniquement la vitesse max');
+ok(inconsistentPeak.publication.fieldStatus.maxSpeedKmh.reason.includes('incohérente'),'le diagnostic explique explicitement l’incohérence entre pic soutenu et maximum source');
+
 const commonFailure=guard.applyPublicationPolicy({...base,metricCoveredSeconds:null});
 ok(commonFailure.publication.status==='INDISPONIBLE'&&commonFailure.distanceM===null&&commonFailure.avgSpeedKmh===null&&commonFailure.maxSpeedKmh===null&&commonFailure.sprintCount===null,'une preuve commune invalide ferme toujours tous les champs physiques');
-console.log(`PASS ${pass}/15 metric publication finite values`);
+console.log(`PASS ${pass}/17 metric publication finite values`);
