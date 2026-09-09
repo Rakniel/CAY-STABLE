@@ -26,8 +26,9 @@
     return pct(Math.max(0,Math.min(total,rendered))/total);
   }
   function windowDurationSeconds(window){
-    const start=Number(window?.startMs),end=Number(window?.endMs);
-    return Number.isFinite(start)&&Number.isFinite(end)&&end>start?(end-start)/1000:null;
+    if(!finite(window?.startMs)||!finite(window?.endMs))return null;
+    const start=Number(window.startMs),end=Number(window.endMs);
+    return end>start?(end-start)/1000:null;
   }
   function windowSpatialEvidenceCoverage(window){
     const spatial=window?.spatial;
