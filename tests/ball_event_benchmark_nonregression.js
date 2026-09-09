@@ -29,6 +29,19 @@ assert.strictEqual(cmp.delta.falsePositives,-2);
 assert.strictEqual(cmp.delta.falseNegatives,-2);
 assert.strictEqual(evaluateBallEvents([],after).quality,'INDISPONIBLE');
 
+// A nearest-first greedy matcher can undercount here: truth@0 grabs pred@0.3,
+// leaving truth@0.8 unmatched, although truth@0 -> pred@-0.5 and
+// truth@0.8 -> pred@0.3 is a valid two-event one-to-one assignment.
+const greedyTrap=evaluateBallEvents(
+ [{type:'PASS',time:0},{type:'PASS',time:.8}],
+ [{type:'PASS',time:-.5},{type:'PASS',time:.3}],
+ {timeToleranceSec:.5,identityMode:'off'}
+);
+assert.strictEqual(greedyTrap.truePositives,2);
+assert.strictEqual(greedyTrap.falsePositives,0);
+assert.strictEqual(greedyTrap.falseNegatives,0);
+assert.strictEqual(greedyTrap.f1,1);
+
 // When the annotated reference contains attribution, a temporally correct event
 // credited to the wrong player/team must not count as a true positive.
 const attributedTruth=[

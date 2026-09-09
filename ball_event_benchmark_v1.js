@@ -43,6 +43,34 @@
     return {ok:true,checked};
   }
 
+  // Maximum-cardinality bipartite matching prevents a locally closest event from
+  // consuming the only valid prediction available to another reference event.
+  // Adjacency is ordered by timing error so ties remain biased toward closer events.
+  function maximumCardinalityMatching(candidates,truthCount,predCount){
+    const adjacency=Array.from({length:truthCount},()=>[]);
+    for(const c of candidates)adjacency[c.ti].push(c);
+    for(const row of adjacency)row.sort((a,b)=>a.dt-b.dt||a.pi-b.pi);
+    const truthOrder=Array.from({length:truthCount},(_,i)=>i)
+      .sort((a,b)=>adjacency[a].length-adjacency[b].length||a-b);
+    const matchedTruthByPred=Array(predCount).fill(-1);
+    const chosenByTruth=Array(truthCount).fill(null);
+    const augment=(ti,seenPred)=>{
+      for(const c of adjacency[ti]){
+        if(seenPred.has(c.pi))continue;
+        seenPred.add(c.pi);
+        const previousTruth=matchedTruthByPred[c.pi];
+        if(previousTruth===-1||augment(previousTruth,seenPred)){
+          matchedTruthByPred[c.pi]=ti;
+          chosenByTruth[ti]=c;
+          return true;
+        }
+      }
+      return false;
+    };
+    for(const ti of truthOrder)augment(ti,new Set());
+    return chosenByTruth.filter(Boolean);
+  }
+
   function matchEvents(truthEvents,predictedEvents,options){
     const cfg={timeToleranceSec:.75,eventTypes:['PASS','TURNOVER'],identityMode:'when_reference_present',requirePassReceiverWhenReferencePresent:true,...(options||{})};
     const allowed=new Set((cfg.eventTypes||[]).map(normType));
@@ -57,9 +85,8 @@
       if(!identity.ok){identityRejected.push({ti,pi,dt,reason:identity.reason,checked:identity.checked});continue;}
       candidates.push({ti,pi,dt,identityChecked:identity.checked});
     }
-    candidates.sort((a,b)=>a.dt-b.dt);
-    const usedT=new Set(),usedP=new Set(),matches=[];
-    for(const c of candidates){if(usedT.has(c.ti)||usedP.has(c.pi))continue;usedT.add(c.ti);usedP.add(c.pi);matches.push(c);}
+    const matches=maximumCardinalityMatching(candidates,truth.length,pred.length);
+    const usedT=new Set(matches.map(c=>c.ti)),usedP=new Set(matches.map(c=>c.pi));
     return {truth,pred,matches,usedT,usedP,cfg,identityRejected};
   }
 
@@ -86,8 +113,8 @@
       byType,
       identityEvidence:{mode:cfg.identityMode,identityCheckedMatches,identityRejectedCandidates:identityRejected.length,rejectedByReason:identityRejectedByReason},
       thresholds:{timeToleranceSec:cfg.timeToleranceSec,eventTypes:[...cfg.eventTypes],identityMode:cfg.identityMode,requirePassReceiverWhenReferencePresent:cfg.requirePassReceiverWhenReferencePresent!==false},
-      provenance:'CAY_CLEAN_ROOM_EVENT_BENCHMARK_INSPIRED_BY_SOCCERACTION_SPADL_ACTION_IDENTITY_FIELDS_AND_KLOPPY_STANDARDIZED_FOOTBALL_EVENT_MODELS_NO_UPSTREAM_CODE_COPIED',
-      rule:'COMPARE_BALL_EVENT_CHANGES_ON_SYNCHRONIZED_REFERENCE_DATA_AND_REQUIRE_REFERENCE_ACTOR_TEAM_RECEIVER_IDS_WHEN_AVAILABLE_BEFORE_PROMOTION'
+      provenance:'CAY_CLEAN_ROOM_EVENT_BENCHMARK_INSPIRED_BY_SOCCERACTION_SPADL_ACTION_IDENTITY_FIELDS_KLOPPY_STANDARDIZED_FOOTBALL_EVENT_MODELS_AND_TRACKEVAL_GLOBAL_ASSIGNMENT_PRINCIPLE_NO_UPSTREAM_CODE_COPIED',
+      rule:'COMPARE_BALL_EVENT_CHANGES_ON_SYNCHRONIZED_REFERENCE_DATA_REQUIRE_REFERENCE_ATTRIBUTION_WHEN_AVAILABLE_AND_MAXIMIZE_VALID_ONE_TO_ONE_EVENT_MATCHES_BEFORE_PROMOTION'
     };
   }
 
@@ -97,5 +124,5 @@
     return {before,after,delta:{precision:d('precision'),recall:d('recall'),f1:d('f1'),falsePositives:after.falsePositives-before.falsePositives,falseNegatives:after.falseNegatives-before.falseNegatives,meanTimingErrorSec:(before.meanTimingErrorSec===null||after.meanTimingErrorSec===null)?null:round(after.meanTimingErrorSec-before.meanTimingErrorSec)}};
   }
 
-  return {normalizeEvent,identityCompatibility,matchEvents,evaluateBallEvents,compareBallEvents};
+  return {normalizeEvent,identityCompatibility,maximumCardinalityMatching,matchEvents,evaluateBallEvents,compareBallEvents};
 });
