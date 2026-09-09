@@ -47,4 +47,19 @@ assert.strictEqual(legacy.basis,'WINDOW_EQUIVALENT');
 assert.strictEqual(legacy.participationSeconds,null);
 assert.strictEqual(legacy.renderedSeconds,null);
 
+const partialMissingBound=VM.spatialCoverageEvidence({participationWindowCount:2,renderedWindowCount:1,geometry:{sourceWindowIndexes:[0]}},[
+  {index:0,startMs:null,endMs:9000,spatial:{status:'DISPONIBLE',temporalCoverage:1,trajectory:{status:'DISPONIBLE'}}},
+  {index:1,startMs:9000,endMs:10000,spatial:{status:'INDISPONIBLE'}}
+]);
+assert.strictEqual(partialMissingBound.pct,50,'one missing temporal bound must never be coerced to zero and must force the explicit window-equivalent fallback');
+assert.strictEqual(partialMissingBound.basis,'WINDOW_EQUIVALENT');
+assert.strictEqual(partialMissingBound.participationSeconds,null);
+assert.strictEqual(partialMissingBound.renderedSeconds,null);
+
+const emptyMissingBound=VM.spatialCoverageEvidence({participationWindowCount:2,renderedWindowCount:1,geometry:{sourceWindowIndexes:[0]}},[
+  {index:0,startMs:'',endMs:9000,spatial:{status:'DISPONIBLE',temporalCoverage:1,trajectory:{status:'DISPONIBLE'}}},
+  {index:1,startMs:9000,endMs:10000,spatial:{status:'INDISPONIBLE'}}
+]);
+assert.strictEqual(emptyMissingBound.basis,'WINDOW_EQUIVALENT','empty temporal bounds must be treated as missing evidence, not numeric zero');
+
 console.log('player card temporal spatial coverage non-regression: PASS');
