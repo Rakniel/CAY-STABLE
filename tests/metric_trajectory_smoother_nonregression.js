@@ -46,4 +46,28 @@ assert.strictEqual(blackoutDistance.gapRejectedPairs,1);
 assert.strictEqual(blackoutDistance.gapRejectedSeconds,4.5);
 assert.strictEqual(blackoutDistance.maxGapSec,1);
 assert.match(blackoutDistance.policy,/GAP_TEMPOREL/);
+
+// Blank coordinate/time strings are missing evidence, never numeric zero.
+const blankCoordinate=S.pathDistance([
+ {x:0,y:0,time:0,segment:1},
+ {x:'   ',y:0,time:.5,segment:1},
+ {x:2,y:0,time:1,segment:1}
+]);
+assert.strictEqual(blankCoordinate.distanceM,0,'blank coordinate must not become x=0 and create metric distance');
+assert.strictEqual(blankCoordinate.seconds,0,'blank coordinate must reject adjacent metric intervals');
+assert.strictEqual(blankCoordinate.pairs,0);
+
+const blankTime=S.pathDistance([
+ {x:0,y:0,time:0,segment:1},
+ {x:1,y:0,time:'\t ',segment:1},
+ {x:2,y:0,time:1,segment:1}
+]);
+assert.strictEqual(blankTime.distanceM,0,'blank timestamp must not become t=0 and create metric distance');
+assert.strictEqual(blankTime.seconds,0,'blank timestamp must reject adjacent metric intervals');
+assert.strictEqual(blankTime.pairs,0);
+
+const smoothingWithBlank=Array.from({length:7},(_,i)=>({x:i,y:0,time:i*.5,segment:1}));
+smoothingWithBlank[3]={...smoothingWithBlank[3],x:'   '};
+assert.strictEqual(S.smoothSeries(smoothingWithBlank).smoothedSamples,0,'blank samples must invalidate every local smoothing window that touches them');
+
 console.log('metric_trajectory_smoother_nonregression: PASS');
