@@ -4,7 +4,7 @@
   else root.CAYMetricTrajectorySmoother=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
-  const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const COEFF=[-3/35,12/35,17/35,12/35,-3/35];
 
   function usableWindow(points,index,maxGapSec,maxSpacingRatio,maxSpeedRatio,speedRatioFloorMps){
