@@ -115,6 +115,19 @@
     return null;
   }
 
+  function aggregateMatrix(rowsIn,key,rows,cols){
+    if(!rowsIn.every(h=>matrixOk(h?.[key],rows,cols)))return null;
+    const result=Array.from({length:rows},()=>Array(cols).fill(0));
+    for(const h of rowsIn)for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)result[y][x]+=Number(h[key][y][x]);
+    return result;
+  }
+
+  function normalizeMatrix(matrix){
+    if(!Array.isArray(matrix)||!matrix.length)return [];
+    const max=Math.max(0,...matrix.flat());
+    return matrix.map(row=>row.map(v=>max>0?v/max:0));
+  }
+
   function mergeHeatmaps(heatmaps){
     const rowsIn=Array.isArray(heatmaps)?heatmaps:[];
     if(!rowsIn.length)return null;
@@ -124,17 +137,17 @@
     const units=rowsIn.map(h=>heatmapUnit(h,rows,cols));
     if(units.some(unit=>unit===null)||units.some(unit=>unit!==units[0]))return null;
     const useTime=units[0]==='TIME';
-    const key=useTime?'timeCells':'cells';
-    if(!rowsIn.every(h=>matrixOk(h[key],rows,cols)))return null;
-    const cells=Array.from({length:rows},()=>Array(cols).fill(0));
-    for(const h of rowsIn)for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)cells[y][x]+=Number(h[key][y][x]);
-    const max=Math.max(0,...cells.flat());
+    const cells=aggregateMatrix(rowsIn,'cells',rows,cols);
+    const timeCells=aggregateMatrix(rowsIn,'timeCells',rows,cols);
+    const selected=useTime?timeCells:cells;
+    if(!selected)return null;
     return {
       status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:Number(first.pitchLengthM),pitchWidthM:Number(first.pitchWidthM),
-      rows,cols,cells,normalizedCells:cells.map(row=>row.map(v=>max>0?v/max:0)),windowCount:rowsIn.length,
+      rows,cols,cells:cells||[],timeCells:timeCells||[],normalizedCells:normalizeMatrix(selected),
+      normalizedObservationCells:cells?normalizeMatrix(cells):[],normalizedTimeCells:timeCells?normalizeMatrix(timeCells):[],windowCount:rowsIn.length,
       sourceWindowIndexes:rowsIn.map(h=>h.windowIndex).filter(v=>v!==null&&v!==undefined),
       heatmapBasis:useTime?'TIME_WEIGHTED_CONFIRMED_PARTICIPATION':'OBSERVATION_COUNT_CONFIRMED_PARTICIPATION',
-      policy:'AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE_ET_SANS_MELANGE_D_UNITE_TEMPS_OBSERVATIONS'
+      policy:'CELLS_RESTE_UN_COMPTE_D_OBSERVATIONS; TIMECELLS_RESTE_EN_SECONDES; NORMALIZEDCELLS_SUIT_EXPLICITEMENT_HEATMAPBASIS; AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE_ET_SANS_MELANGE_D_UNITE_TEMPS_OBSERVATIONS'
     };
   }
 
@@ -226,5 +239,5 @@
     };
   }
 
-  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,dominantGeometryGroup,mergeHeatmaps,heatmapUnit};
+  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,dominantGeometryGroup,mergeHeatmaps,heatmapUnit,aggregateMatrix,normalizeMatrix};
 });
