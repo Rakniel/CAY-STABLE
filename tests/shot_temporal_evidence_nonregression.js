@@ -31,6 +31,16 @@ const planBreak=analyze([
 ],{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2});
 assert.strictEqual(planBreak.candidateCount,0,'evidence must not cross plan/segment boundaries');
 
+// La vitesse précédente appartient au même plan que l'accélération. Avant ce garde,
+// la première vitesse calculable du plan B pouvait être comparée à la dernière vitesse
+// du plan A. Avec une seule accélération réellement forte dans B, cette fuite ajoutait
+// une seconde preuve artificielle et suffisait à créer un faux candidat tir.
+const accelerationPlanLeak=analyze([
+  row(0.00,0,.9,'A'),row(0.10,0,.9,'A'),
+  row(0.20,5,.9,'B'),row(0.30,6,.9,'B'),row(0.40,8,.9,'B')
+],{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2,maxObservationGapSec:.2});
+assert.strictEqual(accelerationPlanLeak.candidateCount,0,'acceleration evidence must restart from zero at a plan boundary');
+
 const lowBallConfidence=[row(0,0),row(.1,.8),row(.2,2.4),row(.3,4.8)];
 lowBallConfidence[2].ball.confidence=.3;
 assert.strictEqual(analyze(lowBallConfidence,{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2}).candidateCount,0);
