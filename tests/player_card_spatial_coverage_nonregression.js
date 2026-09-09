@@ -20,11 +20,13 @@ const basePlayer={
 
 const card=VM.buildCard(basePlayer);
 assert.strictEqual(card.pitchVisuals.status,'DISPONIBLE');
-assert.strictEqual(card.pitchVisuals.spatialCoverage,50,'2 rendered spatial windows out of 4 participation windows must display 50% terrain coverage');
-assert.strictEqual(card.pitchVisuals.metricCoverage,50,'legacy renderer-facing field must now mean terrain visual coverage, never physical metric coverage');
+assert.strictEqual(card.pitchVisuals.spatialCoverage,50,'2 rendered spatial windows out of 4 participation windows must display 50% terrain coverage when temporal bounds are unavailable');
+assert.strictEqual(card.pitchVisuals.metricCoverage,50,'legacy renderer-facing field must mean terrain visual coverage, never physical metric coverage');
+assert.strictEqual(card.pitchVisuals.spatialCoverageBasis,'WINDOW_EQUIVALENT','missing window bounds must keep an explicit fallback basis');
 assert.strictEqual(card.pitchVisuals.physicalMetricCoverage,100,'physical metric evidence stays separately auditable');
 assert.strictEqual(card.metrics.distanceM.coverage,100,'physical metric cards retain their own evidence coverage');
-assert.match(card.pitchVisuals.coveragePolicy,/FENETRES_SPATIALES/i);
+assert.match(card.pitchVisuals.coveragePolicy,/SECONDES_SPATIALES_DEFENDABLES/i);
+assert.match(card.pitchVisuals.coveragePolicy,/EQUIVALENT_FENETRES/i);
 
 const html=Renderer.cardHtml(card);
 assert.match(html,/TERRAIN • 50 %/,'headline terrain coverage must reflect spatially rendered evidence');
