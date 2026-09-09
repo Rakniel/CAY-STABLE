@@ -64,7 +64,7 @@ const baseline={hota:70,idf1:72,mota:68,idSwitches:10,falseCay:0,benchSpectatorF
   assert.equal(r.status,'PROMOTE');
 }
 
-const labelledBaseline={status:'DISPONIBLE',totalSamples:320,validSamples:320,comparableTransitions:300,idSwitches:6,coverage:1,falseCay:0,benchSpectatorFalseTracks:0,sequenceIds};
+const labelledBaseline={status:'DISPONIBLE',totalSamples:320,validSamples:320,comparableTransitions:300,idSwitches:6,fragments:4,labelledCoverage:1,coverage:1,falseCay:0,benchSpectatorFalseTracks:0,sequenceIds};
 
 {
   const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,idSwitches:3});
@@ -72,6 +72,16 @@ const labelledBaseline={status:'DISPONIBLE',totalSamples:320,validSamples:320,co
   assert.equal(r.pass,true);
   assert.equal(r.fullPromotion,false);
   assert.equal(r.delta.idSwitches,-3);
+  assert.equal(r.delta.fragments,0);
+}
+
+{
+  const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,idSwitches:3,fragments:5});
+  assert.equal(r.status,'PRECHECK_REJECT');
+  assert.equal(r.pass,false);
+  assert.equal(r.delta.idSwitches,-3);
+  assert.equal(r.delta.fragments,1);
+  assert(r.blockers.includes('IDENTITY_FRAGMENTATION_REGRESSION'));
 }
 
 {
@@ -81,7 +91,7 @@ const labelledBaseline={status:'DISPONIBLE',totalSamples:320,validSamples:320,co
 }
 
 {
-  const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,validSamples:310,coverage:310/320,idSwitches:3});
+  const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,validSamples:310,labelledCoverage:310/320,coverage:310/320,idSwitches:3});
   assert.equal(r.status,'PRECHECK_REJECT');
   assert(r.blockers.includes('IDENTITY_COVERAGE_REGRESSION'));
 }
@@ -106,7 +116,7 @@ const labelledBaseline={status:'DISPONIBLE',totalSamples:320,validSamples:320,co
 }
 
 {
-  const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,totalSamples:321,validSamples:321,comparableTransitions:301,idSwitches:3,coverage:1});
+  const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,totalSamples:321,validSamples:321,comparableTransitions:301,idSwitches:3,coverage:1,labelledCoverage:1});
   assert.equal(r.status,'INSUFFICIENT_EVIDENCE');
   assert.equal(r.reason,'CAY_LABELLED_SAMPLE_SET_MISMATCH');
 }
@@ -115,6 +125,12 @@ const labelledBaseline={status:'DISPONIBLE',totalSamples:320,validSamples:320,co
   const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,idSwitches:3,sequenceIds:['different-set']});
   assert.equal(r.status,'INSUFFICIENT_EVIDENCE');
   assert.equal(r.reason,'CAY_SEQUENCE_SET_MISMATCH');
+}
+
+{
+  const r=evaluateLabelledIdentityEvidence(labelledBaseline,{...labelledBaseline,idSwitches:3,fragments:undefined});
+  assert.equal(r.status,'INSUFFICIENT_EVIDENCE');
+  assert(r.missing.includes('candidate.fragments'));
 }
 
 console.log('tracking_candidate_promotion_gate_nonregression: PASS');
