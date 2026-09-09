@@ -24,6 +24,10 @@ ok(guard.publicationDecision({...base,maxSpeedKmh:Infinity}).status==='INDISPONI
 ok(guard.publicationDecision({...base,sprintQualifiedSeconds:undefined}).status==='INDISPONIBLE','le bloc complet reste non complet si la durée de sprint est absente');
 ok(guard.publicationDecision({...base,distanceM:null}).status==='INDISPONIBLE','null ne doit jamais être converti silencieusement en zéro publiable');
 ok(guard.publicationDecision({...base,avgSpeedKmh:''}).status==='INDISPONIBLE','une chaîne vide ne doit jamais devenir une vitesse zéro publiable');
+ok(guard.publicationDecision({...base,distanceM:'   '}).status==='INDISPONIBLE','une distance composée uniquement d’espaces ne doit jamais devenir zéro publiable');
+ok(guard.publicationDecision({...base,avgSpeedKmh:'\t  '}).status==='INDISPONIBLE','une vitesse composée uniquement d’espaces blancs ne doit jamais devenir zéro publiable');
+ok(guard.publicationDecision({...base,sprintCount:'  '}).status==='INDISPONIBLE','un compteur de sprints vide après trim ne doit jamais devenir zéro publiable');
+ok(guard.publicationDecision({...base,metricCoveredSeconds:'  '}).status==='INDISPONIBLE','une durée couverte vide après trim reste indisponible');
 ok(guard.publicationDecision({...base,metricCoveredSeconds:null}).status==='INDISPONIBLE','une durée couverte null reste indisponible');
 ok(guard.publicationDecision({...base,avgSpeedKmh:-1}).status==='INDISPONIBLE','une vitesse négative doit être rejetée');
 ok(guard.publicationDecision({...base,sprintCount:1.5}).status==='INDISPONIBLE','le compteur de sprints doit rester entier');
@@ -31,6 +35,9 @@ ok(guard.publicationDecision({...base,sprintCount:1.5}).status==='INDISPONIBLE',
 const invalidDistance=guard.applyPublicationPolicy({...base,distanceM:NaN});
 ok(invalidDistance.distanceM===null&&invalidDistance.avgSpeedKmh===7.2&&Number.isFinite(invalidDistance.maxSpeedKmh)&&invalidDistance.sprintCount===2,'une distance NaN masque uniquement la distance; les champs indépendamment défendables restent publiables');
 ok(Number.isNaN(invalidDistance.diagnosticPhysicalMetrics.distanceM),'la distance invalide reste disponible uniquement dans le diagnostic audit');
+
+const whitespaceDistance=guard.applyPublicationPolicy({...base,distanceM:'   '});
+ok(whitespaceDistance.distanceM===null&&whitespaceDistance.avgSpeedKmh===7.2&&whitespaceDistance.sprintCount===2,'une distance blanche est masquée sans supprimer les autres champs indépendamment défendables');
 
 const invalidSpeed=guard.applyPublicationPolicy({...base,avgSpeedKmh:Infinity});
 ok(invalidSpeed.distanceM===124.5&&invalidSpeed.avgSpeedKmh===null&&invalidSpeed.maxSpeedKmh===null&&invalidSpeed.sprintCount===null,'une vitesse moyenne invalide ferme la famille vitesse/sprints/max mais conserve une distance fiable');
@@ -47,4 +54,4 @@ ok(inconsistentPeak.publication.fieldStatus.maxSpeedKmh.reason.includes('incohé
 
 const commonFailure=guard.applyPublicationPolicy({...base,metricCoveredSeconds:null});
 ok(commonFailure.publication.status==='INDISPONIBLE'&&commonFailure.distanceM===null&&commonFailure.avgSpeedKmh===null&&commonFailure.maxSpeedKmh===null&&commonFailure.sprintCount===null,'une preuve commune invalide ferme toujours tous les champs physiques');
-console.log(`PASS ${pass}/17 metric publication finite values`);
+console.log(`PASS ${pass}/22 metric publication finite values`);
