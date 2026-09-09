@@ -1,16 +1,21 @@
 (function(root,factory){
   const api=factory(
-    typeof module==='object'&&module.exports?require('./metric_camera_motion_projector_v1.js'):root.CAYMetricCameraMotionProjector
+    typeof module==='object'&&module.exports?require('./metric_camera_motion_projector_v1.js'):root.CAYMetricCameraMotionProjector,
+    typeof module==='object'&&module.exports?require('./detector_license_guard_v1.js'):root.CAYDetectorLicenseGuard
   );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYCameraMotionArtifactProvider=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(MotionProjector){
+})(typeof globalThis!=='undefined'?globalThis:this,function(MotionProjector,LicenseGuard){
   'use strict';
 
   const VERSION='CAY_CAMERA_MOTION_ARTIFACT_V1';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const present=v=>v!==null&&v!==undefined&&String(v).trim()!=='';
-  const ALLOWED_EXTERNAL_LICENSES=new Set(['MIT','APACHE-2.0','BSD-2-CLAUSE','BSD-3-CLAUSE','ISC','CC0-1.0','UNLICENSE']);
+  const ALLOWED_EXTERNAL_LICENSES=new Set(
+    LicenseGuard&&Array.isArray(LicenseGuard.allowedLicenses)
+      ? LicenseGuard.allowedLicenses.filter(v=>String(v).toUpperCase()!=='CAY-INTERNAL')
+      : []
+  );
 
   function normalizedLicenseTokens(value){
     if(!present(value))return [];
@@ -24,6 +29,12 @@
       .filter(Boolean);
   }
 
+  function licenseAllowed(value){
+    if(!LicenseGuard||typeof LicenseGuard.inspectLicense!=='function')return false;
+    const verdict=LicenseGuard.inspectLicense(value);
+    return !!(verdict&&verdict.allowed);
+  }
+
   function provenanceVerdict(provenance){
     if(!provenance||typeof provenance!=='object')return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_PROVENANCE_REQUIRED'};
     if(!present(provenance.source)||!present(provenance.license)||!(present(provenance.revision)||present(provenance.sha256))){
@@ -34,12 +45,12 @@
     if(upper.includes('AGPL')||upper.includes('GPL'))return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_LICENSE_REJECTED'};
 
     if(provenance.kind==='internal'){
-      if(upper==='CAY-INTERNAL')return {allowed:true,reason:null,licenses:['CAY-INTERNAL']};
+      if(upper==='CAY-INTERNAL'&&licenseAllowed(upper))return {allowed:true,reason:null,licenses:['CAY-INTERNAL']};
       return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_INTERNAL_LICENSE_INVALID'};
     }
 
     const tokens=normalizedLicenseTokens(rawLicense);
-    if(!tokens.length||tokens.some(token=>!ALLOWED_EXTERNAL_LICENSES.has(token))){
+    if(!tokens.length||tokens.some(token=>!licenseAllowed(token))){
       return {allowed:false,reason:'CAMERA_MOTION_ARTIFACT_LICENSE_UNVERIFIED',licenses:tokens};
     }
     return {allowed:true,reason:null,licenses:tokens};
@@ -64,6 +75,7 @@
   function validateArtifact(artifact){
     if(!artifact||typeof artifact!=='object')return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_REQUIRED'};
     if(artifact.contractVersion!==VERSION)return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_VERSION_UNSUPPORTED'};
+    if(!LicenseGuard||typeof LicenseGuard.inspectLicense!=='function')return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_LICENSE_GUARD_UNAVAILABLE'};
     const provenance=provenanceVerdict(artifact.provenance);if(!provenance.allowed)return {ok:false,reason:provenance.reason};
     if(!Array.isArray(artifact.samples)||!artifact.samples.length)return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_SAMPLES_REQUIRED'};
     let previousTime=-Infinity;
