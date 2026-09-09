@@ -91,16 +91,34 @@
     return hasSpatialVisual(spatial)?1:0;
   }
 
+  function windowDurationSeconds(window){
+    if(!finite(window?.startMs)||!finite(window?.endMs))return null;
+    const start=Number(window.startMs),end=Number(window.endMs);
+    return end>start?(end-start)/1000:null;
+  }
+
   function dominantGeometryGroup(windows){
-    const groups=[];
-    for(const window of Array.isArray(windows)?windows:[]){
+    const eligible=(Array.isArray(windows)?windows:[]).filter(window=>{
       const spatial=window?.spatial;
       const rows=Number(spatial?.rows),cols=Number(spatial?.cols);
-      if(!hasSpatialVisual(spatial)||!Number.isInteger(rows)||!Number.isInteger(cols)||rows<=0||cols<=0||!finite(spatial?.pitchLengthM)||!finite(spatial?.pitchWidthM))continue;
+      return hasSpatialVisual(spatial)&&Number.isInteger(rows)&&Number.isInteger(cols)&&rows>0&&cols>0&&finite(spatial?.pitchLengthM)&&finite(spatial?.pitchWidthM);
+    });
+    const durationReady=eligible.length>0&&eligible.every(window=>{
+      const durationSeconds=windowDurationSeconds(window);
+      return finite(durationSeconds)&&durationSeconds>0;
+    });
+    const groups=[];
+    for(const window of eligible){
+      const spatial=window.spatial;
+      const rows=Number(spatial.rows),cols=Number(spatial.cols);
       let group=groups.find(item=>item.rows===rows&&item.cols===cols&&samePitch(item.first.spatial,spatial));
-      if(!group){group={first:window,rows,cols,items:[],evidenceWeight:0,firstOrder:groups.length};groups.push(group);}
+      if(!group){
+        group={first:window,rows,cols,items:[],evidenceWeight:0,evidenceWeightBasis:durationReady?'DEFENDABLE_SECONDS':'COVERAGE_EQUIVALENT',firstOrder:groups.length};
+        groups.push(group);
+      }
       group.items.push(window);
-      group.evidenceWeight+=evidenceCoverage(spatial);
+      const coverage=evidenceCoverage(spatial);
+      group.evidenceWeight+=durationReady?windowDurationSeconds(window)*coverage:coverage;
     }
     groups.sort((a,b)=>b.evidenceWeight-a.evidenceWeight||b.items.length-a.items.length||a.firstOrder-b.firstOrder);
     return groups[0]||null;
@@ -180,7 +198,8 @@
     const status=coherentWindowCount===0||(!heatmap&&!trajectoryAvailable)?'INDISPONIBLE':(heatmap&&complete?'FIABLE':'PARTIEL');
     const geometry=dominant?{
       coordinateSystem:'PITCH_METERS',pitchLengthM:Number(dominant.first.spatial.pitchLengthM),pitchWidthM:Number(dominant.first.spatial.pitchWidthM),
-      rows:dominant.rows,cols:dominant.cols,sourceWindowIndexes:coherent.map(window=>window.index),evidenceWeight:+dominant.evidenceWeight.toFixed(4)
+      rows:dominant.rows,cols:dominant.cols,sourceWindowIndexes:coherent.map(window=>window.index),evidenceWeight:+dominant.evidenceWeight.toFixed(4),
+      evidenceWeightBasis:dominant.evidenceWeightBasis
     }:null;
     const coverageReasons=[];
     if(excludedGeometryWindowCount>0)coverageReasons.push('certaines fenêtres terrain ont été exclues car leur géométrie est incompatible avec le référentiel dominant');
@@ -196,7 +215,7 @@
       trajectory:{status:trajectoryAvailable?status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',runs:trajectoryRuns,sourceWindowIndexes:trajectoryRuns.map(run=>run.windowIndex).filter((value,index,array)=>array.indexOf(value)===index),policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'},
       heatmap,
       heatmaps:heatmapWindows,
-      policy:'SPATIAL_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_AND_ONE_COHERENT_PITCH_GEOMETRY; DOMINANT_GEOMETRY_IS_SELECTED_BY_RENDERABLE_EVIDENCE_COVERAGE_THEN_WINDOW_COUNT; TRAJECTORY_AND_HEATMAP_AVAILABILITY_ARE_INDEPENDENT; RENDERED_WINDOW_COUNT_IS_TEMPORAL_COVERAGE_EQUIVALENT_FOR_EXPLICIT_PLAYER_CARD_COVERAGE'
+      policy:'SPATIAL_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_AND_ONE_COHERENT_PITCH_GEOMETRY; DOMINANT_GEOMETRY_IS_SELECTED_BY_DEFENDABLE_SECONDS_WHEN_WINDOW_BOUNDS_ARE_COMPLETE_OTHERWISE_COVERAGE_EQUIVALENT; TRAJECTORY_AND_HEATMAP_AVAILABILITY_ARE_INDEPENDENT; RENDERED_WINDOW_COUNT_IS_TEMPORAL_COVERAGE_EQUIVALENT_FOR_EXPLICIT_PLAYER_CARD_COVERAGE'
     };
   }
 
@@ -239,5 +258,5 @@
     };
   }
 
-  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,dominantGeometryGroup,mergeHeatmaps,heatmapUnit,aggregateMatrix,normalizeMatrix};
+  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,windowDurationSeconds,dominantGeometryGroup,mergeHeatmaps,heatmapUnit,aggregateMatrix,normalizeMatrix};
 });

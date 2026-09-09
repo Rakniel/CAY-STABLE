@@ -45,7 +45,7 @@ assert.strictEqual(PlayerCards.spatialCoveragePct(trajectoryOnly),50,'player car
 assert.strictEqual(trajectoryOnly.geometry.pitchLengthM,105);
 assert.strictEqual(trajectoryOnly.geometry.evidenceWeight,.5);
 assert.match(trajectoryOnly.coverageNote,/sans heatmap/i);
-assert.match(trajectoryOnly.policy,/DOMINANT_GEOMETRY_IS_SELECTED_BY_RENDERABLE_EVIDENCE_COVERAGE/);
+assert.match(trajectoryOnly.policy,/DOMINANT_GEOMETRY_IS_SELECTED_BY_DEFENDABLE_SECONDS_WHEN_WINDOW_BOUNDS_ARE_COMPLETE_OTHERWISE_COVERAGE_EQUIVALENT/);
 
 const mixedGeometry=Pipeline.summarizeSpatial([
   trajectoryOnlyWindow(0,{pitchLengthM:100,pitchWidthM:64,x:5}),
