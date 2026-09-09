@@ -9,6 +9,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Bridge,RosterBinding,root){
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const pct=v=>finite(v)?Math.max(0,Math.min(100,Math.round(Number(v)*100))):0;
   const unavailable=reason=>({status:'INDISPONIBLE',value:null,reason:reason||'preuve insuffisante'});
   function metricValue(metric,key,label){
@@ -19,11 +20,46 @@
     const status=scoped?.status==='FIABLE'?'FIABLE':metric.quality==='FIABLE'?'FIABLE':'PARTIEL';
     return {status,value:Number(metric[key]),label,coverage:pct(metric.metricCoverage),reason:null};
   }
-  function spatialCoveragePct(spatial){
+  function legacySpatialCoveragePct(spatial){
     const total=Number(spatial?.participationWindowCount||0),rendered=Number(spatial?.renderedWindowCount||0);
     if(!Number.isFinite(total)||total<=0||!Number.isFinite(rendered)||rendered<=0)return 0;
     return pct(Math.max(0,Math.min(total,rendered))/total);
   }
+  function windowDurationSeconds(window){
+    const start=Number(window?.startMs),end=Number(window?.endMs);
+    return Number.isFinite(start)&&Number.isFinite(end)&&end>start?(end-start)/1000:null;
+  }
+  function windowSpatialEvidenceCoverage(window){
+    const spatial=window?.spatial;
+    if(finite(spatial?.temporalCoverage))return clamp01(spatial.temporalCoverage);
+    if(finite(spatial?.trajectory?.metricCoverage))return clamp01(spatial.trajectory.metricCoverage);
+    if(spatial?.status==='DISPONIBLE'||spatial?.trajectory?.status==='DISPONIBLE')return 1;
+    return 0;
+  }
+  function spatialCoverageEvidence(spatial,windows){
+    const input=Array.isArray(windows)?windows:[];
+    const sourceIndexes=Array.isArray(spatial?.geometry?.sourceWindowIndexes)?spatial.geometry.sourceWindowIndexes:[];
+    const allDurations=input.map(windowDurationSeconds);
+    const temporalReady=input.length>0&&allDurations.every(duration=>finite(duration)&&Number(duration)>0)&&sourceIndexes.length>0;
+    if(temporalReady){
+      const coherent=new Set(sourceIndexes.map(value=>String(value)));
+      const participationSeconds=allDurations.reduce((sum,value)=>sum+Number(value),0);
+      const renderedSeconds=input.reduce((sum,window,index)=>{
+        if(!coherent.has(String(window?.index??index)))return sum;
+        return sum+Number(allDurations[index])*windowSpatialEvidenceCoverage(window);
+      },0);
+      if(participationSeconds>0){
+        return {
+          pct:pct(Math.min(participationSeconds,Math.max(0,renderedSeconds))/participationSeconds),
+          basis:'TEMPORAL_SECONDS',
+          participationSeconds:+participationSeconds.toFixed(3),
+          renderedSeconds:+Math.min(participationSeconds,Math.max(0,renderedSeconds)).toFixed(3)
+        };
+      }
+    }
+    return {pct:legacySpatialCoveragePct(spatial),basis:'WINDOW_EQUIVALENT',participationSeconds:null,renderedSeconds:null};
+  }
+  function spatialCoveragePct(spatial,windows){return spatialCoverageEvidence(spatial,windows).pct;}
   function metricAvailable(metric){return !!metric&&metric.status!=='INDISPONIBLE'&&finite(metric.value);}
   function firstResultsReadiness(card){
     const tracking=Number(card?.presence?.observations||0)>0||card?.observedVisuals?.status==='DISPONIBLE';
@@ -47,7 +83,7 @@
   function rosterPitchVisuals(player){
     const rm=player&&player.rosterMetric||null,spatial=rm&&rm.spatial||null;
     const rosterEvidenceAvailable=rm&&(rm.status==='FIABLE'||rm.status==='PARTIEL');
-    if(!rosterEvidenceAvailable||!spatial||spatial.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory:null,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,reason:rm?.reason||spatial?.reason||'liaison roster fiable et participation confirmées pour les visuels terrain',source:'ROSTER_METRIC_PIPELINE_V1'};
+    if(!rosterEvidenceAvailable||!spatial||spatial.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory:null,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,spatialCoverageBasis:null,participationSeconds:null,renderedSeconds:null,reason:rm?.reason||spatial?.reason||'liaison roster fiable et participation confirmées pour les visuels terrain',source:'ROSTER_METRIC_PIPELINE_V1'};
 
     const heatmap=spatial?.heatmap&&spatial.heatmap.status==='DISPONIBLE'?spatial.heatmap:null;
     const geometry=spatial?.geometry||null;
@@ -60,20 +96,21 @@
       sourceWindowIndexes:Array.isArray(spatial?.trajectory?.sourceWindowIndexes)?[...spatial.trajectory.sourceWindowIndexes]:[],
       policy:spatial?.trajectory?.policy||'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'
     }:{status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',runs:[],sourceWindowIndexes:[],policy:'AUCUN_RACCORDEMENT_ENTRE_FENETRES_DE_PARTICIPATION_ET_AUCUN_MELANGE_DE_GEOMETRIES_TERRAIN'};
-    if(!heatmap&&trajectory.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,reason:spatial?.reason||'aucun visuel terrain défendable dans les fenêtres de participation confirmées',source:'ROSTER_METRIC_PIPELINE_V1'};
+    if(!heatmap&&trajectory.status==='INDISPONIBLE')return {status:'INDISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:null,pitchWidthM:null,trajectory,heatmap:null,metricCoverage:0,physicalMetricCoverage:0,spatialCoverage:0,spatialCoverageBasis:null,participationSeconds:null,renderedSeconds:null,reason:spatial?.reason||'aucun visuel terrain défendable dans les fenêtres de participation confirmées',source:'ROSTER_METRIC_PIPELINE_V1'};
 
     const participationWindowCount=Number(spatial.participationWindowCount||0);
     const availableWindowCount=Number(spatial.availableWindowCount||0);
     const renderedWindowCount=Number(spatial.renderedWindowCount||0);
     const excludedGeometryWindowCount=Number(spatial.excludedGeometryWindowCount||0);
-    const spatialCoverage=spatialCoveragePct(spatial);
+    const coverageEvidence=spatialCoverageEvidence(spatial,rm?.windows);
+    const spatialCoverage=coverageEvidence.pct;
     const physicalMetricCoverage=pct(player?.metric?.metricCoverage);
     const quality=rm.status==='FIABLE'&&spatial.status==='FIABLE'?'FIABLE':'PARTIEL';
     return {
       status:'DISPONIBLE',quality,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,trajectory,heatmap,
-      metricCoverage:spatialCoverage,spatialCoverage,physicalMetricCoverage,participationWindowCount,availableWindowCount,renderedWindowCount,
+      metricCoverage:spatialCoverage,spatialCoverage,spatialCoverageBasis:coverageEvidence.basis,participationSeconds:coverageEvidence.participationSeconds,renderedSeconds:coverageEvidence.renderedSeconds,physicalMetricCoverage,participationWindowCount,availableWindowCount,renderedWindowCount,
       excludedGeometryWindowCount,coverageNote:spatial.coverageNote||rm.reason||null,reason:null,source:'ROSTER_METRIC_PIPELINE_V1',
-      coveragePolicy:'COUVERTURE_TERRAIN = FENETRES_SPATIALES_RENDUEES / FENETRES_DE_PARTICIPATION; LA_COUVERTURE_DES_METRIQUES_PHYSIQUES_RESTE_SEPAREE',
+      coveragePolicy:'COUVERTURE_TERRAIN = SECONDES_SPATIALES_DEFENDABLES / SECONDES_DE_PARTICIPATION_QUAND_LES_BORNES_TEMPORELLES_SONT_COMPLETES; SINON_FALLBACK_EXPLICITE_EN_EQUIVALENT_FENETRES; LA_COUVERTURE_DES_METRIQUES_PHYSIQUES_RESTE_SEPAREE',
       policy:'VISUELS_TERRAIN_CONSOMMES_EXCLUSIVEMENT_DEPUIS_LE_CONTRAT_SPATIAL_CENTRALISE_ROSTER_METRIC_PIPELINE_V1; UN_STATUT_PARENT_PARTIEL_PEUT_ETRE_AFFICHE_MAIS_JAMAIS_PROMU_EN_QUALITE_FIABLE'
     };
   }
@@ -133,5 +170,5 @@
   patchBridge();
   loadRenderer();
   if(typeof setTimeout==='function')setTimeout(loadClubRosterIdentityUI,0);
-  return {buildCard,build,attach,patchBridge,metricValue,spatialCoveragePct,metricAvailable,firstResultsReadiness,readinessSummary,rosterPitchVisuals,loadRenderer,loadClubRosterIdentityUI};
+  return {buildCard,build,attach,patchBridge,metricValue,spatialCoveragePct,spatialCoverageEvidence,metricAvailable,firstResultsReadiness,readinessSummary,rosterPitchVisuals,loadRenderer,loadClubRosterIdentityUI};
 });
