@@ -1,5 +1,6 @@
 'use strict';
 const assert=require('assert');
+const LicenseGuard=require('../detector_license_guard_v1.js');
 const Provider=require('../camera_motion_artifact_provider_v1.js');
 
 const base={
@@ -21,6 +22,13 @@ assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'x',lic
 assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'CAY native motion estimator',license:'CAY-INTERNAL',revision:'r',kind:'internal'}}).ok,true);
 assert.strictEqual(Provider.validateArtifact({...base,provenance:{source:'CAY native motion estimator',license:'MIT',revision:'r',kind:'internal'}}).reason,'CAMERA_MOTION_ARTIFACT_INTERNAL_LICENSE_INVALID');
 assert.strictEqual(Provider.validateArtifact({...base,samples:[base.samples[1],base.samples[0]]}).reason,'CAMERA_MOTION_ARTIFACT_SAMPLES_NOT_SORTED');
+
+for(const license of Provider.ALLOWED_EXTERNAL_LICENSES){
+  assert.strictEqual(LicenseGuard.inspectLicense(license).allowed,true,`${license} must come from the centralized allowlist`);
+}
+assert.strictEqual(Provider.ALLOWED_EXTERNAL_LICENSES.has('CAY-INTERNAL'),false,'internal provenance must not leak into external allowlist');
+assert.strictEqual(Provider.ALLOWED_EXTERNAL_LICENSES.has('MIT'),true);
+assert.strictEqual(Provider.ALLOWED_EXTERNAL_LICENSES.has('APACHE-2.0'),true);
 
 const p=Provider.createProvider(base);
 let hit=p.motionFor(1,1.041,0);
