@@ -33,6 +33,39 @@ assert.equal(published.publication.allPhysicalFieldsAvailable,true);
 assert.equal(published.distanceM,21);
 assert.ok(Number.isFinite(published.maxSpeedKmh));
 
+const missingSprint=Guard.applyPublicationPolicy({...metric,sprintCount:null,sprintQualifiedSeconds:null},{identityQuality:'FIABLE'});
+assert.equal(missingSprint.publication.status,'FIABLE','valid distance/speed evidence must survive missing sprint fields');
+assert.equal(missingSprint.publication.fieldStatus.distanceM.status,'FIABLE');
+assert.equal(missingSprint.publication.fieldStatus.avgSpeedKmh.status,'FIABLE');
+assert.equal(missingSprint.publication.fieldStatus.sprintCount.status,'INDISPONIBLE');
+assert.equal(missingSprint.publication.fieldStatus.sprintQualifiedSeconds.status,'INDISPONIBLE');
+assert.equal(missingSprint.publication.fieldStatus.maxSpeedKmh.status,'FIABLE');
+assert.equal(missingSprint.distanceM,21);
+assert.equal(missingSprint.avgSpeedKmh,25.2);
+assert.equal(missingSprint.sprintCount,null);
+assert.equal(missingSprint.sprintQualifiedSeconds,null);
+
+const missingSpeedFamily=Guard.applyPublicationPolicy({...metric,avgSpeedKmh:null,maxSpeedKmh:null,sprintCount:null,sprintQualifiedSeconds:null,speedSamples:[]},{identityQuality:'FIABLE'});
+assert.equal(missingSpeedFamily.publication.status,'FIABLE','distance is independently publishable when the speed family is absent');
+assert.equal(missingSpeedFamily.publication.fieldStatus.distanceM.status,'FIABLE');
+assert.equal(missingSpeedFamily.publication.fieldStatus.avgSpeedKmh.status,'INDISPONIBLE');
+assert.equal(missingSpeedFamily.publication.fieldStatus.sprintCount.status,'INDISPONIBLE');
+assert.equal(missingSpeedFamily.publication.fieldStatus.maxSpeedKmh.status,'INDISPONIBLE');
+assert.equal(missingSpeedFamily.distanceM,21);
+assert.equal(missingSpeedFamily.avgSpeedKmh,null);
+assert.equal(missingSpeedFamily.maxSpeedKmh,null);
+
+const invalidDistanceOnly=Guard.applyPublicationPolicy({...metric,distanceM:NaN},{identityQuality:'FIABLE'});
+assert.equal(invalidDistanceOnly.publication.status,'FIABLE','an invalid distance must not suppress independently defensible speed fields');
+assert.equal(invalidDistanceOnly.publication.fieldStatus.distanceM.status,'INDISPONIBLE');
+assert.equal(invalidDistanceOnly.publication.fieldStatus.avgSpeedKmh.status,'FIABLE');
+assert.equal(invalidDistanceOnly.publication.fieldStatus.sprintCount.status,'FIABLE');
+assert.equal(invalidDistanceOnly.publication.fieldStatus.maxSpeedKmh.status,'FIABLE');
+assert.equal(invalidDistanceOnly.distanceM,null);
+assert.equal(invalidDistanceOnly.avgSpeedKmh,25.2);
+assert.ok(Number.isFinite(invalidDistanceOnly.maxSpeedKmh));
+assert.ok(Number.isNaN(invalidDistanceOnly.diagnosticPhysicalMetrics.distanceM));
+
 const blocked=Guard.applyPublicationPolicy(metric,{identityQuality:'PARTIEL'});
 assert.equal(blocked.publication.status,'INDISPONIBLE');
 for(const key of ['distanceM','avgSpeedKmh','sprintCount','maxSpeedKmh'])assert.equal(blocked.publication.fieldStatus[key].status,'INDISPONIBLE');

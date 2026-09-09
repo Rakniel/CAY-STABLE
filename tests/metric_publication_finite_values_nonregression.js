@@ -19,17 +19,28 @@ const base={
 };
 
 ok(guard.publicationDecision(base).publishable===true,'une métrique physique complète, finie et temporellement continue reste publiable');
-ok(guard.publicationDecision({...base,distanceM:NaN}).status==='INDISPONIBLE','NaN ne doit jamais être publié comme distance fiable');
-ok(guard.publicationDecision({...base,maxSpeedKmh:Infinity}).status==='INDISPONIBLE','Infinity ne doit jamais être publié comme vitesse fiable');
-ok(guard.publicationDecision({...base,sprintQualifiedSeconds:undefined}).status==='INDISPONIBLE','une durée de sprint absente rend le bloc physique indisponible');
+ok(guard.publicationDecision({...base,distanceM:NaN}).status==='INDISPONIBLE','le bloc complet reste non complet si la distance est invalide');
+ok(guard.publicationDecision({...base,maxSpeedKmh:Infinity}).status==='INDISPONIBLE','le bloc complet reste non complet si la vitesse max source est invalide');
+ok(guard.publicationDecision({...base,sprintQualifiedSeconds:undefined}).status==='INDISPONIBLE','le bloc complet reste non complet si la durée de sprint est absente');
 ok(guard.publicationDecision({...base,distanceM:null}).status==='INDISPONIBLE','null ne doit jamais être converti silencieusement en zéro publiable');
 ok(guard.publicationDecision({...base,avgSpeedKmh:''}).status==='INDISPONIBLE','une chaîne vide ne doit jamais devenir une vitesse zéro publiable');
 ok(guard.publicationDecision({...base,metricCoveredSeconds:null}).status==='INDISPONIBLE','une durée couverte null reste indisponible');
 ok(guard.publicationDecision({...base,avgSpeedKmh:-1}).status==='INDISPONIBLE','une vitesse négative doit être rejetée');
 ok(guard.publicationDecision({...base,sprintCount:1.5}).status==='INDISPONIBLE','le compteur de sprints doit rester entier');
-const masked=guard.applyPublicationPolicy({...base,distanceM:NaN});
-ok(masked.distanceM===null&&masked.avgSpeedKmh===null&&masked.maxSpeedKmh===null&&masked.sprintCount===null&&masked.sprintQualifiedSeconds===null,'une valeur physique invalide masque tout le bloc publié mais conserve le diagnostic');
-ok(Number.isNaN(masked.diagnosticPhysicalMetrics.distanceM),'la valeur invalide reste disponible uniquement dans le diagnostic audit');
-const nullMasked=guard.applyPublicationPolicy({...base,distanceM:null});
-ok(nullMasked.publication.status==='INDISPONIBLE'&&nullMasked.distanceM===null&&nullMasked.avgSpeedKmh===null,'une valeur null masque tout le bloc physique publié');
-console.log(`PASS ${pass}/12 metric publication finite values`);
+
+const invalidDistance=guard.applyPublicationPolicy({...base,distanceM:NaN});
+ok(invalidDistance.distanceM===null&&invalidDistance.avgSpeedKmh===7.2&&Number.isFinite(invalidDistance.maxSpeedKmh)&&invalidDistance.sprintCount===2,'une distance NaN masque uniquement la distance; les champs indépendamment défendables restent publiables');
+ok(Number.isNaN(invalidDistance.diagnosticPhysicalMetrics.distanceM),'la distance invalide reste disponible uniquement dans le diagnostic audit');
+
+const invalidSpeed=guard.applyPublicationPolicy({...base,avgSpeedKmh:Infinity});
+ok(invalidSpeed.distanceM===124.5&&invalidSpeed.avgSpeedKmh===null&&invalidSpeed.maxSpeedKmh===null&&invalidSpeed.sprintCount===null,'une vitesse moyenne invalide ferme la famille vitesse/sprints/max mais conserve une distance fiable');
+
+const invalidSprint=guard.applyPublicationPolicy({...base,sprintCount:1.5});
+ok(invalidSprint.distanceM===124.5&&invalidSprint.avgSpeedKmh===7.2&&invalidSprint.sprintCount===null&&invalidSprint.sprintQualifiedSeconds===null&&Number.isFinite(invalidSprint.maxSpeedKmh),'un compteur de sprints invalide ferme les sprints sans supprimer distance, vitesse moyenne ou max défendables');
+
+const invalidPeak=guard.applyPublicationPolicy({...base,maxSpeedKmh:Infinity});
+ok(invalidPeak.distanceM===124.5&&invalidPeak.avgSpeedKmh===7.2&&invalidPeak.sprintCount===2&&invalidPeak.maxSpeedKmh===null,'une vitesse max source infinie masque uniquement la vitesse max lorsque les autres preuves restent valides');
+
+const commonFailure=guard.applyPublicationPolicy({...base,metricCoveredSeconds:null});
+ok(commonFailure.publication.status==='INDISPONIBLE'&&commonFailure.distanceM===null&&commonFailure.avgSpeedKmh===null&&commonFailure.maxSpeedKmh===null&&commonFailure.sprintCount===null,'une preuve commune invalide ferme toujours tous les champs physiques');
+console.log(`PASS ${pass}/15 metric publication finite values`);

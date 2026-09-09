@@ -64,27 +64,32 @@
     if(!metric||!finite(metric.metricCoverage)||Number(metric.metricCoverage)<=0)return {publishable:false,status:'INDISPONIBLE',reason:'aucune couverture métrique validée',identityQuality};
     if(!finite(metric.metricCoveredSeconds)||Number(metric.metricCoveredSeconds)<MIN_PUBLISHABLE_COVERED_SECONDS)return {publishable:false,status:'INDISPONIBLE',reason:`moins de ${MIN_PUBLISHABLE_COVERED_SECONDS}s de trajectoire métrique valide`,identityQuality};
     if(!finite(metric.defendableScore)||Number(metric.defendableScore)<MIN_PUBLISHABLE_EVIDENCE_SCORE||metric.quality!=='FIABLE')return {publishable:false,status:'INDISPONIBLE',reason:`preuve métrique insuffisante (score < ${MIN_PUBLISHABLE_EVIDENCE_SCORE.toFixed(2)})`,identityQuality};
-    const structuralFields=[['distanceM',metric.distanceM],['avgSpeedKmh',metric.avgSpeedKmh],['sprintCount',metric.sprintCount],['sprintQualifiedSeconds',metric.sprintQualifiedSeconds],['maxSpeedKmh',metric.instantaneousMaxSpeedKmh]];
-    const invalid=structuralFields.find(([name,value])=>!finite(value)||Number(value)<0||(name==='sprintCount'&&!Number.isInteger(Number(value))));
-    if(invalid)return {publishable:false,status:'INDISPONIBLE',reason:`métrique physique invalide ou absente (${invalid[0]})`,identityQuality};
     return {publishable:true,status:'FIABLE',reason:null,identityQuality};
   }
 
-  function distanceDecision(metric,baseDecision){
+  function fieldInvalidDecision(baseDecision,field,label,{integer=false}={}){
     if(!baseDecision?.publishable)return baseDecision;
+    const value=field?.value;
+    if(!finite(value)||Number(value)<0||(integer&&!Number.isInteger(Number(value))))return {...baseDecision,publishable:false,status:'INDISPONIBLE',reason:`métrique physique invalide ou absente (${label})`};
     return baseDecision;
   }
 
+  function distanceDecision(metric,baseDecision){
+    return fieldInvalidDecision(baseDecision,{value:metric?.distanceM},'distanceM');
+  }
+
   function speedPublicationDecision(metric,baseDecision){
-    if(!baseDecision?.publishable)return baseDecision;
+    const structural=fieldInvalidDecision(baseDecision,{value:metric?.avgSpeedKmh},'avgSpeedKmh');
+    if(!structural?.publishable)return structural;
     const continuousSpeedSeconds=longestContinuousSpeedEvidenceSeconds(metric?.speedSamples);
-    if(continuousSpeedSeconds<MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS)return {...baseDecision,publishable:false,status:'INDISPONIBLE',reason:`moins de ${MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS}s continus de preuve vitesse fiable`,continuousSpeedSeconds};
-    return {...baseDecision,continuousSpeedSeconds};
+    if(continuousSpeedSeconds<MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS)return {...structural,publishable:false,status:'INDISPONIBLE',reason:`moins de ${MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS}s continus de preuve vitesse fiable`,continuousSpeedSeconds};
+    return {...structural,continuousSpeedSeconds};
   }
 
   function sprintDecision(metric,speedDecision){
-    if(!speedDecision?.publishable)return speedDecision;
-    return speedDecision;
+    const count=fieldInvalidDecision(speedDecision,{value:metric?.sprintCount},'sprintCount',{integer:true});
+    if(!count?.publishable)return count;
+    return fieldInvalidDecision(count,{value:metric?.sprintQualifiedSeconds},'sprintQualifiedSeconds');
   }
 
   function maxSpeedDecision(metric,speedDecision){
@@ -144,7 +149,7 @@
       sprintQualifiedSeconds:{status:sprints.status,reason:sprints.reason},
       maxSpeedKmh:{status:max.status,reason:max.reason}
     };
-    return {...robustMetric,...published,metricCoverage:anyPublished?diagnosticMetricCoverage:0,diagnosticMetricCoverage:+diagnosticMetricCoverage.toFixed(4),continuousSpeedEvidenceSeconds:speed.continuousSpeedSeconds??longestContinuousSpeedEvidenceSeconds(robustMetric.speedSamples),diagnosticPhysicalMetrics:diagnostic,publication:{status:parentStatus,reason:parentReason,identityQuality:base.identityQuality??null,requiresReliableIdentity:true,fieldStatus,anyPhysicalFieldAvailable:anyPublished,allPhysicalFieldsAvailable:allPublished,minEvidenceScore:MIN_PUBLISHABLE_EVIDENCE_SCORE,minCoveredSeconds:MIN_PUBLISHABLE_COVERED_SECONDS,minContinuousSpeedEvidenceSeconds:MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,maxContinuousSpeedGapSeconds:MAX_CONTINUOUS_SPEED_GAP_SECONDS,minSustainedMaxSpeedSeconds:MIN_SUSTAINED_MAX_SPEED_SECONDS,minSustainedMaxSpeedIntervals:MIN_SUSTAINED_MAX_SPEED_INTERVALS,policy:'PUBLICATION_PAR_PREUVE_SPECIFIQUE: VALIDITE_STRUCTURELLE DU BLOC EXIGEE; DISTANCE EXIGE IDENTITE+COUVERTURE+QUALITE; VITESSE_MOYENNE ET SPRINTS EXIGENT EN PLUS UNE CONTINUITE VITESSE; VITESSE_MAX EXIGE EN PLUS UN PIC SOUTENU'}};
+    return {...robustMetric,...published,metricCoverage:anyPublished?diagnosticMetricCoverage:0,diagnosticMetricCoverage:+diagnosticMetricCoverage.toFixed(4),continuousSpeedEvidenceSeconds:speed.continuousSpeedSeconds??longestContinuousSpeedEvidenceSeconds(robustMetric.speedSamples),diagnosticPhysicalMetrics:diagnostic,publication:{status:parentStatus,reason:parentReason,identityQuality:base.identityQuality??null,requiresReliableIdentity:true,fieldStatus,anyPhysicalFieldAvailable:anyPublished,allPhysicalFieldsAvailable:allPublished,minEvidenceScore:MIN_PUBLISHABLE_EVIDENCE_SCORE,minCoveredSeconds:MIN_PUBLISHABLE_COVERED_SECONDS,minContinuousSpeedEvidenceSeconds:MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,maxContinuousSpeedGapSeconds:MAX_CONTINUOUS_SPEED_GAP_SECONDS,minSustainedMaxSpeedSeconds:MIN_SUSTAINED_MAX_SPEED_SECONDS,minSustainedMaxSpeedIntervals:MIN_SUSTAINED_MAX_SPEED_INTERVALS,policy:'PUBLICATION_PAR_PREUVE_SPECIFIQUE: IDENTITE+COUVERTURE+QUALITE COMMUNES; VALIDITE_STRUCTURELLE PAR CHAMP; DISTANCE INDEPENDANTE; VITESSE_MOYENNE EXIGE EN PLUS CONTINUITE; SPRINTS EXIGENT VITESSE+COMPTEUR+DUREE VALIDES; VITESSE_MAX EXIGE VITESSE+SOURCE+PIC SOUTENU'}};
   }
 
   function patch(){
@@ -162,8 +167,8 @@
         if(distancePublished){publishablePlayers++;publishedDistanceM+=Number(player.metric.distanceM)||0;}
         if(maxSpeedPublished)publishedMaxSpeedPlayers++;
       }
-      if(report.team){report.team.playersWithPublishedPhysicalMetrics=publishablePlayers;report.team.playersWithPublishedMaxSpeed=publishedMaxSpeedPlayers;report.team.measuredDistanceM=+publishedDistanceM.toFixed(2);report.team.physicalMetricPublicationPolicy='SOMME_DISTANCE_SUR_PREUVE_FIABLE; VITESSE/SPRINTS EXIGENT CONTINUITE; VITESSE_MAX PUBLIEE SEPAREMENT UNIQUEMENT SI PIC SOUTENU';}
-      report.metricPublicationGuard={version:'CAY_METRIC_PUBLICATION_GUARD_V1_3',minEvidenceScore:MIN_PUBLISHABLE_EVIDENCE_SCORE,minCoveredSeconds:MIN_PUBLISHABLE_COVERED_SECONDS,minContinuousSpeedEvidenceSeconds:MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,maxContinuousSpeedGapSeconds:MAX_CONTINUOUS_SPEED_GAP_SECONDS,minSustainedMaxSpeedSeconds:MIN_SUSTAINED_MAX_SPEED_SECONDS,minSustainedMaxSpeedIntervals:MIN_SUSTAINED_MAX_SPEED_INTERVALS,requiresReliablePlayerIdentity:true,principle:'publication fail-closed par champ après validation structurelle du bloc: distance sur preuve métrique fiable; vitesse moyenne et sprints ajoutent une exigence de continuité; vitesse max ajoute une preuve de pic soutenu'};
+      if(report.team){report.team.playersWithPublishedPhysicalMetrics=publishablePlayers;report.team.playersWithPublishedMaxSpeed=publishedMaxSpeedPlayers;report.team.measuredDistanceM=+publishedDistanceM.toFixed(2);report.team.physicalMetricPublicationPolicy='SOMME_DISTANCE_SUR_PREUVE_FIABLE; VALIDITE_STRUCTURELLE PAR CHAMP; VITESSE/SPRINTS EXIGENT CONTINUITE; VITESSE_MAX PUBLIEE SEPAREMENT UNIQUEMENT SI PIC SOUTENU';}
+      report.metricPublicationGuard={version:'CAY_METRIC_PUBLICATION_GUARD_V1_4',minEvidenceScore:MIN_PUBLISHABLE_EVIDENCE_SCORE,minCoveredSeconds:MIN_PUBLISHABLE_COVERED_SECONDS,minContinuousSpeedEvidenceSeconds:MIN_CONTINUOUS_SPEED_EVIDENCE_SECONDS,maxContinuousSpeedGapSeconds:MAX_CONTINUOUS_SPEED_GAP_SECONDS,minSustainedMaxSpeedSeconds:MIN_SUSTAINED_MAX_SPEED_SECONDS,minSustainedMaxSpeedIntervals:MIN_SUSTAINED_MAX_SPEED_INTERVALS,requiresReliablePlayerIdentity:true,principle:'publication fail-closed par champ après preuve commune identité/couverture/qualité: chaque valeur est validée structurellement sans bloquer les autres; vitesse moyenne et sprints ajoutent une exigence de continuité; vitesse max ajoute une preuve de pic soutenu'};
       return report;
     };
     Stats.__cayMetricPublicationGuardPatched=true;return true;
