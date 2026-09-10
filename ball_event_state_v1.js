@@ -5,7 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
-  const configured=(value,fallback)=>finite(value)?Number(value):fallback;
+  const configured=(value,fallback)=>finite(value)&&Number(value)>=0?Number(value):fallback;
   const round=(v,n=3)=>Number(Number(v).toFixed(n));
   function pointOf(entity){
     if(!entity)return null;
