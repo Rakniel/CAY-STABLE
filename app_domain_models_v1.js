@@ -7,6 +7,7 @@
   const PLAYER_STATUS=new Set(['ACTIVE','SUBSTITUTE','INACTIVE']);
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const clean=v=>String(v==null?'':v).trim();
+  const presentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const id=(prefix,v)=>clean(v)||`${prefix}_${Math.random().toString(36).slice(2,10)}`;
   function rejectSecrets(raw){
     const forbidden=new Set(['password','passwordhash','token','accesstoken','refreshtoken','secret','apikey']);
@@ -175,8 +176,8 @@
     }));
     let acceptedObservations=0,rejectedObservations=0,invalidTimeObservations=0;
     for(const point of path){
-      const time=Number(point?.time);
-      if(!Number.isFinite(time)){invalidTimeObservations++;rejectedObservations++;continue;}
+      if(!presentFinite(point?.time)){invalidTimeObservations++;rejectedObservations++;continue;}
+      const time=Number(point.time);
       const atMs=time*scale;
       const target=windows.find(window=>participationIntervalContains(window,atMs));
       if(!target){rejectedObservations++;continue;}
