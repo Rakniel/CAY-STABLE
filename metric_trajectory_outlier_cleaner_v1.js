@@ -4,7 +4,7 @@
   else root.CAYMetricTrajectoryOutlierCleaner=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
-  const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const DEFAULT_MAX_SPEED_KMH=55;
   const DEFAULT_MAX_GAP_SEC=1;
   function transitionSpeedKmh(a,b){
