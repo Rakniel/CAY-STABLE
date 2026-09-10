@@ -6,6 +6,7 @@
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const positiveOptionOr=(value,fallback)=>finite(value)&&Number(value)>0?Number(value):fallback;
+  const nonNegativeOptionOr=(value,fallback)=>finite(value)&&Number(value)>=0?Number(value):fallback;
   const COEFF=[-3/35,12/35,17/35,12/35,-3/35];
 
   function usableWindow(points,index,maxGapSec,maxSpacingRatio,maxSpeedRatio,speedRatioFloorMps){
@@ -29,11 +30,15 @@
 
   function smoothSeries(points,options){
     const cfg={maxGapSec:1,maxSpacingRatio:1.35,maxSpeedRatio:2.5,speedRatioFloorMps:2,...(options||{})};
+    const maxGapSec=positiveOptionOr(cfg.maxGapSec,1);
+    const maxSpacingRatio=positiveOptionOr(cfg.maxSpacingRatio,1.35);
+    const maxSpeedRatio=positiveOptionOr(cfg.maxSpeedRatio,2.5);
+    const speedRatioFloorMps=nonNegativeOptionOr(cfg.speedRatioFloorMps,2);
     const src=Array.isArray(points)?points:[];
     let smoothedSamples=0;
     const out=src.map((p,i)=>{
       if(!p||!finite(p.x)||!finite(p.y)||!finite(p.time))return p?{...p}:null;
-      const w=usableWindow(src,i,cfg.maxGapSec,cfg.maxSpacingRatio,cfg.maxSpeedRatio,cfg.speedRatioFloorMps);
+      const w=usableWindow(src,i,maxGapSec,maxSpacingRatio,maxSpeedRatio,speedRatioFloorMps);
       if(!w)return {...p,smoothing:'RAW'};
       let x=0,y=0;
       for(let k=0;k<5;k++){x+=Number(w[k].x)*COEFF[k];y+=Number(w[k].y)*COEFF[k];}
