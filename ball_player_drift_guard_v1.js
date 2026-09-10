@@ -6,6 +6,7 @@
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
+  const configuredNonNegative=(v,fallback)=>finite(v)&&Number(v)>=0?Number(v):fallback;
   const idOf=p=>p?(p.id??p.trackId??p.playerId??p.globalId??null):null;
 
   function keyOf(ctx){const v=ctx?.segmentId??ctx?.segment??ctx?.shotId??ctx?.planId;return v===undefined||v===null?null:String(v);}
@@ -38,8 +39,8 @@
   function nearestPlayer(ball,players,cfg){
     const bp=ballPoint(ball);if(!bp)return null;
     const c=cfg||{};
-    const limit=bp.space==='pitch'?(finite(c.playerNearPitchM)?Number(c.playerNearPitchM):1.25):(finite(c.playerNearImage)?Number(c.playerNearImage):.055);
-    const ambiguityMargin=bp.space==='pitch'?(finite(c.ambiguityPitchM)?Math.max(0,Number(c.ambiguityPitchM)):.35):(finite(c.ambiguityImage)?Math.max(0,Number(c.ambiguityImage)):.012);
+    const limit=bp.space==='pitch'?configuredNonNegative(c.playerNearPitchM,1.25):configuredNonNegative(c.playerNearImage,.055);
+    const ambiguityMargin=bp.space==='pitch'?configuredNonNegative(c.ambiguityPitchM,.35):configuredNonNegative(c.ambiguityImage,.012);
     const candidates=[];
     for(const player of players||[]){
       if(player?.bench===true||player?.spectator===true||player?.onField===false)continue;
@@ -57,18 +58,26 @@
   }
   function create(options){
     const raw=options||{};
+    const minAttachedSec=configuredNonNegative(raw.minAttachedSec,.32);
+    const maxGapSec=configuredNonNegative(raw.maxGapSec,.25);
+    const playerNearPitchM=configuredNonNegative(raw.playerNearPitchM,1.25);
+    const playerNearImage=configuredNonNegative(raw.playerNearImage,.055);
+    const stableRelativePitchM=configuredNonNegative(raw.stableRelativePitchM,.42);
+    const stableRelativeImage=configuredNonNegative(raw.stableRelativeImage,.018);
+    const areaGrowthRatio=configuredNonNegative(raw.areaGrowthRatio,3.5);
+    const minEvidence=configuredNonNegative(raw.minEvidence,2);
     const cfg={
-      minAttachedSec:finite(raw.minAttachedSec)?Math.max(.1,Number(raw.minAttachedSec)):.32,
-      maxGapSec:finite(raw.maxGapSec)?Math.max(.05,Number(raw.maxGapSec)):.25,
-      playerNearPitchM:finite(raw.playerNearPitchM)?Math.max(.2,Number(raw.playerNearPitchM)):1.25,
-      playerNearImage:finite(raw.playerNearImage)?Math.max(.005,Number(raw.playerNearImage)):.055,
-      ambiguityPitchM:finite(raw.ambiguityPitchM)?Math.max(0,Number(raw.ambiguityPitchM)):.35,
-      ambiguityImage:finite(raw.ambiguityImage)?Math.max(0,Number(raw.ambiguityImage)):.012,
-      stableRelativePitchM:finite(raw.stableRelativePitchM)?Math.max(.05,Number(raw.stableRelativePitchM)):.42,
-      stableRelativeImage:finite(raw.stableRelativeImage)?Math.max(.002,Number(raw.stableRelativeImage)):.018,
-      lowConfidence:finite(raw.lowConfidence)?clamp01(raw.lowConfidence):.30,
-      areaGrowthRatio:finite(raw.areaGrowthRatio)?Math.max(1.2,Number(raw.areaGrowthRatio)):3.5,
-      minEvidence:finite(raw.minEvidence)?Math.max(2,Math.round(Number(raw.minEvidence))):2
+      minAttachedSec:Math.max(.1,minAttachedSec),
+      maxGapSec:Math.max(.05,maxGapSec),
+      playerNearPitchM:Math.max(.2,playerNearPitchM),
+      playerNearImage:Math.max(.005,playerNearImage),
+      ambiguityPitchM:configuredNonNegative(raw.ambiguityPitchM,.35),
+      ambiguityImage:configuredNonNegative(raw.ambiguityImage,.012),
+      stableRelativePitchM:Math.max(.05,stableRelativePitchM),
+      stableRelativeImage:Math.max(.002,stableRelativeImage),
+      lowConfidence:clamp01(configuredNonNegative(raw.lowConfidence,.30)),
+      areaGrowthRatio:Math.max(1.2,areaGrowthRatio),
+      minEvidence:Math.max(2,Math.round(minEvidence))
     };
     const state={lastTime:null,lastKey:null,attachment:null,baselineAreas:[],driftRejects:0,resets:0,ambiguousAssociations:0};
     function reset(reason){state.lastTime=null;state.lastKey=null;state.attachment=null;state.baselineAreas=[];state.resets++;return reason||'manual';}
