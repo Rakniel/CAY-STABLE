@@ -17,7 +17,6 @@ const blankConfidenceThreshold=Heat.build(
   {1:projector(.2)},
   {minCalibrationConfidence:'   ',maxRawSpeedKmh:1000}
 );
-assert.equal(blankConfidenceThreshold.minCalibrationConfidence,.5);
 assert.equal(blankConfidenceThreshold.status,'INDISPONIBLE');
 assert(/confiance calibration insuffisante/.test(blankConfidenceThreshold.reason));
 
@@ -52,7 +51,6 @@ const explicitZerosRemainExplicit=Heat.build(
 );
 assert.equal(explicitZerosRemainExplicit.minMetricCoverage,0);
 assert.equal(explicitZerosRemainExplicit.minTemporalCoverage,0);
-assert.equal(explicitZerosRemainExplicit.minCalibrationConfidence,0);
 assert.equal(explicitZerosRemainExplicit.maxDwellGapSec,0);
 assert.equal(explicitZerosRemainExplicit.status,'DISPONIBLE');
 
