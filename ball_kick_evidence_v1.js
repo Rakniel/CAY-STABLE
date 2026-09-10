@@ -5,6 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const configured=(value,fallback)=>finite(value)&&Number(value)>=0?Number(value):fallback;
   const round=(v,n=3)=>Number(Number(v).toFixed(n));
   const pointOf=o=>{
     if(!o)return null;
@@ -48,14 +49,14 @@
   }
   function validatePassKick(samples,event,options){
     const cfg={
-      windowSec:finite(options?.windowSec)?Number(options.windowSec):.55,
-      minBallConfidence:finite(options?.minBallConfidence)?Math.max(0,Math.min(1,Number(options.minBallConfidence))):.65,
-      minReleaseSpeedMps:finite(options?.minReleaseSpeedMps)?Number(options.minReleaseSpeedMps):3,
-      minSpeedGainMps:finite(options?.minSpeedGainMps)?Number(options.minSpeedGainMps):1.2,
-      minSeparationGainM:finite(options?.minSeparationGainM)?Number(options.minSeparationGainM):.8,
-      maxOwnerDistanceAtReleaseM:finite(options?.maxOwnerDistanceAtReleaseM)?Number(options.maxOwnerDistanceAtReleaseM):2.8,
-      minObservations:Math.max(3,Math.round(finite(options?.minObservations)?Number(options.minObservations):4)),
-      maxObservationGapSec:finite(options?.maxObservationGapSec)?Math.max(.001,Number(options.maxObservationGapSec)):.75
+      windowSec:configured(options?.windowSec,.55),
+      minBallConfidence:Math.min(1,configured(options?.minBallConfidence,.65)),
+      minReleaseSpeedMps:configured(options?.minReleaseSpeedMps,3),
+      minSpeedGainMps:configured(options?.minSpeedGainMps,1.2),
+      minSeparationGainM:configured(options?.minSeparationGainM,.8),
+      maxOwnerDistanceAtReleaseM:configured(options?.maxOwnerDistanceAtReleaseM,2.8),
+      minObservations:Math.max(3,Math.round(configured(options?.minObservations,4))),
+      maxObservationGapSec:Math.max(.001,configured(options?.maxObservationGapSec,.75))
     };
     if(!event||event.type!=='PASS'||!finite(event.time)||!finite(event.transitionSec)||event.fromPlayerId===undefined){
       return {status:'INDISPONIBLE',reason:'PASS_EVENT_METADATA_MISSING'};
