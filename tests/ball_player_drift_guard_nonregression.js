@@ -93,7 +93,7 @@ assert.strictEqual(r.reason,'AMBIGUOUS_NEAREST_PLAYERS');
 assert.strictEqual(r.associationAvailable,false);
 
 // Before hardening, playerNearPitchM:-1 shrank to .2 m and could miss a suspicious ball latched .5 m from a player.
-const latched=Drift.create({playerNearPitchM:-1,lowConfidence:-1,minAttachedSec:-1,minEvidence:2});
+const latched=Drift.create({playerNearPitchM:-1,lowConfidence:-1,minAttachedSec:-1,maxGapSec:.4,minEvidence:2});
 const pitchPlayer={id:'P9',pitchX:20,pitchY:20,onField:true};
 r=latched.evaluate({pitchX:20.5,pitchY:20,confidence:.1,propagated:true},[pitchPlayer],0,{segmentId:'L'});
 assert.strictEqual(r.status,'WATCH');
