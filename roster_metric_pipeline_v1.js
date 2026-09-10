@@ -31,7 +31,7 @@
     const input=Array.isArray(rows)?rows:[];
     const eligibleSeconds=sum(input,'eligibleSeconds');
     const metricCoveredSeconds=sum(input,'metricCoveredSeconds');
-    const distanceM=sum(input,'distanceM');
+    const distanceM=input.reduce((acc,row)=>acc+(finite(row?.metricCoveredSeconds)&&Number(row.metricCoveredSeconds)>0&&finite(row?.distanceM)?Number(row.distanceM):0),0);
     const sprintCountValues=input.filter(row=>finite(row?.sprintCount)).map(row=>Number(row.sprintCount));
     const sprintQualifiedValues=input.filter(row=>finite(row?.sprintQualifiedSeconds)).map(row=>Number(row.sprintQualifiedSeconds));
     const maxSpeedValues=input.filter(row=>finite(row?.maxSpeedKmh)).map(row=>Number(row.maxSpeedKmh));
@@ -61,7 +61,7 @@
       participationWindowCount:input.length,
       qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',
       speedSamplePolicy:'FENETRES_DE_PARTICIPATION_NAMESPACEES_POUR_INTERDIRE_TOUTE_CONTINUITE_ARTIFICIELLE_ENTRE_FENETRES',
-      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN'
+      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN; DISTANCE_REQUIRES_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW'
     };
   }
 
