@@ -4,7 +4,8 @@
   else root.CAYMetricHomographyProjector=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const EPS=1e-10;
-  const finitePoint=p=>p&&Number.isFinite(Number(p.x))&&Number.isFinite(Number(p.y));
+  const finiteScalar=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const finitePoint=p=>!!p&&finiteScalar(p.x)&&finiteScalar(p.y);
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
   function solveLinear(A,b){

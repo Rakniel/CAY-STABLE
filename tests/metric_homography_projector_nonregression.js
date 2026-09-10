@@ -53,6 +53,24 @@ const degenerate=h.createProjector({correspondences:[
 ok(degenerate.validated===false,'géométrie dégénérée refusée');
 ok(typeof h.buildHomography==='function'&&typeof h.createProjector==='function','API stable exposée');
 
+// Missing calibration evidence must never be coerced into numeric zero.
+for(const missing of [null,undefined,'','   ','\t']){
+  const badImage=correspondences.map((c,i)=>i===0?{image:{x:missing,y:c.image.y},pitch:{...c.pitch}}:{image:{...c.image},pitch:{...c.pitch}});
+  const fitImage=h.buildHomography(badImage);
+  ok(fitImage.ok===false&&/invalide/.test(fitImage.reason),`coordonnée image absente ${String(missing)} refusée`);
+  const badPitch=correspondences.map((c,i)=>i===1?{image:{...c.image},pitch:{x:c.pitch.x,y:missing}}:{image:{...c.image},pitch:{...c.pitch}});
+  const fitPitch=h.buildHomography(badPitch);
+  ok(fitPitch.ok===false&&/invalide/.test(fitPitch.reason),`coordonnée terrain absente ${String(missing)} refusée`);
+  ok(h.project(p.homography,{x:missing,y:.5})===null,`projection avec x absent ${String(missing)} refusée`);
+}
+const partialValidation=h.createProjector({correspondences,validationPoints:[
+  {image:{x:null,y:.5},pitch:{x:52.5,y:34}},
+  {image:{x:.3,y:.7},pitch:{x:26.25,y:51}}
+]});
+ok(partialValidation.validated===false,'un point de validation absent ne devient jamais x=0');
+ok(partialValidation.validation&&partialValidation.validation.count===1,'le point de validation absent est exclu du comptage');
+ok(partialValidation.reason.includes('validation indépendante insuffisante'),'moins de deux validations réelles ferme la calibration métrique');
+
 // Multi-point robust fit: five coherent, slightly noisy landmarks + one gross bad click.
 // The winning minimal hypothesis identifies the consensus; an all-inlier refit may only replace it when mean inlier error improves.
 const robust=[
