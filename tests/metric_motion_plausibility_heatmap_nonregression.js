@@ -18,6 +18,23 @@ assert.equal(Quality.splitRawSpikeRuns([
   {time:0,x:0,y:0},{time:1,x:20,y:0}
 ]).rejectedPairs,1,'quality guard must reuse the shared raw-motion veto');
 
+// Missing temporal evidence must never be coerced to t=0.
+assert.strictEqual(Motion.transitionSpeedKmh({time:null,x:0,y:0},{time:1,x:1,y:0}),null);
+assert.strictEqual(Motion.transitionSpeedKmh({time:'   ',x:0,y:0},{time:1,x:1,y:0}),null);
+assert.strictEqual(Motion.transitionSpeedKmh({time:-1,x:0,y:0},{time:'\t ',x:1,y:0}),null);
+const missingTimeSplit=Motion.splitRawSpikeRuns([
+  {time:null,x:0,y:0},
+  {time:1,x:1,y:0}
+]);
+assert.equal(missingTimeSplit.rejectedPairs,1);
+assert.deepStrictEqual(missingTimeSplit.runs.map(r=>r.length),[1,1]);
+const whitespaceTimeSplit=Motion.splitRawSpikeRuns([
+  {time:' ',x:0,y:0},
+  {time:1,x:1,y:0}
+]);
+assert.equal(whitespaceTimeSplit.rejectedPairs,1);
+assert.deepStrictEqual(whitespaceTimeSplit.runs.map(r=>r.length),[1,1]);
+
 const projector={validated:true,confidence:1,project:p=>({x:p.x,y:p.y})};
 const teleport=Heat.build({fullPath:[
   {time:0,segment:1,x:0,y:10},
