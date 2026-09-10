@@ -14,8 +14,8 @@
   }
   function clean(points,options){
     const cfg={maxSpeedKmh:DEFAULT_MAX_SPEED_KMH,maxGapSec:DEFAULT_MAX_GAP_SEC,...(options||{})};
-    const maxSpeedKmh=Number(cfg.maxSpeedKmh)>0?Number(cfg.maxSpeedKmh):DEFAULT_MAX_SPEED_KMH;
-    const maxGapSec=Number(cfg.maxGapSec)>0?Number(cfg.maxGapSec):DEFAULT_MAX_GAP_SEC;
+    const maxSpeedKmh=finite(cfg.maxSpeedKmh)&&Number(cfg.maxSpeedKmh)>0?Number(cfg.maxSpeedKmh):DEFAULT_MAX_SPEED_KMH;
+    const maxGapSec=finite(cfg.maxGapSec)&&Number(cfg.maxGapSec)>0?Number(cfg.maxGapSec):DEFAULT_MAX_GAP_SEC;
     const src=Array.isArray(points)?points:[],accepted=[],runs=[];let run=[],anchor=null,rejected=[];
     const flush=()=>{if(run.length){runs.push(run);run=[];}anchor=null;};
     src.forEach((p,index)=>{

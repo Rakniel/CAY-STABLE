@@ -46,4 +46,36 @@ assert.deepStrictEqual(Cleaner.pathDistance(whitespaceTimestamp),{distanceM:0,se
 assert.strictEqual(Cleaner.transitionSpeedKmh({x:0,y:0,time:0},{x:' ',y:0,time:.25}),null);
 assert.strictEqual(Cleaner.transitionSpeedKmh({x:0,y:0,time:0},{x:1,y:0,time:' '}),null);
 
-console.log('metric trajectory outlier cleaner non-regression: OK',JSON.stringify({baselineDistanceM:baselineDistance,cleanedDistanceM:Cleaner.pathDistance(cleaned).distanceM}));
+const nonFiniteSpeed=Cleaner.clean([
+  {x:0,y:0,time:0,segment:1},
+  {x:20,y:0,time:1,segment:1}
+],{maxSpeedKmh:Infinity});
+assert.strictEqual(nonFiniteSpeed.maxSpeedKmh,Cleaner.DEFAULT_MAX_SPEED_KMH);
+assert.strictEqual(nonFiniteSpeed.rejectedSamples,1);
+assert.deepStrictEqual(Cleaner.pathDistance(nonFiniteSpeed),{distanceM:0,seconds:0,pairs:0});
+
+const explicitHighSpeed=Cleaner.clean([
+  {x:0,y:0,time:0,segment:1},
+  {x:20,y:0,time:1,segment:1}
+],{maxSpeedKmh:100});
+assert.strictEqual(explicitHighSpeed.maxSpeedKmh,100);
+assert.strictEqual(explicitHighSpeed.rejectedSamples,0);
+assert.strictEqual(Cleaner.pathDistance(explicitHighSpeed).distanceM,20);
+
+const nonFiniteGap=Cleaner.clean([
+  {x:0,y:0,time:0,segment:1},
+  {x:1,y:0,time:5,segment:1}
+],{maxGapSec:Infinity});
+assert.strictEqual(nonFiniteGap.maxGapSec,Cleaner.DEFAULT_MAX_GAP_SEC);
+assert.strictEqual(nonFiniteGap.runs.length,2);
+assert.deepStrictEqual(Cleaner.pathDistance(nonFiniteGap),{distanceM:0,seconds:0,pairs:0});
+
+const explicitLongGap=Cleaner.clean([
+  {x:0,y:0,time:0,segment:1},
+  {x:1,y:0,time:5,segment:1}
+],{maxGapSec:10});
+assert.strictEqual(explicitLongGap.maxGapSec,10);
+assert.strictEqual(explicitLongGap.runs.length,1);
+assert.deepStrictEqual(Cleaner.pathDistance(explicitLongGap),{distanceM:1,seconds:5,pairs:1});
+
+console.log('metric trajectory outlier cleaner non-regression: OK',JSON.stringify({baselineDistanceM:baselineDistance,cleanedDistanceM:Cleaner.pathDistance(cleaned).distanceM,nonFiniteSpeedRejected:nonFiniteSpeed.rejectedSamples,nonFiniteGapRuns:nonFiniteGap.runs.length}));
