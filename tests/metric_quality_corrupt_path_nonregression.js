@@ -19,7 +19,7 @@ assert.equal(metric.metricCoveredSeconds,1,'the valid tail after the cut remains
 assert.equal(metric.distanceM,1,'no distance may bridge across the corrupt sample');
 assert.equal(metric.avgSpeedKmh,3.6);
 assert.equal(metric.sprintCount,0);
-assert.ok(metric.coveragePolicy.includes('ENTREES_TRAJECTOIRE_CORROMPUES'));
+assert.ok(metric.invalidPathPolicy.includes('ENTREE_TRAJECTOIRE_CORROMPUE'));
 
 // Missing segment and blank/non-finite time are structural samples and must fail closed.
 for(const bad of [
