@@ -56,6 +56,58 @@ assert.strictEqual(r.status,'WATCH');
 assert.strictEqual(r.associationAvailable,true);
 assert.strictEqual(r.playerId,'P1');
 
+// Invalid negative tuning must fail closed to STABLE defaults instead of weakening drift evidence.
+const hardened=Drift.create({
+  minAttachedSec:-1,
+  maxGapSec:-1,
+  playerNearPitchM:-1,
+  playerNearImage:-1,
+  ambiguityPitchM:-1,
+  ambiguityImage:-1,
+  stableRelativePitchM:-1,
+  stableRelativeImage:-1,
+  lowConfidence:-1,
+  areaGrowthRatio:-1,
+  minEvidence:-1
+});
+const hc=hardened.snapshot().config;
+assert.strictEqual(hc.minAttachedSec,.32);
+assert.strictEqual(hc.maxGapSec,.25);
+assert.strictEqual(hc.playerNearPitchM,1.25);
+assert.strictEqual(hc.playerNearImage,.055);
+assert.strictEqual(hc.ambiguityPitchM,.35);
+assert.strictEqual(hc.ambiguityImage,.012);
+assert.strictEqual(hc.stableRelativePitchM,.42);
+assert.strictEqual(hc.stableRelativeImage,.018);
+assert.strictEqual(hc.lowConfidence,.30);
+assert.strictEqual(hc.areaGrowthRatio,3.5);
+assert.strictEqual(hc.minEvidence,2);
+
+// Before hardening, ambiguityPitchM:-1 collapsed to 0 and would force a false nearest-player association.
+r=hardened.evaluate({pitchX:10,pitchY:10,confidence:.9,area:.001},[
+  {id:'P1',pitchX:10.20,pitchY:10,onField:true},
+  {id:'P2',pitchX:10.40,pitchY:10,onField:true}
+],0,{segmentId:'NEG'});
+assert.strictEqual(r.status,'CLEAR');
+assert.strictEqual(r.reason,'AMBIGUOUS_NEAREST_PLAYERS');
+assert.strictEqual(r.associationAvailable,false);
+
+// Before hardening, playerNearPitchM:-1 shrank to .2 m and could miss a suspicious ball latched .5 m from a player.
+const latched=Drift.create({playerNearPitchM:-1,lowConfidence:-1,minAttachedSec:-1,maxGapSec:.4,minEvidence:2});
+const pitchPlayer={id:'P9',pitchX:20,pitchY:20,onField:true};
+r=latched.evaluate({pitchX:20.5,pitchY:20,confidence:.1,propagated:true},[pitchPlayer],0,{segmentId:'L'});
+assert.strictEqual(r.status,'WATCH');
+r=latched.evaluate({pitchX:20.5,pitchY:20,confidence:.1,propagated:true},[pitchPlayer],.33,{segmentId:'L'});
+assert.strictEqual(r.status,'DRIFTED');
+assert.strictEqual(r.evidence.lowConfidence,true);
+assert.strictEqual(r.evidence.propagated,true);
+
+// Explicit zero remains respected only where zero is a meaningful defensive tuning value.
+const zeroes=Drift.create({ambiguityPitchM:0,ambiguityImage:0,lowConfidence:0});
+assert.strictEqual(zeroes.snapshot().config.ambiguityPitchM,0);
+assert.strictEqual(zeroes.snapshot().config.ambiguityImage,0);
+assert.strictEqual(zeroes.snapshot().config.lowConfidence,0);
+
 // Existing continuity selector must never re-select a candidate explicitly flagged as drifted.
 const continuity=Continuity.create({minConfidence:.35});
 const selected=continuity.select([
