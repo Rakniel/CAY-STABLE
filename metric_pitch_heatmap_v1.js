@@ -7,6 +7,7 @@
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const finiteOptionOr=(value,fallback)=>isPresentFinite(value)?Number(value):fallback;
+  const nonNegativeOptionOr=(value,fallback)=>isPresentFinite(value)&&Number(value)>=0?Number(value):fallback;
   const RAW_SPIKE_THRESHOLD_KMH=Number.isFinite(Number(Motion?.RAW_SPIKE_THRESHOLD_KMH))?Number(Motion.RAW_SPIKE_THRESHOLD_KMH):55;
   const qualityFromEvidenceScore=score=>isPresentFinite(score)?(Number(score)>=.8?'FIABLE':Number(score)>0?'PARTIEL':'INDISPONIBLE'):'INDISPONIBLE';
   function projectorInfo(entry){
@@ -119,10 +120,10 @@
     const rows=Math.max(1,Math.floor(Number(opts.rows)||4));
     const pitchLengthM=Math.max(1,Number(opts.pitchLengthM)||105);
     const pitchWidthM=Math.max(1,Number(opts.pitchWidthM)||68);
-    const minMetricCoverage=clamp(finiteOptionOr(opts.minMetricCoverage,.35),0,1);
-    const minTemporalCoverage=isPresentFinite(opts.minTemporalCoverage)?clamp(Number(opts.minTemporalCoverage),0,1):minMetricCoverage;
-    const minCalibrationConfidence=clamp(finiteOptionOr(opts.minCalibrationConfidence,.5),0,1);
-    const maxDwellGapSec=Math.max(0,finiteOptionOr(opts.maxDwellGapSec,1));
+    const minMetricCoverage=clamp(nonNegativeOptionOr(opts.minMetricCoverage,.35),0,1);
+    const minTemporalCoverage=isPresentFinite(opts.minTemporalCoverage)&&Number(opts.minTemporalCoverage)>=0?clamp(Number(opts.minTemporalCoverage),0,1):minMetricCoverage;
+    const minCalibrationConfidence=clamp(nonNegativeOptionOr(opts.minCalibrationConfidence,.5),0,1);
+    const maxDwellGapSec=nonNegativeOptionOr(opts.maxDwellGapSec,1);
     const maxRawSpeedKmh=isPresentFinite(opts.maxRawSpeedKmh)&&Number(opts.maxRawSpeedKmh)>0?Number(opts.maxRawSpeedKmh):RAW_SPIKE_THRESHOLD_KMH;
     const segmentInfos={};
     for(const p of path){
