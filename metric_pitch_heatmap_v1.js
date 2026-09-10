@@ -71,7 +71,7 @@
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<prepared.length;i++){
       const row=prepared[i],p=row?.p,q=row?.projected;
-      if(!p||!q||!Number.isFinite(Number(p.time))){flush();continue;}
+      if(!p||!q||!isPresentFinite(p.time)){flush();continue;}
       const point={time:+Number(p.time).toFixed(3),segment:Number(p.segment),x:+q.x.toFixed(3),y:+q.y.toFixed(3),calibrationConfidence:isPresentFinite(q.confidence)?+Number(q.confidence).toFixed(3):null};
       if(current.length){
         const prev=current[current.length-1],dt=point.time-prev.time;
@@ -144,12 +144,13 @@
       if(!projectedPoint){rejected++;prepared.push({p,projected:null});continue;}
       cells[projectedPoint.cy][projectedPoint.cx]++;projected++;
       if(isPresentFinite(projectedPoint.confidence)){confidenceSum+=Number(projectedPoint.confidence);confidenceKnown++;}
-      projectedPoints.push({time:Number.isFinite(Number(p.time))?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:isPresentFinite(projectedPoint.confidence)?+Number(projectedPoint.confidence).toFixed(3):null});
+      projectedPoints.push({time:isPresentFinite(p.time)?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:isPresentFinite(projectedPoint.confidence)?+Number(projectedPoint.confidence).toFixed(3):null});
       prepared.push({p,projected:projectedPoint});
     }
     for(let i=0;i+1<prepared.length;i++){
       const a=prepared[i],b=prepared[i+1];if(!a?.p||!b?.p)continue;
-      const ta=Number(a.p.time),tb=Number(b.p.time);if(!Number.isFinite(ta)||!Number.isFinite(tb)||tb<=ta)continue;
+      if(!isPresentFinite(a.p.time)||!isPresentFinite(b.p.time))continue;
+      const ta=Number(a.p.time),tb=Number(b.p.time);if(tb<=ta)continue;
       const dt=tb-ta;eligibleIntervalSeconds+=dt;
       if(Number(a.p.segment)!==Number(b.p.segment)){segmentBoundarySeconds+=dt;segmentBoundaryBreaks++;continue;}
       if(maxDwellGapSec>0&&dt>maxDwellGapSec){unobservedGapSeconds+=dt;gapBreaks++;continue;}
