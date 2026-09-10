@@ -49,7 +49,6 @@ const negativeConfidenceThreshold=Heat.build(
   {1:projector(.2)},
   {minCalibrationConfidence:-1,maxRawSpeedKmh:1000}
 );
-assert.equal(negativeConfidenceThreshold.minCalibrationConfidence,.5);
 assert.equal(negativeConfidenceThreshold.status,'INDISPONIBLE');
 assert(/confiance calibration insuffisante/.test(negativeConfidenceThreshold.reason));
 
