@@ -8,11 +8,15 @@ assert.strictEqual(Smoother.insidePitch({x:105,y:68}),true,'pitch far corner mus
 assert.strictEqual(Smoother.insidePitch({x:105.001,y:34}),false,'x beyond pitch length must be rejected');
 assert.strictEqual(Smoother.insidePitch({x:52.5,y:-0.001}),false,'negative y must be rejected');
 
+// Low-speed near-touchline drift: this is deliberately below all speed vetoes.
+// Without an explicit pitch-bound guard the two intervals would contribute 1.7 m.
 const source=[
-  {x:10,y:20,time:0,segment:0},
-  {x:106,y:20,time:1,segment:0},
-  {x:11,y:20,time:2,segment:0}
+  {x:104.5,y:20,time:0,segment:0},
+  {x:105.5,y:20,time:1,segment:0},
+  {x:104.8,y:20,time:2,segment:0}
 ];
+const legacyUnguardedDistance=Math.hypot(source[1].x-source[0].x,source[1].y-source[0].y)+Math.hypot(source[2].x-source[1].x,source[2].y-source[1].y);
+assert.strictEqual(+legacyUnguardedDistance.toFixed(2),1.7,'fixture must represent a plausible low-speed false distance before the pitch-bound guard');
 const smooth=Smoother.smoothSeries(source);
 assert.strictEqual(smooth.rejectedOutsidePitchSamples,1,'one out-of-pitch sample must be explicitly rejected');
 assert.strictEqual(smooth.points[1],null,'out-of-pitch sample must not reach metric consumers');
@@ -24,9 +28,9 @@ assert.strictEqual(distance.pairs,0,'no physical pair is valid in this adversari
 assert.strictEqual(distance.outsidePitchRejectedPairs,2,'both adjacent pairs touching the bad projection must be rejected');
 
 const track={fullPath:[
-  {x:.1,y:.2,time:0,segment:0,metricX:10,metricY:20},
-  {x:.2,y:.2,time:1,segment:0,metricX:106,metricY:20},
-  {x:.3,y:.2,time:2,segment:0,metricX:11,metricY:20}
+  {x:.1,y:.2,time:0,segment:0,metricX:104.5,metricY:20},
+  {x:.2,y:.2,time:1,segment:0,metricX:105.5,metricY:20},
+  {x:.3,y:.2,time:2,segment:0,metricX:104.8,metricY:20}
 ]};
 const projectors={0:{validated:true,confidence:.95,source:'TEST',project:p=>({x:p.metricX,y:p.metricY})}};
 const metric=PlayerStats.metricForTrack(track,projectors);
