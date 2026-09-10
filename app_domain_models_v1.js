@@ -89,25 +89,28 @@
     if(bench.some(x=>inactiveIds.has(x)))errors.push('INACTIVE_PLAYER_MATCH_BENCH');
     return {valid:errors.length===0,errors,maxActive:11};
   }
+  function normalizeSubstitutionEvent(event={}){
+    if(!presentFinite(event.atMs)||Number(event.atMs)<0)throw new Error('SUBSTITUTION_INVALID_TIME');
+    return {outPlayerId:String(event.outPlayerId),inPlayerId:String(event.inPlayerId),atMs:Number(event.atMs),reason:clean(event.reason)||'UNKNOWN'};
+  }
   function createMatchState(team,raw={}){
     const activePlayerIds=Array.isArray(raw.activePlayerIds)?raw.activePlayerIds.map(String):(team.defaultLineup||[]).map(String);
     const benchPlayerIds=Array.isArray(raw.benchPlayerIds)?raw.benchPlayerIds.map(String):(team.bench||[]).map(String);
     const validation=validateMatchParticipants(team,activePlayerIds,benchPlayerIds);
     if(!validation.valid)throw new Error(`INVALID_MATCH_STATE:${validation.errors.join(',')}`);
-    const substitutions=Array.isArray(raw.substitutions)?raw.substitutions.map(event=>({
-      outPlayerId:String(event.outPlayerId),inPlayerId:String(event.inPlayerId),atMs:Number(event.atMs),reason:clean(event.reason)||'UNKNOWN'
-    })):[];
+    const substitutions=Array.isArray(raw.substitutions)?raw.substitutions.map(normalizeSubstitutionEvent):[];
     return {teamId:String(team.id),activePlayerIds,benchPlayerIds,substitutions,source:'ROSTER_MATCH_STATE_V1'};
   }
   function applySubstitution(team,state,raw={}){
     const current=createMatchState(team,state||{});
     const outPlayerId=clean(raw.outPlayerId),inPlayerId=clean(raw.inPlayerId);
+    if(!presentFinite(raw.atMs))throw new Error('SUBSTITUTION_INVALID_TIME');
     const atMs=Number(raw.atMs);
     if(!outPlayerId||!inPlayerId)throw new Error('SUBSTITUTION_PLAYER_REQUIRED');
     if(outPlayerId===inPlayerId)throw new Error('SUBSTITUTION_SAME_PLAYER');
     if(!current.activePlayerIds.includes(outPlayerId))throw new Error('SUBSTITUTION_OUT_NOT_ACTIVE');
     if(!current.benchPlayerIds.includes(inPlayerId))throw new Error('SUBSTITUTION_IN_NOT_BENCH');
-    if(!Number.isFinite(atMs)||atMs<0)throw new Error('SUBSTITUTION_INVALID_TIME');
+    if(atMs<0)throw new Error('SUBSTITUTION_INVALID_TIME');
     const last=current.substitutions[current.substitutions.length-1];
     if(last&&Number.isFinite(last.atMs)&&atMs<last.atMs)throw new Error('SUBSTITUTION_TIME_REGRESSION');
     const activePlayerIds=current.activePlayerIds.map(playerId=>playerId===outPlayerId?inPlayerId:playerId);
@@ -120,7 +123,7 @@
   function deriveParticipationWindows(team,state,analysisEndMs=null){
     const current=createMatchState(team,state||{});
     const events=current.substitutions.slice();
-    for(let i=1;i<events.length;i++)if(!Number.isFinite(events[i].atMs)||events[i].atMs<events[i-1].atMs)throw new Error('SUBSTITUTION_TIME_REGRESSION');
+    for(let i=1;i<events.length;i++)if(!presentFinite(events[i].atMs)||events[i].atMs<events[i-1].atMs)throw new Error('SUBSTITUTION_TIME_REGRESSION');
     let initialActive=current.activePlayerIds.slice(),initialBench=current.benchPlayerIds.slice();
     for(let i=events.length-1;i>=0;i--){
       const event=events[i],outId=String(event.outPlayerId),inId=String(event.inPlayerId);
@@ -134,8 +137,9 @@
     const open=new Map(initialActive.map(playerId=>[String(playerId),0]));
     let active=initialActive.slice(),bench=initialBench.slice();
     for(const event of events){
+      if(!presentFinite(event.atMs))throw new Error('SUBSTITUTION_INVALID_TIME');
       const atMs=Number(event.atMs),outId=String(event.outPlayerId),inId=String(event.inPlayerId);
-      if(!Number.isFinite(atMs)||atMs<0)throw new Error('SUBSTITUTION_INVALID_TIME');
+      if(atMs<0)throw new Error('SUBSTITUTION_INVALID_TIME');
       if(!active.includes(outId)||!bench.includes(inId))throw new Error('SUBSTITUTION_HISTORY_INCONSISTENT');
       const start=open.get(outId);
       if(!Number.isFinite(start))throw new Error('SUBSTITUTION_OUT_WITHOUT_OPEN_WINDOW');
@@ -144,21 +148,24 @@
       active=active.map(playerId=>playerId===outId?inId:playerId);
       bench=bench.filter(playerId=>playerId!==inId).concat(outId);
     }
-    const finiteEnd=Number.isFinite(Number(analysisEndMs))&&Number(analysisEndMs)>=0?Number(analysisEndMs):null;
+    const finiteEnd=presentFinite(analysisEndMs)&&Number(analysisEndMs)>=0?Number(analysisEndMs):null;
     for(const [playerId,startMs] of open.entries())windows.get(playerId).push({startMs,endMs:finiteEnd});
     const byPlayerId={};
     for(const [playerId,intervals] of windows.entries())byPlayerId[playerId]=intervals;
     return {teamId:String(team.id),byPlayerId,initialActivePlayerIds:initialActive,finalActivePlayerIds:active,analysisEndMs:finiteEnd,substitutionCount:events.length,boundaryPolicy:'HALF_OPEN_SUBSTITUTION_WINDOWS_[START,END)',source:'ROSTER_PARTICIPATION_WINDOWS_V1'};
   }
   function participationIntervalContains(interval,atMs){
-    const time=Number(atMs),start=Number(interval?.startMs);
-    if(!Number.isFinite(time)||!Number.isFinite(start)||time<start)return false;
+    if(!presentFinite(atMs)||!presentFinite(interval?.startMs))return false;
+    const time=Number(atMs),start=Number(interval.startMs);
+    if(time<start)return false;
     if(interval?.endMs===null||interval?.endMs===undefined)return true;
+    if(!presentFinite(interval.endMs))return false;
     const end=Number(interval.endMs);
-    return Number.isFinite(end)&&time<end;
+    return time<end;
   }
   function isPlayerActiveAt(participation,playerId,atMs){
-    const time=Number(atMs);if(!participation||!Number.isFinite(time))return false;
+    if(!participation||!presentFinite(atMs))return false;
+    const time=Number(atMs);
     const intervals=participation.byPlayerId&&participation.byPlayerId[String(playerId)];
     return Array.isArray(intervals)&&intervals.some(interval=>participationIntervalContains(interval,time));
   }
