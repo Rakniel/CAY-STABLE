@@ -1,7 +1,7 @@
 const assert=require('assert');
 const Stats=require('../player_stats_v1.js');
 const projectors={1:{validated:true,confidence:.95,source:'test',project:p=>({x:p.mx,y:p.my})}};
-const jitterTrack={fullPath:Array.from({length:7},(_,i)=>({x:.1+i*.01,y:.5,time:i,segment:1,mx:i,my:i%2?-.3:.3}))};
+const jitterTrack={fullPath:Array.from({length:7},(_,i)=>({x:.1+i*.01,y:.5,time:i,segment:1,mx:i,my:i%2?33.7:34.3}))};
 const jitter=Stats.metricForTrack(jitterTrack,projectors);
 assert.strictEqual(jitter.metricCoverage,1);
 assert.ok(jitter.smoothingSamples>=3,'metric path should use the smoother');

@@ -1,6 +1,6 @@
 const assert=require('assert');
 const S=require('../metric_trajectory_smoother_v1.js');
-const jitter=Array.from({length:7},(_,i)=>({x:i,y:i%2?-.3:.3,time:i,segment:1}));
+const jitter=Array.from({length:7},(_,i)=>({x:i,y:i%2?33.7:34.3,time:i,segment:1}));
 const raw=S.pathDistance(jitter);
 const sm=S.smoothSeries(jitter);
 const smoothDistance=S.pathDistance(sm.points);
