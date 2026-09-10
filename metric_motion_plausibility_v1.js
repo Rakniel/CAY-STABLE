@@ -8,8 +8,9 @@
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const distanceM=(a,b)=>Math.hypot(Number(b?.x)-Number(a?.x),Number(b?.y)-Number(a?.y));
   function transitionSpeedKmh(a,b){
-    const dt=Number(b?.time)-Number(a?.time);
-    if(!(dt>0)||!finite(a?.x)||!finite(a?.y)||!finite(b?.x)||!finite(b?.y))return null;
+    if(!finite(a?.time)||!finite(b?.time)||!finite(a?.x)||!finite(a?.y)||!finite(b?.x)||!finite(b?.y))return null;
+    const dt=Number(b.time)-Number(a.time);
+    if(!(dt>0))return null;
     const d=distanceM(a,b);
     return finite(d)?(d/dt)*3.6:null;
   }
