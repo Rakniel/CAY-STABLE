@@ -148,7 +148,13 @@
       active=active.map(playerId=>playerId===outId?inId:playerId);
       bench=bench.filter(playerId=>playerId!==inId).concat(outId);
     }
-    const finiteEnd=presentFinite(analysisEndMs)&&Number(analysisEndMs)>=0?Number(analysisEndMs):null;
+    const hasAnalysisEnd=analysisEndMs!==null&&analysisEndMs!==undefined&&!(typeof analysisEndMs==='string'&&analysisEndMs.trim()==='');
+    if(hasAnalysisEnd&&!presentFinite(analysisEndMs))throw new Error('ANALYSIS_END_INVALID');
+    const finiteEnd=hasAnalysisEnd?Number(analysisEndMs):null;
+    if(finiteEnd!==null&&finiteEnd<0)throw new Error('ANALYSIS_END_INVALID');
+    if(finiteEnd!==null){
+      for(const startMs of open.values())if(finiteEnd<startMs)throw new Error('ANALYSIS_END_BEFORE_PARTICIPATION_START');
+    }
     for(const [playerId,startMs] of open.entries())windows.get(playerId).push({startMs,endMs:finiteEnd});
     const byPlayerId={};
     for(const [playerId,intervals] of windows.entries())byPlayerId[playerId]=intervals;
