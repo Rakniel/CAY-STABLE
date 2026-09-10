@@ -11,6 +11,21 @@ eq(initial.activePlayerIds,team.defaultLineup,'match starts from configured XI')
 eq(initial.benchPlayerIds,team.bench,'match starts from configured bench');
 ok(initial.activePlayerIds.length===11,'never more than 11 active players');
 ok(app.validateMatchParticipants(team,initial.activePlayerIds,initial.benchPlayerIds).valid,'initial match state valid');
+const openParticipation=app.deriveParticipationWindows(team,initial);
+eq(openParticipation.analysisEndMs,null,'missing analysis end stays open-ended instead of coercing to kickoff');
+eq(openParticipation.byPlayerId['1'],[{startMs:0,endMs:null}],'active player keeps an open participation window when analysis end is absent');
+ok(app.isPlayerActiveAt(openParticipation,'1',1000),'open participation remains queryable after kickoff');
+for(const missingTime of [null,undefined,'','   ','\t']){
+  let invalidApply=false;
+  try{app.applySubstitution(team,initial,{outPlayerId:'5',inPlayerId:'12',atMs:missingTime});}catch(e){invalidApply=e.message==='SUBSTITUTION_INVALID_TIME';}
+  ok(invalidApply,`missing substitution time ${JSON.stringify(missingTime)} is rejected instead of becoming 0ms`);
+}
+let invalidStored=false;
+try{app.createMatchState(team,{activePlayerIds:initial.activePlayerIds,benchPlayerIds:initial.benchPlayerIds,substitutions:[{outPlayerId:'5',inPlayerId:'12',atMs:null}]});}catch(e){invalidStored=e.message==='SUBSTITUTION_INVALID_TIME';}
+ok(invalidStored,'stored substitution with missing timestamp is rejected before participation reconstruction');
+ok(!app.isPlayerActiveAt(openParticipation,'1',null),'null participation query never aliases kickoff');
+ok(!app.isPlayerActiveAt(openParticipation,'1','   '),'blank participation query never aliases kickoff');
+ok(app.isPlayerActiveAt(openParticipation,'1',0),'real numeric kickoff timestamp remains valid');
 const after=app.applySubstitution(team,initial,{outPlayerId:'5',inPlayerId:'12',atMs:1800000,reason:'TACTICAL'});
 ok(after.activePlayerIds.includes('12'),'incoming substitute becomes active');
 ok(!after.activePlayerIds.includes('5'),'outgoing player leaves active XI');
