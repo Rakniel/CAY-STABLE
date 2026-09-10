@@ -47,6 +47,18 @@ assert.strictEqual(blackoutDistance.gapRejectedSeconds,4.5);
 assert.strictEqual(blackoutDistance.maxGapSec,1);
 assert.match(blackoutDistance.policy,/GAP_TEMPOREL/);
 
+// Invalid overrides must fail closed to the STABLE 1s blackout guard, never disable it.
+for(const invalidGap of [-1,0,'','   ',null,undefined,NaN,Infinity]){
+  const guarded=S.pathDistance(blackout,{maxGapSec:invalidGap});
+  assert.strictEqual(guarded.maxGapSec,1,`invalid maxGapSec ${String(invalidGap)} must restore the STABLE default`);
+  assert.strictEqual(guarded.distanceM,2,`invalid maxGapSec ${String(invalidGap)} must not invent blackout travel`);
+  assert.strictEqual(guarded.gapRejectedPairs,1,`invalid maxGapSec ${String(invalidGap)} must keep the blackout cut`);
+}
+const explicitGap=S.pathDistance(blackout,{maxGapSec:5});
+assert.strictEqual(explicitGap.maxGapSec,5,'a valid positive override remains supported');
+assert.strictEqual(explicitGap.gapRejectedPairs,0,'a valid wider gap may intentionally include that interval');
+assert.strictEqual(explicitGap.distanceM,32,'valid override behavior remains explicit and auditable');
+
 // Blank coordinate/time strings are missing evidence, never numeric zero.
 const blankCoordinate=S.pathDistance([
  {x:0,y:0,time:0,segment:1},
