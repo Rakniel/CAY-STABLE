@@ -26,4 +26,24 @@ assert.strictEqual(temporalGap.runs.length,2);
 const invalid=Cleaner.clean([{x:0,y:0,time:0,segment:1},null,{x:1,y:0,time:.5,segment:1}],{});
 assert.strictEqual(invalid.runs.length,2);
 
+const whitespaceCoordinate=Cleaner.clean([
+  {x:0,y:0,time:0,segment:1},
+  {x:'   ',y:0,time:.25,segment:1},
+  {x:1,y:0,time:.5,segment:1}
+],{});
+assert.strictEqual(whitespaceCoordinate.acceptedSamples,2);
+assert.strictEqual(whitespaceCoordinate.runs.length,2);
+assert.deepStrictEqual(Cleaner.pathDistance(whitespaceCoordinate),{distanceM:0,seconds:0,pairs:0});
+
+const whitespaceTimestamp=Cleaner.clean([
+  {x:0,y:0,time:0,segment:1},
+  {x:.5,y:0,time:'\t ',segment:1},
+  {x:1,y:0,time:.5,segment:1}
+],{});
+assert.strictEqual(whitespaceTimestamp.acceptedSamples,2);
+assert.strictEqual(whitespaceTimestamp.runs.length,2);
+assert.deepStrictEqual(Cleaner.pathDistance(whitespaceTimestamp),{distanceM:0,seconds:0,pairs:0});
+assert.strictEqual(Cleaner.transitionSpeedKmh({x:0,y:0,time:0},{x:' ',y:0,time:.25}),null);
+assert.strictEqual(Cleaner.transitionSpeedKmh({x:0,y:0,time:0},{x:1,y:0,time:' '}),null);
+
 console.log('metric trajectory outlier cleaner non-regression: OK',JSON.stringify({baselineDistanceM:baselineDistance,cleanedDistanceM:Cleaner.pathDistance(cleaned).distanceM}));
