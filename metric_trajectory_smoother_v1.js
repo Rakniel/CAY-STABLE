@@ -5,6 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const positiveOptionOr=(value,fallback)=>finite(value)&&Number(value)>0?Number(value):fallback;
   const COEFF=[-3/35,12/35,17/35,12/35,-3/35];
 
   function usableWindow(points,index,maxGapSec,maxSpacingRatio,maxSpeedRatio,speedRatioFloorMps){
@@ -52,13 +53,13 @@
 
   function pathDistance(points,options){
     const cfg={maxGapSec:1,...(options||{})};
-    const maxGapSec=Math.max(0,Number(cfg.maxGapSec)||0);
+    const maxGapSec=positiveOptionOr(cfg.maxGapSec,1);
     let distance=0,seconds=0,pairs=0,gapRejectedPairs=0,gapRejectedSeconds=0;
     for(let i=1;i<(points||[]).length;i++){
       const a=points[i-1],b=points[i];
       if(!a||!b||a.segment!==b.segment||![a.x,a.y,b.x,b.y,a.time,b.time].every(finite))continue;
       const dt=Number(b.time)-Number(a.time);if(!(dt>0))continue;
-      if(maxGapSec>0&&dt>maxGapSec){gapRejectedPairs++;gapRejectedSeconds+=dt;continue;}
+      if(dt>maxGapSec){gapRejectedPairs++;gapRejectedSeconds+=dt;continue;}
       distance+=Math.hypot(Number(b.x)-Number(a.x),Number(b.y)-Number(a.y));seconds+=dt;pairs++;
     }
     return {
