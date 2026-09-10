@@ -50,4 +50,13 @@ assert.strictEqual(r.index,0,'constant-velocity motion anchor must prefer the mo
 assert.strictEqual(r.motionAnchor,'constant_velocity_prediction');
 assert.ok(r.distanceToMotionAnchor<0.001,'uniform motion should land on the predicted ball position');
 assert.ok(r.distanceToRecentCentroid>2,'legacy centroid remains exposed for audit and is measurably behind');
+
+const negative=create({minConfidence:-1,maxGapSec:-1,maxPitchJumpM:-1,maxImageJump:-1,confidenceWeight:-1});
+assert.deepStrictEqual(negative.snapshot().config,{bufferSize:8,minConfidence:.35,maxGapSec:.65,maxPitchJumpM:12,maxImageJump:.22,confidenceWeight:.20},'negative continuity thresholds must fall back to STABLE defaults');
+assert.strictEqual(negative.select([ball(1,1,.1)],0,{segmentId:'NEG'}).status,'UNAVAILABLE','negative minConfidence must not admit weak ball detections');
+assert.strictEqual(negative.select([ball(0,0,.9)],.1,{segmentId:'NEG'}).status,'SELECTED');
+assert.strictEqual(negative.select([ball(1,0,.9)],.2,{segmentId:'NEG'}).status,'SELECTED','negative jump thresholds must not destroy valid short-range continuity');
+
+const zero=create({minConfidence:0,maxGapSec:0,maxPitchJumpM:0,maxImageJump:0,confidenceWeight:0});
+assert.deepStrictEqual(zero.snapshot().config,{bufferSize:8,minConfidence:0,maxGapSec:0,maxPitchJumpM:0,maxImageJump:0,confidenceWeight:0},'explicit zero thresholds must remain explicit');
 console.log('ball_candidate_continuity_nonregression: PASS');

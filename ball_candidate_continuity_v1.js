@@ -5,6 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const nonNegative=(v,fallback)=>finite(v)&&Number(v)>=0?Number(v):fallback;
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
 
   function pointOf(d){
@@ -24,11 +25,11 @@
     const raw=options||{};
     const cfg={
       bufferSize:Math.max(2,Math.round(finite(raw.bufferSize)?Number(raw.bufferSize):8)),
-      minConfidence:finite(raw.minConfidence)?Number(raw.minConfidence):.35,
-      maxGapSec:finite(raw.maxGapSec)?Number(raw.maxGapSec):.65,
-      maxPitchJumpM:finite(raw.maxPitchJumpM)?Number(raw.maxPitchJumpM):12,
-      maxImageJump:finite(raw.maxImageJump)?Number(raw.maxImageJump):.22,
-      confidenceWeight:finite(raw.confidenceWeight)?Number(raw.confidenceWeight):.20
+      minConfidence:nonNegative(raw.minConfidence,.35),
+      maxGapSec:nonNegative(raw.maxGapSec,.65),
+      maxPitchJumpM:nonNegative(raw.maxPitchJumpM,12),
+      maxImageJump:nonNegative(raw.maxImageJump,.22),
+      confidenceWeight:nonNegative(raw.confidenceWeight,.20)
     };
     const state={history:[],lastTime:null,lastObservedTime:null,lastKey:null,resets:0,rejections:0,selections:0};
 
