@@ -44,6 +44,35 @@ assert.equal(blankCoverageThreshold.minMetricCoverage,.35);
 assert.equal(blankCoverageThreshold.minTemporalCoverage,.35);
 assert.equal(blankCoverageThreshold.status,'DISPONIBLE');
 
+const negativeConfidenceThreshold=Heat.build(
+  weakCalibrationTrack,
+  {1:projector(.2)},
+  {minCalibrationConfidence:-1,maxRawSpeedKmh:1000}
+);
+assert.equal(negativeConfidenceThreshold.minCalibrationConfidence,.5);
+assert.equal(negativeConfidenceThreshold.status,'INDISPONIBLE');
+assert(/confiance calibration insuffisante/.test(negativeConfidenceThreshold.reason));
+
+const negativeGapThreshold=Heat.build(
+  longGapTrack,
+  {1:projector(1)},
+  {maxDwellGapSec:-1,maxRawSpeedKmh:1000}
+);
+assert.equal(negativeGapThreshold.maxDwellGapSec,1);
+assert.equal(negativeGapThreshold.projectedIntervalSeconds,0);
+assert.equal(negativeGapThreshold.unobservedGapSeconds,5);
+assert.equal(negativeGapThreshold.gapBreaks,1);
+assert.equal(negativeGapThreshold.status,'INDISPONIBLE');
+
+const negativeCoverageThresholds=Heat.build(
+  weakCalibrationTrack,
+  {1:projector(1)},
+  {minMetricCoverage:-1,minTemporalCoverage:-1,maxRawSpeedKmh:1000}
+);
+assert.equal(negativeCoverageThresholds.minMetricCoverage,.35);
+assert.equal(negativeCoverageThresholds.minTemporalCoverage,.35);
+assert.equal(negativeCoverageThresholds.status,'DISPONIBLE');
+
 const explicitZerosRemainExplicit=Heat.build(
   longGapTrack,
   {1:projector(.2)},
