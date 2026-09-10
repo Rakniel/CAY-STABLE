@@ -40,7 +40,7 @@ const sample=(time,visible=true)=>({
     minCoverage:0
   });
   assert.equal(r.thresholds.minStableOwnershipSec,.30);
-  assert.equal(r.thresholds.minOpponentStableOwnershipSec,.4);
+  assert(Math.abs(r.thresholds.minOpponentStableOwnershipSec-.4)<1e-12);
   assert.equal(r.thresholds.minPassTravelM,3);
   assert.equal(r.thresholds.minPassMeanSpeedMps,2.5);
   assert.equal(r.thresholds.minPassDetachedObservations,2);
