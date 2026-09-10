@@ -59,7 +59,7 @@
     let eligibleDt=0,metricDt=0,distanceM=0,rawDistanceM=0,maxSpeedKmh=0,sprintCount=0,sprintQualifiedSeconds=0,rejectedGapSeconds=0,gapBreaks=0,rejectedRawSpikePairs=0,smoothingPairs=0;const speeds=[];const SPRINT_THRESHOLD_KMH=25,MIN_SPRINT_SECONDS=1;let sprintDuration=0,sprintCounted=false;
     const breakSprintContinuity=()=>{sprintDuration=0;sprintCounted=false;};
     for(let i=1;i<path.length;i++){
-      const a=path[i-1],b=path[i];if(a.segment!==b.segment){breakSprintContinuity();continue;}const dt=b.time-a.time;if(!(dt>0)){breakSprintContinuity();continue;}eligibleDt+=dt;if(dt>MAX_METRIC_GAP_SEC){rejectedGapSeconds+=dt;gapBreaks++;breakSprintContinuity();continue;}
+      const a=path[i-1],b=path[i];if(a.segment!==b.segment){breakSprintContinuity();continue;}if(!presentFinite(a.time)||!presentFinite(b.time)){breakSprintContinuity();continue;}const dt=Number(b.time)-Number(a.time);if(!(dt>0)){breakSprintContinuity();continue;}eligibleDt+=dt;if(dt>MAX_METRIC_GAP_SEC){rejectedGapSeconds+=dt;gapBreaks++;breakSprintContinuity();continue;}
       const ra=rawProjected[i-1],rb=rawProjected[i],pa=projected[i-1],pb=projected[i];if(!ra||!rb||!pa||!pb){breakSprintContinuity();continue;}
       const rawD=hypot(ra,rb),d=hypot(pa,pb);if(!Number.isFinite(rawD)||!Number.isFinite(d)||rawD<0||d<0){breakSprintContinuity();continue;}
       const rawSpeedKmh=(rawD/dt)*3.6,speedKmh=(d/dt)*3.6;
