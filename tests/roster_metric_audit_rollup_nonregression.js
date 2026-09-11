@@ -35,8 +35,24 @@ assert.equal(audit.summary.activeCauseCount,9);
 assert.deepStrictEqual(audit.summary.topCauses.map(row=>row.key),['projectionAffected','invalidPath','outsidePitch'],'summary must rank by affected seconds then events without summing overlapping evidence');
 assert.deepStrictEqual(audit.summary.topCauses[0],{key:'projectionAffected',label:'temps affecté par la projection',seconds:6,events:4,samples:0,intervals:4,pairs:0});
 assert.match(audit.summary.policy,/NON_ADDITIF/);
+const causalReason=Audit.causalReason(audit.summary);
+assert.match(causalReason,/non additives/i);
+assert.match(causalReason,/temps affecté par la projection \(6 s, 4 événement\(s\)\)/i);
+assert.match(causalReason,/trajectoire invalide \(3\.5 s, 3 événement\(s\)\)/i);
+assert.match(causalReason,/projection hors terrain \(3\.5 s, 3 événement\(s\)\)/i);
+assert.doesNotMatch(causalReason,/total/i,'overlapping causes must not be presented as one total');
 
-const baseMetric={distanceM:10,metricCoverage:.5,quality:'PARTIEL'};
+const baseMetric={
+  distanceM:10,metricCoverage:.5,quality:'PARTIEL',
+  publication:{
+    fieldStatus:{
+      distanceM:{status:'INDISPONIBLE',reason:'confiance calibration insuffisante'},
+      avgSpeedKmh:{status:'INDISPONIBLE',reason:'couverture vitesse insuffisante'},
+      sprintCount:{status:'FIABLE',reason:null}
+    },
+    policy:'PUBLICATION_FAIL_CLOSED'
+  }
+};
 const augmented=Audit.augmentMetric(baseMetric,windows);
 assert.equal(augmented.distanceM,10,'audit rollup must not recalculate or change physical values');
 assert.equal(augmented.metricCoverage,.5,'audit rollup must not change metric coverage');
@@ -44,6 +60,18 @@ assert.equal(augmented.rejectedProjectionSeconds,6);
 assert.equal(augmented.rejectedOutsidePitchSeconds,3.5);
 assert.equal(augmented.audit.byCause.invalidPath.samples,3);
 assert.equal(augmented.audit.summary.topCauses[0].key,'projectionAffected');
+assert.match(augmented.diagnosticReason,/temps affecté par la projection/i);
+assert.match(augmented.publication.fieldStatus.distanceM.reason,/confiance calibration insuffisante/i,'existing publication reason must be preserved');
+assert.match(augmented.publication.fieldStatus.distanceM.reason,/Causes principales auditées/i,'unavailable metric should receive the already-computed causal explanation used by player cards');
+assert.match(augmented.publication.fieldStatus.avgSpeedKmh.reason,/Causes principales auditées/i);
+assert.deepStrictEqual(augmented.publication.fieldStatus.sprintCount,baseMetric.publication.fieldStatus.sprintCount,'available fields must not be rewritten by diagnostics');
+assert.equal(augmented.publication.policy,'PUBLICATION_FAIL_CLOSED','publication policy must remain unchanged');
+assert.equal(augmented.publication.causalAudit.activeCauseCount,9);
+assert.match(augmented.publication.causalAudit.policy,/NE_MODIFIE_JAMAIS/);
+
+const noAuditReason=Audit.augmentMetric({publication:{fieldStatus:{distanceM:{status:'INDISPONIBLE',reason:'preuve absente'}}}},[]);
+assert.equal(noAuditReason.publication.fieldStatus.distanceM.reason,'preuve absente','empty audit must not fabricate a causal explanation');
+assert.equal(noAuditReason.diagnosticReason,null);
 
 const unavailable=Audit.augmentResult({status:'INDISPONIBLE',metric:null,windows});
 assert.equal(unavailable.status,'INDISPONIBLE','audit must never promote availability');

@@ -7,7 +7,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Pipeline){
   'use strict';
 
-  const VERSION='CAY_ROSTER_METRIC_AUDIT_ROLLUP_V1_1';
+  const VERSION='CAY_ROSTER_METRIC_AUDIT_ROLLUP_V1_2';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const round=(value,digits=3)=>+Number(value||0).toFixed(digits);
   const metricRows=windows=>(Array.isArray(windows)?windows:[]).map(window=>window&&window.metric?window.metric:window).filter(row=>row&&typeof row==='object');
@@ -64,6 +64,34 @@
     };
   }
 
+  function causalReason(summary){
+    const top=Array.isArray(summary?.topCauses)?summary.topCauses:[];
+    if(!top.length)return null;
+    const text=top.map(row=>{
+      const evidence=[];
+      if(finite(row?.seconds)&&Number(row.seconds)>0)evidence.push(`${round(row.seconds)} s`);
+      if(finite(row?.events)&&Number(row.events)>0)evidence.push(`${Math.round(Number(row.events))} événement(s)`);
+      return `${String(row?.label||row?.key||'cause auditée')}${evidence.length?` (${evidence.join(', ')})`:''}`;
+    }).join(' ; ');
+    return `Causes principales auditées (non additives) : ${text}.`;
+  }
+
+  function augmentPublication(publication,audit){
+    if(!publication||typeof publication!=='object')return publication;
+    const reason=causalReason(audit?.summary);
+    if(!reason||!publication.fieldStatus||typeof publication.fieldStatus!=='object')return publication;
+    const fieldStatus={};
+    for(const [key,value] of Object.entries(publication.fieldStatus)){
+      if(!value||typeof value!=='object'||value.status!=='INDISPONIBLE'){
+        fieldStatus[key]=value;
+        continue;
+      }
+      const existing=String(value.reason||'preuve spécifique insuffisante pour cette métrique').trim();
+      fieldStatus[key]={...value,reason:existing.includes(reason)?existing:`${existing} • ${reason}`};
+    }
+    return {...publication,fieldStatus,causalAudit:{...audit.summary,reason,policy:'INFORMATION_DIAGNOSTIQUE_UNIQUEMENT; NE_MODIFIE_JAMAIS_LA_DISPONIBILITE_OU_LA_VALEUR_D_UNE_METRIQUE'}};
+  }
+
   function rollup(windows){
     const rows=metricRows(windows);
     const byCause={};
@@ -103,7 +131,7 @@
   function augmentMetric(metric,windows){
     if(!metric||typeof metric!=='object')return metric;
     const audit=rollup(windows);
-    return {...metric,...flatAudit(audit),audit};
+    return {...metric,...flatAudit(audit),audit,publication:augmentPublication(metric.publication,audit),diagnosticReason:causalReason(audit.summary)};
   }
 
   function augmentResult(result){
@@ -124,5 +152,5 @@
   }
 
   patch();
-  return {VERSION,CAUSES,CAUSE_LABELS,causalSummary,rollup,flatAudit,augmentMetric,augmentResult,patch};
+  return {VERSION,CAUSES,CAUSE_LABELS,causalSummary,causalReason,augmentPublication,rollup,flatAudit,augmentMetric,augmentResult,patch};
 });
