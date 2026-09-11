@@ -24,17 +24,24 @@
     return {plausible,speedKmh:speedKmh===null?null:+speedKmh.toFixed(6),thresholdKmh:threshold,reason:plausible?null:(speedKmh===null?'transition métrique temporelle invalide':'vitesse brute métrique au-dessus du seuil de plausibilité')};
   }
   function splitRawSpikeRuns(run,maxRawSpeedKmh=RAW_SPIKE_THRESHOLD_KMH){
-    const parts=[];let current=[],rejectedPairs=0;
+    const parts=[];let current=[],rejectedPairs=0,rejectedTimedIntervals=0,rejectedSeconds=0;
+    const rejectedByReason={};
     for(const p of Array.isArray(run)?run:[]){
       if(!current.length){current=[p];continue;}
       const prev=current[current.length-1],evidence=transitionEvidence(prev,p,maxRawSpeedKmh);
       if(!evidence.plausible){
         if(current.length)parts.push(current);
         current=[p];rejectedPairs++;
+        const reason=evidence.reason||'transition métrique rejetée';
+        rejectedByReason[reason]=(rejectedByReason[reason]||0)+1;
+        if(finite(prev?.time)&&finite(p?.time)){
+          const dt=Number(p.time)-Number(prev.time);
+          if(dt>0){rejectedTimedIntervals++;rejectedSeconds+=dt;}
+        }
       }else current.push(p);
     }
     if(current.length)parts.push(current);
-    return {runs:parts,rejectedPairs};
+    return {runs:parts,rejectedPairs,rejectedTimedIntervals,rejectedSeconds:+rejectedSeconds.toFixed(6),rejectedByReason};
   }
   return {RAW_SPIKE_THRESHOLD_KMH,transitionSpeedKmh,transitionEvidence,splitRawSpikeRuns,sameSegmentOrUnspecified};
 });
