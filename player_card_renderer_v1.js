@@ -87,9 +87,10 @@ function pitchWindowText(pitch){
   return ' • FENÊTRES '+Math.max(0,Number(pitch.renderedWindowCount))+'/'+Math.max(0,Number(pitch.participationWindowCount))+(quality==='PARTIEL'?' • PARTIEL':'');
 }
 function physicalMetricCoverage(metrics){
-  const values=['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount'].map(key=>metrics?.[key]?.coverage).filter(finite).map(Number);
-  if(!values.length)return null;
-  return Math.max(0,Math.min(100,Math.round(Math.max(...values))));
+  const keys=['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount'];
+  const values=keys.map(key=>metrics?.[key]?.coverage);
+  if(values.some(value=>!finite(value)))return null;
+  return Math.max(0,Math.min(100,Math.round(Math.min(...values.map(Number)))));
 }
 function readinessHtml(summary){
   if(!summary||!Number.isFinite(Number(summary.players))||Number(summary.players)<=0)return '';
