@@ -57,14 +57,29 @@ function rosterHeader(card){
   const img=r.photoUrl?'<img src="'+esc(r.photoUrl)+'" alt="portrait '+name+'" style="width:44px;height:44px;object-fit:cover;border-radius:10px;border:1px solid rgba(205,31,45,.55);background:#111">':'<div aria-hidden="true" style="width:44px;height:44px;border-radius:10px;border:1px solid rgba(205,31,45,.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;background:#111">CAY</div>';
   return '<div style="display:flex;align-items:center;gap:9px">'+img+'<div><strong style="font-size:16px">'+name+num+'</strong><div style="font-size:10px;opacity:.66;margin-top:2px">'+(position||'Poste non renseigné')+' • track '+esc(card?.id??'—')+'</div></div></div>';
 }
+function splitAuditReason(reason){
+  const text=String(reason||'').trim(),marker='Causes principales auditées (non additives) :';
+  if(!text)return {reason:'',audit:''};
+  const index=text.indexOf(marker);
+  if(index<0)return {reason:text,audit:''};
+  const reasonPart=text.slice(0,index).replace(/[\s•]+$/,'').trim();
+  const audit=text.slice(index).trim();
+  return {reason:reasonPart,audit};
+}
 function explainUnavailable(card){
-  const reasons=[];
-  const add=reason=>{const s=String(reason||'').trim();if(s&&!reasons.includes(s))reasons.push(s);};
+  const reasons=[],audits=[];
+  const add=reason=>{
+    const parts=splitAuditReason(reason);
+    if(parts.reason&&!reasons.includes(parts.reason))reasons.push(parts.reason);
+    if(parts.audit&&!audits.includes(parts.audit))audits.push(parts.audit);
+  };
   if(card?.pitchVisuals?.status==='INDISPONIBLE')add(card.pitchVisuals.reason);
   const metrics=card?.metrics||{};
   for(const key of ['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount'])if(metrics[key]?.status==='INDISPONIBLE')add(metrics[key].reason);
-  if(!reasons.length)return '';
-  return '<div aria-label="raison métriques indisponibles" style="margin-top:9px;padding:8px 10px;border-radius:9px;background:rgba(141,16,24,.12);border:1px solid rgba(205,31,45,.28);font-size:10px;line-height:1.35"><b style="letter-spacing:.05em">POUR DÉBLOQUER LES STATS TERRAIN</b><br><span style="opacity:.75">'+reasons.map(esc).join(' • ')+'</span></div>';
+  if(!reasons.length&&!audits.length)return '';
+  const reasonsHtml=reasons.length?'<span style="opacity:.75">'+reasons.map(esc).join(' • ')+'</span>':'';
+  const auditHtml=audits.length?'<div aria-label="diagnostic causal audité" style="margin-top:5px;opacity:.62">'+audits.map(esc).join(' • ')+'</div>':'';
+  return '<div aria-label="raison métriques indisponibles" style="margin-top:9px;padding:8px 10px;border-radius:9px;background:rgba(141,16,24,.12);border:1px solid rgba(205,31,45,.28);font-size:10px;line-height:1.35"><b style="letter-spacing:.05em">POUR DÉBLOQUER LES STATS TERRAIN</b><br>'+reasonsHtml+auditHtml+'</div>';
 }
 function pitchWindowText(pitch){
   if(pitch?.status!=='DISPONIBLE'||!finite(pitch?.participationWindowCount)||Number(pitch.participationWindowCount)<=0||!finite(pitch?.renderedWindowCount))return '';
@@ -129,5 +144,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,explainUnavailable,pitchWindowText,physicalMetricCoverage,readinessHtml,render,install};
+return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,splitAuditReason,explainUnavailable,pitchWindowText,physicalMetricCoverage,readinessHtml,render,install};
 });
