@@ -18,7 +18,7 @@ assert.match(trackedHtml,/✓ tracking/);
 assert.match(trackedHtml,/— trajectoire/);
 assert.match(trackedHtml,/— heatmap/);
 assert.match(trackedHtml,/— stats/);
-assert.doesNotMatch(trackedHtml,/TERRAIN PRÊT/,'tracking alone must never claim pitch readiness');
+assert.doesNotMatch(trackedHtml,/TERRAIN PRÊT À TESTER/,'tracking alone must never claim pitch readiness');
 
 const trajectorySource={
   ...base,
@@ -26,14 +26,26 @@ const trajectorySource={
 };
 const trajectoryOnly={...trajectorySource,firstResults:VM.firstResultsReadiness(trajectorySource)};
 const trajectoryHtml=Renderer.playerReadinessHtml(trajectoryOnly);
-assert.match(trajectoryHtml,/TERRAIN PRÊT/);
+assert.match(trajectoryHtml,/TRACKING PRÊT — TERRAIN EN COURS/,'trajectory alone must remain below the strict pitch-visual testability gate');
+assert.doesNotMatch(trajectoryHtml,/TERRAIN PRÊT À TESTER/,'trajectory without heatmap must never be advertised as pitch-testable');
 assert.match(trajectoryHtml,/✓ trajectoire/);
 assert.match(trajectoryHtml,/— heatmap/);
 assert.match(trajectoryHtml,/— stats/,'terrain visuals must not imply physical metrics');
 
-const defendedSource={
+const visualReadySource={
   ...trajectorySource,
   pitchVisuals:{status:'DISPONIBLE',trajectory:{status:'DISPONIBLE'},heatmap:{status:'DISPONIBLE'}},
+};
+const visualReady={...visualReadySource,firstResults:VM.firstResultsReadiness(visualReadySource)};
+const visualReadyHtml=Renderer.playerReadinessHtml(visualReady);
+assert.match(visualReadyHtml,/TERRAIN PRÊT À TESTER/,'tracking + trajectory + heatmap is the minimum pitch-testable player core');
+assert.match(visualReadyHtml,/✓ tracking/);
+assert.match(visualReadyHtml,/✓ trajectoire/);
+assert.match(visualReadyHtml,/✓ heatmap/);
+assert.match(visualReadyHtml,/— stats 0\/4/);
+
+const defendedSource={
+  ...visualReadySource,
   metrics:{
     distanceM:{status:'FIABLE',value:1234.5},
     avgSpeedKmh:{status:'FIABLE',value:7.2},
@@ -43,11 +55,16 @@ const defendedSource={
 };
 const defended={...defendedSource,firstResults:VM.firstResultsReadiness(defendedSource)};
 const defendedHtml=Renderer.playerReadinessHtml(defended);
-assert.match(defendedHtml,/TERRAIN PRÊT/);
+assert.match(defendedHtml,/TERRAIN PRÊT À TESTER/);
 assert.match(defendedHtml,/✓ tracking/);
 assert.match(defendedHtml,/✓ trajectoire/);
 assert.match(defendedHtml,/✓ heatmap/);
-assert.match(defendedHtml,/✓ stats/,'zero measured sprints still belongs to an available physical result set');
+assert.match(defendedHtml,/✓ stats 4\/4/,'zero measured sprints still belongs to an available physical result set');
+
+const contradictory=Renderer.playerReadinessHtml({firstResults:{tracking:false,trajectory:true,heatmap:true,distance:true,avgSpeed:true,maxSpeed:true,sprints:true}});
+assert.match(contradictory,/PREUVES INSUFFISANTES/,'physical fields cannot bypass missing tracking evidence');
+assert.match(contradictory,/— stats 4\/4/,'complete physical values remain visible as evidence but not ready without the pitch visual core');
+assert.doesNotMatch(contradictory,/✓ stats 4\/4/);
 
 const unavailableHtml=Renderer.playerReadinessHtml({firstResults:{status:'INDISPONIBLE'}});
 assert.match(unavailableHtml,/PREUVES INSUFFISANTES/);
