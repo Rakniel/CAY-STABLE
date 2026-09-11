@@ -71,15 +71,16 @@
     const maxSpeed=metricAvailable(card?.metrics?.maxSpeedKmh);
     const sprints=metricAvailable(card?.metrics?.sprintCount);
     const physical=distance||avgSpeed||maxSpeed||sprints;
+    const physicalComplete=distance&&avgSpeed&&maxSpeed&&sprints;
     const pitch=trajectory||heatmap||physical;
     const status=pitch?'TERRAIN_DISPONIBLE':tracking?'TRACKING_DISPONIBLE':'INDISPONIBLE';
-    return {status,tracking,trajectory,heatmap,distance,avgSpeed,maxSpeed,sprints,physicalMetrics:physical,pitchResults:pitch};
+    return {status,tracking,trajectory,heatmap,distance,avgSpeed,maxSpeed,sprints,physicalMetrics:physical,physicalMetricsComplete:physicalComplete,pitchResults:pitch};
   }
   function readinessSummary(cards){
     const readiness=(cards||[]).map(firstResultsReadiness),count=key=>readiness.filter(r=>r[key]===true).length;
-    const withTracking=count('tracking'),withPitchTrajectory=count('trajectory'),withPitchHeatmap=count('heatmap'),withMetricDistance=count('distance'),withMetricAvgSpeed=count('avgSpeed'),withMetricMaxSpeed=count('maxSpeed'),withMetricSprints=count('sprints'),withPhysicalMetrics=count('physicalMetrics'),withPitchResults=count('pitchResults');
+    const withTracking=count('tracking'),withPitchTrajectory=count('trajectory'),withPitchHeatmap=count('heatmap'),withMetricDistance=count('distance'),withMetricAvgSpeed=count('avgSpeed'),withMetricMaxSpeed=count('maxSpeed'),withMetricSprints=count('sprints'),withPhysicalMetrics=count('physicalMetrics'),withCompletePhysicalMetrics=count('physicalMetricsComplete'),withPitchResults=count('pitchResults');
     const status=withPitchResults?'TERRAIN_DISPONIBLE':withTracking?'TRACKING_DISPONIBLE':'INDISPONIBLE';
-    return {status,players:readiness.length,withTracking,withPitchTrajectory,withPitchHeatmap,withMetricDistance,withMetricAvgSpeed,withMetricMaxSpeed,withMetricSprints,withPhysicalMetrics,withPitchResults,policy:'PREMIERS_RESULTATS_SEPARENT_TRACKING_CAMERA_VISUELS_TERRAIN_ET_METRIQUES_PHYSIQUES; AUCUNE_DISPONIBILITE_DEDUITE_SANS_PREUVE_PUBLIEE'};
+    return {status,players:readiness.length,withTracking,withPitchTrajectory,withPitchHeatmap,withMetricDistance,withMetricAvgSpeed,withMetricMaxSpeed,withMetricSprints,withPhysicalMetrics,withCompletePhysicalMetrics,withPitchResults,policy:'PREMIERS_RESULTATS_SEPARENT_TRACKING_CAMERA_VISUELS_TERRAIN_ET_METRIQUES_PHYSIQUES; AUCUNE_DISPONIBILITE_DEDUITE_SANS_PREUVE_PUBLIEE; STATS_PHYSIQUES_COMPLETES = DISTANCE_ET_VITESSE_MOYENNE_ET_VITESSE_MAX_ET_SPRINTS'};
   }
   function rosterPitchVisuals(player){
     const rm=player&&player.rosterMetric||null,spatial=rm&&rm.spatial||null;
