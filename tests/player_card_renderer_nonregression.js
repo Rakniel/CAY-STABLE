@@ -44,12 +44,12 @@ assert(R.explainUnavailable(metric)==='','validated metric card must have no una
 assert.equal(R.pitchWindowText({status:'DISPONIBLE',quality:'FIABLE',participationWindowCount:2,renderedWindowCount:2}),' • FENÊTRES 2/2');
 assert.equal(R.physicalMetricCoverage(metric.metrics),64,'physical coverage helper must derive coverage only from physical metric fields');
 assert.equal(R.physicalMetricCoverage(card.metrics),null,'physical coverage must remain unavailable when evidence coverage is absent');
-const trackedSummary=R.readinessHtml({status:'TRACKING_DISPONIBLE',players:4,withTracking:4,withPitchTrajectory:0,withPitchHeatmap:0,withMetricDistance:0,withMetricAvgSpeed:0,withMetricMaxSpeed:0,withMetricSprints:0});
+const trackedSummary=R.readinessHtml({status:'TRACKING_DISPONIBLE',players:4,withTracking:4,withPitchTrajectory:0,withPitchHeatmap:0,withMetricDistance:0,withMetricAvgSpeed:0,withMetricMaxSpeed:0,withMetricSprints:0,withCompletePhysicalMetrics:0});
 assert(trackedSummary.includes('TRACKING DISPONIBLE — TERRAIN EN COURS'),'tracking-only first results must be visible without implying pitch evidence');
-assert(trackedSummary.includes('tracking 4/4 • trajectoire 0/4 • heatmap 0/4 • distance 0/4 • vitesse 0/4 • sprints 0/4'),'readiness banner must expose each evidence family independently');
+assert(trackedSummary.includes('tracking 4/4 • trajectoire 0/4 • heatmap 0/4 • distance 0/4 • vit. moy. 0/4 • vit. max 0/4 • sprints 0/4 • stats 4/4 0/4'),'readiness banner must expose each evidence family independently and complete stats separately');
 assert(trackedSummary.includes('INDISPONIBLE'),'banner must retain the fail-closed publication policy');
-const pitchSummary=R.readinessHtml({status:'TERRAIN_DISPONIBLE',players:3,withTracking:3,withPitchTrajectory:2,withPitchHeatmap:1,withMetricDistance:1,withMetricAvgSpeed:1,withMetricMaxSpeed:0,withMetricSprints:0});
+const pitchSummary=R.readinessHtml({status:'TERRAIN_DISPONIBLE',players:3,withTracking:3,withPitchTrajectory:2,withPitchHeatmap:1,withMetricDistance:1,withMetricAvgSpeed:1,withMetricMaxSpeed:0,withMetricSprints:0,withCompletePhysicalMetrics:0});
 assert(pitchSummary.includes('PREMIERS RÉSULTATS TERRAIN DISPONIBLES'),'pitch evidence must promote only the readiness label, not fabricate missing fields');
-assert(pitchSummary.includes('trajectoire 2/3 • heatmap 1/3 • distance 1/3 • vitesse 1/3 • sprints 0/3'),'mixed readiness must remain explicit');
+assert(pitchSummary.includes('trajectoire 2/3 • heatmap 1/3 • distance 1/3 • vit. moy. 1/3 • vit. max 0/3 • sprints 0/3 • stats 4/4 0/3'),'mixed readiness must remain explicit without combining distinct speed evidence');
 assert.equal(R.readinessHtml(null),'','missing summary must fail closed without inventing readiness');
 console.log('player card renderer non-regression: PASS');
