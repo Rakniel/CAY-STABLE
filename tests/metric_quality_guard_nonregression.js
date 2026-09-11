@@ -2,7 +2,7 @@
 const assert=require('assert');
 const Guard=require('../metric_quality_guard_v1.js');
 
-const projector={1:{validated:true,source:'test',project:p=>({x:p.x,y:p.y})}};
+const projector={1:{validated:true,confidence:1,source:'test',project:p=>({x:p.x,y:p.y})}};
 const track=points=>({fullPath:points.map((p,i)=>({x:p[0],y:p[1],time:i,segment:1}))});
 
 const jitter=Guard.robustMetricForTrack(track([[10,10],[10.25,9.8],[9.8,10.2],[10.2,9.85],[10,10]]),projector);
@@ -62,7 +62,7 @@ const doubleSprint=Guard.robustMetricForTrack(twoSprints,projector);
 assert.strictEqual(doubleSprint.sprintCount,2,'two sustained sprint runs separated by low speed must count as two episodes');
 
 const segmented={fullPath:[{x:0,y:0,time:0,segment:1},{x:5,y:0,time:1,segment:1},{x:50,y:0,time:2,segment:2},{x:55,y:0,time:3,segment:2}]};
-const projectors={1:projector[1],2:{validated:true,project:p=>({x:p.x,y:p.y})}};
+const projectors={1:projector[1],2:{validated:true,confidence:1,project:p=>({x:p.x,y:p.y})}};
 const seg=Guard.robustMetricForTrack(segmented,projectors);
 assert.strictEqual(seg.distanceM,10,'segment cut must never connect trajectories across camera plans');
 
