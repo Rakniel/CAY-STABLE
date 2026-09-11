@@ -44,6 +44,7 @@ canonical_tags = [
     '<script src="./app_domain_models_v1.js"></script>',
     '<script src="./track_roster_binding_v1.js"></script>',
     '<script src="./roster_metric_pipeline_v1.js"></script>',
+    '<script src="./roster_metric_audit_rollup_v1.js"></script>',
     '<script src="./player_card_roster_binding_v1.js"></script>',
     '<script src="./player_identity_binding_session_v1.js"></script>',
     '<script src="./player_card_view_model_v1.js"></script>',
