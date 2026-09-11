@@ -92,23 +92,26 @@ function physicalMetricCoverage(metrics){
   if(values.some(value=>!finite(value)))return null;
   return Math.max(0,Math.min(100,Math.round(Math.min(...values.map(Number)))));
 }
-function readinessHtml(summary){
+function readinessHtml(summary,testability){
   if(!summary||!Number.isFinite(Number(summary.players))||Number(summary.players)<=0)return '';
-  const n=key=>Math.max(0,Number(summary[key])||0),players=n('players'),status=String(summary.status||'INDISPONIBLE').toUpperCase();
-  const stage=status==='TERRAIN_DISPONIBLE'?'PREMIERS RÉSULTATS TERRAIN DISPONIBLES':status==='TRACKING_DISPONIBLE'?'TRACKING DISPONIBLE — TERRAIN EN COURS':'PREMIERS RÉSULTATS INDISPONIBLES';
+  const n=key=>Math.max(0,Number(summary[key])||0),players=n('players');
+  const tested=String(testability?.status||'').toUpperCase();
+  const legacy=String(summary.status||'INDISPONIBLE').toUpperCase();
+  const stage=tested==='PHYSICAL_TESTABLE'?'PREMIERS RÉSULTATS PHYSIQUES TESTABLES':tested==='PITCH_VISUAL_TESTABLE'?'PREMIERS RÉSULTATS TERRAIN TESTABLES':tested==='TRACKING_TESTABLE'?'TRACKING TESTABLE — TERRAIN EN COURS':tested==='INDISPONIBLE'?'PREMIERS RÉSULTATS INDISPONIBLES':legacy==='TERRAIN_DISPONIBLE'?'PREMIERS RÉSULTATS TERRAIN DISPONIBLES':legacy==='TRACKING_DISPONIBLE'?'TRACKING DISPONIBLE — TERRAIN EN COURS':'PREMIERS RÉSULTATS INDISPONIBLES';
   return '<div class="cay-first-results-readiness-v1" aria-label="disponibilité premiers résultats C.A. Yenne" style="grid-column:1/-1;padding:10px 12px;border-radius:11px;background:linear-gradient(90deg,rgba(141,16,24,.28),rgba(0,0,0,.34));border:1px solid rgba(205,31,45,.42);font-size:11px;line-height:1.45">'+
-    '<b style="letter-spacing:.04em">'+esc(stage)+'</b><br><span style="opacity:.78">'+players+' joueur(s) • tracking '+n('withTracking')+'/'+players+' • trajectoire '+n('withPitchTrajectory')+'/'+players+' • heatmap '+n('withPitchHeatmap')+'/'+players+' • distance '+n('withMetricDistance')+'/'+players+' • vit. moy. '+n('withMetricAvgSpeed')+'/'+players+' • vit. max '+n('withMetricMaxSpeed')+'/'+players+' • sprints '+n('withMetricSprints')+'/'+players+' • stats 4/4 '+n('withCompletePhysicalMetrics')+'/'+players+'</span><div style="margin-top:4px;opacity:.58;font-size:10px">Aucun résultat terrain n’est déduit sans preuve publiée ; les éléments non défendables restent INDISPONIBLE.</div></div>';
+    '<b style="letter-spacing:.04em">'+esc(stage)+'</b><br><span style="opacity:.78">'+players+' joueur(s) • tracking '+n('withTracking')+'/'+players+' • trajectoire '+n('withPitchTrajectory')+'/'+players+' • heatmap '+n('withPitchHeatmap')+'/'+players+' • distance '+n('withMetricDistance')+'/'+players+' • vit. moy. '+n('withMetricAvgSpeed')+'/'+players+' • vit. max '+n('withMetricMaxSpeed')+'/'+players+' • sprints '+n('withMetricSprints')+'/'+players+' • stats 4/4 '+n('withCompletePhysicalMetrics')+'/'+players+'</span><div style="margin-top:4px;opacity:.58;font-size:10px">Aucun résultat terrain n’est déclaré testable sans tracking + trajectoire + heatmap ; les éléments non défendables restent INDISPONIBLE.</div></div>';
 }
 function playerReadinessHtml(card){
-  const r=card?.firstResults||{},status=String(r.status||'INDISPONIBLE').toUpperCase();
-  const stage=status==='TERRAIN_DISPONIBLE'?'TERRAIN PRÊT':status==='TRACKING_DISPONIBLE'?'TRACKING PRÊT — TERRAIN EN COURS':'PREUVES INSUFFISANTES';
+  const r=card?.firstResults||{},tracking=r.tracking===true,trajectory=r.trajectory===true,heatmap=r.heatmap===true;
+  const pitchVisualCore=tracking&&trajectory&&heatmap;
+  const stage=pitchVisualCore?'TERRAIN PRÊT À TESTER':tracking?'TRACKING PRÊT — TERRAIN EN COURS':'PREUVES INSUFFISANTES';
   const chip=(label,ready)=>'<span style="opacity:'+(ready?'.96':'.38')+';font-weight:'+(ready?'800':'600')+'">'+(ready?'✓ ':'— ')+esc(label)+'</span>';
   const metricKeys=['distance','avgSpeed','maxSpeed','sprints'],metricCount=metricKeys.filter(key=>r[key]===true).length;
   const statsLabel=metricCount===4?'stats 4/4':metricCount>0?'stats '+metricCount+'/4':'stats 0/4';
-  const statsReady=metricCount===4;
+  const statsReady=pitchVisualCore&&metricCount===4;
   return '<div class="cay-player-readiness-v1" aria-label="état des premiers résultats joueur" style="margin-top:8px;padding:7px 9px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);font-size:10px;line-height:1.4">'+
     '<b style="letter-spacing:.04em">'+esc(stage)+'</b><div style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px">'+
-    chip('tracking',r.tracking===true)+chip('trajectoire',r.trajectory===true)+chip('heatmap',r.heatmap===true)+chip(statsLabel,statsReady)+'</div></div>';
+    chip('tracking',tracking)+chip('trajectoire',trajectory)+chip('heatmap',heatmap)+chip(statsLabel,statsReady)+'</div></div>';
 }
 function cardHtml(card){
   const p=card?.presence||{},obs=card?.observedVisuals||{},pitch=card?.pitchVisuals||{},m=card?.metrics||{};
@@ -135,7 +138,7 @@ function render(model,target){
   const el=typeof target==='string'?(typeof document!=='undefined'?document.getElementById(target):null):target;
   if(!el)return false;
   const cards=Array.isArray(model?.players)?model.players:[];
-  const summary=readinessHtml(model?.summary);
+  const summary=readinessHtml(model?.summary,model?.testability);
   el.innerHTML=summary+(cards.length?cards.map(cardHtml).join(''):'<div style="opacity:.7">Aucune fiche joueur disponible.</div>');
   return true;
 }
