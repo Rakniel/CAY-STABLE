@@ -10,6 +10,19 @@
   const CORE_KEYS=['tracking','trajectory','heatmap'];
   const PHYSICAL_KEYS=['distance','avgSpeed','maxSpeed','sprints'];
 
+  function nextAction(status,blockers){
+    if(status==='PHYSICAL_TESTABLE')return 'PREMIERS_RESULTATS_PRETS';
+    if(status==='PITCH_VISUAL_TESTABLE'){
+      const missing=PHYSICAL_KEYS.filter(key=>Number(blockers[key]||0)>0);
+      return missing.length?'COMPLETER_METRIQUES_PHYSIQUES:'+missing.join(','):'VALIDER_METRIQUES_PHYSIQUES';
+    }
+    if(status==='TRACKING_TESTABLE'){
+      const missing=['trajectory','heatmap'].filter(key=>Number(blockers[key]||0)>0);
+      return missing.length?'DEBLOQUER_VISUELS_TERRAIN:'+missing.join(','):'VALIDER_VISUELS_TERRAIN';
+    }
+    return 'OBTENIR_TRACKING_DEFENDABLE';
+  }
+
   function cardEvidence(card){
     const readiness=card?.firstResults||{};
     const tracking=bool(readiness.tracking);
@@ -26,8 +39,13 @@
     const flags={tracking,trajectory,heatmap,distance,avgSpeed,maxSpeed,sprints};
     const missingPitchVisualCore=CORE_KEYS.filter(key=>flags[key]!==true);
     const missingPhysicalMetrics=PHYSICAL_KEYS.filter(key=>flags[key]!==true);
+    const status=metricReady?'PHYSICAL_TESTABLE':pitchVisualCore?'PITCH_VISUAL_TESTABLE':tracking?'TRACKING_TESTABLE':'INDISPONIBLE';
+    const blockers={};
+    for(const key of CORE_KEYS)blockers[key]=missingPitchVisualCore.includes(key)?1:0;
+    for(const key of PHYSICAL_KEYS)blockers[key]=missingPhysicalMetrics.includes(key)?1:0;
     return {
       id:card?.id??null,
+      status,
       tracking,
       trajectory,
       heatmap,
@@ -37,6 +55,7 @@
       metricReady,
       missingPitchVisualCore,
       missingPhysicalMetrics,
+      nextAction:nextAction(status,blockers),
       policy:'CORE_VISUEL = TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; PRET_METRIQUES = CORE_VISUEL_ET_DISTANCE_ET_VITESSE_MOYENNE_ET_VITESSE_MAX_ET_SPRINTS'
     };
   }
@@ -49,19 +68,6 @@
       return item.missingPhysicalMetrics.includes(key);
     }).length;
     return counts;
-  }
-
-  function nextAction(status,blockers){
-    if(status==='PHYSICAL_TESTABLE')return 'PREMIERS_RESULTATS_PRETS';
-    if(status==='PITCH_VISUAL_TESTABLE'){
-      const missing=PHYSICAL_KEYS.filter(key=>Number(blockers[key]||0)>0);
-      return missing.length?'COMPLETER_METRIQUES_PHYSIQUES:'+missing.join(','):'VALIDER_METRIQUES_PHYSIQUES';
-    }
-    if(status==='TRACKING_TESTABLE'){
-      const missing=['trajectory','heatmap'].filter(key=>Number(blockers[key]||0)>0);
-      return missing.length?'DEBLOQUER_VISUELS_TERRAIN:'+missing.join(','):'VALIDER_VISUELS_TERRAIN';
-    }
-    return 'OBTENIR_TRACKING_DEFENDABLE';
   }
 
   function evaluate(playerCards,options={}){
@@ -81,7 +87,7 @@
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
     const blockers=blockerCounts(evidence);
     return {
-      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_2',
+      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_3',
       status,
       players,
       withTracking,
