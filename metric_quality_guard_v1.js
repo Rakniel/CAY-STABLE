@@ -18,7 +18,8 @@
   const MAX_METRIC_GAP_SEC=Number.isFinite(Number(Stats?.MAX_METRIC_GAP_SEC))?Number(Stats.MAX_METRIC_GAP_SEC):1;
   const qualityFromEvidenceScore=score=>score>=.8?'FIABLE':score>0?'PARTIEL':'INDISPONIBLE';
   const insideMetricPitch=p=>!!MetricSmoother&&typeof MetricSmoother.insidePitch==='function'&&MetricSmoother.insidePitch(p);
-  const validPathSample=p=>!!p&&typeof p==='object'&&finite(p.time)&&p.segment!==null&&p.segment!==undefined&&!(typeof p.segment==='string'&&p.segment.trim()==='');
+  const validTimestampSample=p=>!!p&&typeof p==='object'&&finite(p.time);
+  const validPathSample=p=>validTimestampSample(p)&&p.segment!==null&&p.segment!==undefined&&!(typeof p.segment==='string'&&p.segment.trim()==='');
   function smoothRun(run){
     if(!Array.isArray(run)||run.length<3)return (run||[]).map(p=>({...p}));
     return run.map((p,i)=>{
@@ -41,28 +42,29 @@
   }
   function robustMetricForTrack(track,projectors){
     const path=track?.fullPath||[];
-    let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0,rejectedSpeedPairs=0,rejectedRawSpikePairs=0,confidenceDt=0,rejectedGapSeconds=0,gapBreaks=0,segmentBoundarySeconds=0,segmentBoundaryBreaks=0,rejectedOutsidePitchSamples=0,rejectedInvalidPathSamples=0;
+    let eligibleDt=0,metricDt=0,distanceM=0,maxSpeedKmh=0,sprintCount=0,rejectedSpeedPairs=0,rejectedRawSpikePairs=0,confidenceDt=0,rejectedGapSeconds=0,gapBreaks=0,segmentBoundarySeconds=0,segmentBoundaryBreaks=0,rejectedOutsidePitchSamples=0,rejectedInvalidPathSamples=0,rejectedInvalidPathSeconds=0,rejectedInvalidPathIntervals=0;
     let sprintQualifiedSeconds=0,sprintCandidateSeconds=0,sprintEpisodeCounted=false;
     const speeds=[],runs=[];let current=[];
     const resetSprint=()=>{sprintCandidateSeconds=0;sprintEpisodeCounted=false;};
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<path.length;i++){
       const p=path[i];
+      if(i>0){
+        const a=path[i-1];
+        if(validTimestampSample(a)&&validTimestampSample(p)){
+          const dt=Number(p.time)-Number(a.time);
+          if(dt>0){
+            eligibleDt+=dt;
+            if(!validPathSample(a)||!validPathSample(p)){rejectedInvalidPathSeconds+=dt;rejectedInvalidPathIntervals++;}
+            else if(a.segment!==p.segment){segmentBoundarySeconds+=dt;segmentBoundaryBreaks++;}
+            else if(dt>MAX_METRIC_GAP_SEC){rejectedGapSeconds+=dt;gapBreaks++;}
+          }
+        }
+      }
       if(!validPathSample(p)){
         rejectedInvalidPathSamples++;
         flush();
         continue;
-      }
-      if(i>0){
-        const a=path[i-1];
-        if(validPathSample(a)){
-          const dt=Number(p.time)-Number(a.time);
-          if(dt>0){
-            eligibleDt+=dt;
-            if(a.segment!==p.segment){segmentBoundarySeconds+=dt;segmentBoundaryBreaks++;}
-            else if(dt>MAX_METRIC_GAP_SEC){rejectedGapSeconds+=dt;gapBreaks++;}
-          }
-        }
       }
       const info=projectorInfo(projectors&&projectors[p.segment]);
       let projected=null;
@@ -101,7 +103,7 @@
     const avgCalibrationConfidence=metricDt>0?confidenceDt/metricDt:0;
     const defendableScore=coverage*avgCalibrationConfidence;
     const quality=qualityFromEvidenceScore(defendableScore);
-    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintDurationSeconds:MIN_SPRINT_SECONDS,rawSpikeThresholdKmh:RAW_SPIKE_THRESHOLD_KMH,maxMetricGapSec:MAX_METRIC_GAP_SEC,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,rejectedRawSpikePairs,rejectedOutsidePitchSamples,rejectedInvalidPathSamples,rejectedGapSeconds:+rejectedGapSeconds.toFixed(3),gapBreaks,segmentBoundarySeconds:+segmentBoundarySeconds.toFixed(3),segmentBoundaryBreaks,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE_APRES_VETO_SPIKE_BRUT',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'CHAQUE_RUN_EXPOSE_UNE_ANCRE_AU_DEBUT_DU_PREMIER_INTERVALLE_PUIS_LES_FINS_D_INTERVALLES_POUR_PRESERVER_LA_DUREE_REELLE_DE_PREUVE',coveragePolicy:'TOUT_INTERVALLE_CHRONOLOGIQUE_ADJACENT_VALIDE_RESTE_DANS_LE_TEMPS_ELIGIBLE; CHANGEMENT_PLAN_TROU_TEMPOREL_COORDONNEE_HORS_TERRAIN_OU_SPIKE_BRUT_RESTE_NON_DEFENDABLE_ET_NE_CREE_JAMAIS_DE_DISTANCE',invalidPathPolicy:'ENTREE_TRAJECTOIRE_CORROMPUE = COUPURE_DE_CONTINUITE; JAMAIS_PROJETEE_JAMAIS_RELIEE_JAMAIS_COMPTEE_COMME_DISTANCE',rawSpikePolicy:'VETO_AVANT_LISSAGE_SI_VITESSE_BRUTE_SUPERIEURE_A_55_KMH; LE_LISSAGE_NE_PEUT_PAS_MASQUER_UN_TELEPORT_METRIQUE',pitchBoundsPolicy:'REUTILISE_METRIC_TRAJECTORY_SMOOTHER_INSIDE_PITCH_105_X_68; AUCUNE_DISTANCE_VITESSE_OU_SPRINT_A_TRAVERS_COORDONNEE_HORS_TERRAIN',sprintContinuityPolicy:'EPISODE >= 1S A >=25KMH; RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_SPIKE_BRUT_PAIRE_REJETEE_OU_RUN_METRIQUE'};
+    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintDurationSeconds:MIN_SPRINT_SECONDS,rawSpikeThresholdKmh:RAW_SPIKE_THRESHOLD_KMH,maxMetricGapSec:MAX_METRIC_GAP_SEC,quality,avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),defendableScore:+defendableScore.toFixed(4),speedSamples:speeds,rejectedSpeedPairs,rejectedRawSpikePairs,rejectedOutsidePitchSamples,rejectedInvalidPathSamples,rejectedInvalidPathSeconds:+rejectedInvalidPathSeconds.toFixed(3),rejectedInvalidPathIntervals,rejectedGapSeconds:+rejectedGapSeconds.toFixed(3),gapBreaks,segmentBoundarySeconds:+segmentBoundarySeconds.toFixed(3),segmentBoundaryBreaks,smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE_APRES_VETO_SPIKE_BRUT',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'CHAQUE_RUN_EXPOSE_UNE_ANCRE_AU_DEBUT_DU_PREMIER_INTERVALLE_PUIS_LES_FINS_D_INTERVALLES_POUR_PRESERVER_LA_DUREE_REELLE_DE_PREUVE',coveragePolicy:'TOUT_INTERVALLE_CHRONOLOGIQUE_ADJACENT_AVEC_TIMESTAMPS_VALIDES_RESTE_DANS_LE_TEMPS_ELIGIBLE; ENTREE_STRUCTURELLEMENT_INVALIDE_CHANGEMENT_PLAN_TROU_TEMPOREL_COORDONNEE_HORS_TERRAIN_OU_SPIKE_BRUT_RESTE_NON_DEFENDABLE_ET_NE_CREE_JAMAIS_DE_DISTANCE',invalidPathPolicy:'ENTREE_TRAJECTOIRE_CORROMPUE = COUPURE_DE_CONTINUITE; SI_SES_TIMESTAMPS_ADJACENTS_SONT_VALIDES_LE_TEMPS_RESTE_ELIGIBLE_MAIS_NON_DEFENDABLE; JAMAIS_PROJETEE_JAMAIS_RELIEE_JAMAIS_COMPTEE_COMME_DISTANCE',rawSpikePolicy:'VETO_AVANT_LISSAGE_SI_VITESSE_BRUTE_SUPERIEURE_A_55_KMH; LE_LISSAGE_NE_PEUT_PAS_MASQUER_UN_TELEPORT_METRIQUE',pitchBoundsPolicy:'REUTILISE_METRIC_TRAJECTORY_SMOOTHER_INSIDE_PITCH_105_X_68; AUCUNE_DISTANCE_VITESSE_OU_SPRINT_A_TRAVERS_COORDONNEE_HORS_TERRAIN',sprintContinuityPolicy:'EPISODE >= 1S A >=25KMH; RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_SPIKE_BRUT_PAIRE_REJETEE_OU_RUN_METRIQUE'};
   }
   function patchTeamCalibrationEvidence(report){
     const frames=Array.isArray(report?.teamTimeline)?report.teamTimeline:[];
@@ -145,7 +147,7 @@
       const measured=(report.players||[]).filter(p=>p.metric?.metricCoverage>0),all=report.players||[];
       if(report.team){report.team.playersWithMetricData=measured.length;report.team.measuredDistanceM=+measured.reduce((s,p)=>s+(p.metric.distanceM||0),0).toFixed(2);report.team.avgMetricCoverage=+(all.length?all.reduce((s,p)=>s+(p.metric?.metricCoverage||0),0)/all.length:0).toFixed(4);}
       patchTeamCalibrationEvidence(report);
-      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1_7',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE_APRES_VETO_SPIKE_BRUT',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'ANCRE_DEBUT_PREMIER_INTERVALLE_PAR_RUN + FINS_INTERVALLES POUR_NE_PAS_PERDRE_LE_PREMIER_DT',coveragePolicy:'TOUT_INTERVALLE_CHRONOLOGIQUE_ADJACENT_VALIDE_RESTE_DANS_LE_DENOMINATEUR; CHANGEMENT_PLAN_TROU_TEMPOREL_COORDONNEE_HORS_TERRAIN_ET_SPIKE_BRUT_PENALISENT_EXPLICITEMENT_LA_COUVERTURE_SANS_CREER_DE_DISTANCE',invalidPathPolicy:'ENTREE_TRAJECTOIRE_CORROMPUE = COUPURE_DE_CONTINUITE; JAMAIS_PROJETEE_JAMAIS_RELIEE_JAMAIS_COMPTEE_COMME_DISTANCE',rawSpikePolicy:'VETO_BRUT_AVANT_LISSAGE_A_55_KMH_MAX_VIA_METRIC_MOTION_PLAUSIBILITY_V1',pitchBoundsPolicy:'BORNE_TERRAIN_PARTAGEE_VIA_METRIC_TRAJECTORY_SMOOTHER_INSIDE_PITCH_105_X_68',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,rawSpikeThresholdKmh:RAW_SPIKE_THRESHOLD_KMH,principle:'veto partagé des entrées trajectoire corrompues, changements de plan, téléports métriques bruts et coordonnées hors terrain avant tout lissage, puis filtre médian local, couverture qui conserve les preuves temporelles non défendables, combinaison couverture × confiance calibration et durée minimale avant de compter un sprint'};
+      report.metricQualityGuard={version:'CAY_METRIC_QUALITY_GUARD_V1_8',smoothing:'MEDIAN_3_POINTS_PAR_RUN_METRIQUE_APRES_VETO_SPIKE_BRUT',qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',calibrationConfidencePolicy:'CONFIANCE_EXPLICITE_REQUISE; ABSENTE_OU_INVALIDE = 0_POUR_DEFENDABILITE',speedSamplePolicy:'ANCRE_DEBUT_PREMIER_INTERVALLE_PAR_RUN + FINS_INTERVALLES POUR_NE_PAS_PERDRE_LE_PREMIER_DT',coveragePolicy:'TOUT_INTERVALLE_ADJACENT_DONT_LES_TIMESTAMPS_SONT_VALIDES_RESTE_DANS_LE_DENOMINATEUR; ENTREE_STRUCTURELLEMENT_INVALIDE_CHANGEMENT_PLAN_TROU_TEMPOREL_COORDONNEE_HORS_TERRAIN_ET_SPIKE_BRUT_PENALISENT_EXPLICITEMENT_LA_COUVERTURE_SANS_CREER_DE_DISTANCE',invalidPathPolicy:'ENTREE_TRAJECTOIRE_CORROMPUE = COUPURE_DE_CONTINUITE; TIMESTAMPS_VALIDES_CONSERVENT_LE_TEMPS_ELIGIBLE_MAIS_NON_DEFENDABLE; JAMAIS_DE_DISTANCE_A_TRAVERS',rawSpikePolicy:'VETO_BRUT_AVANT_LISSAGE_A_55_KMH_MAX_VIA_METRIC_MOTION_PLAUSIBILITY_V1',pitchBoundsPolicy:'BORNE_TERRAIN_PARTAGEE_VIA_METRIC_TRAJECTORY_SMOOTHER_INSIDE_PITCH_105_X_68',sprintPolicy:'UN_SPRINT_COMPTE_SEULEMENT_APRES_1S_CONTINUE_A_AU_MOINS_25_KMH',maxMetricGapSec:MAX_METRIC_GAP_SEC,rawSpikeThresholdKmh:RAW_SPIKE_THRESHOLD_KMH,principle:'veto partagé des entrées trajectoire corrompues, changements de plan, téléports métriques bruts et coordonnées hors terrain avant tout lissage, puis filtre médian local, couverture qui conserve les preuves temporelles non défendables, combinaison couverture × confiance calibration et durée minimale avant de compter un sprint'};
       return report;
     };
     Stats.__cayMetricQualityGuardPatched=true;return true;
