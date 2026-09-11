@@ -18,6 +18,24 @@ assert.equal(Quality.splitRawSpikeRuns([
   {time:0,x:0,y:0},{time:1,x:20,y:0}
 ]).rejectedPairs,1,'quality guard must reuse the shared raw-motion veto');
 
+// The shared plausibility helper must itself fail closed at a camera-plan boundary.
+// This protects future consumers from accidentally measuring a spatial jump between homographies.
+const planBoundary=Motion.transitionEvidence(
+  {time:0,x:10,y:10,segment:1},
+  {time:1,x:11,y:10,segment:2}
+);
+assert.strictEqual(planBoundary.plausible,false,'cross-plan transition must never be accepted as player motion');
+assert.strictEqual(planBoundary.speedKmh,null,'cross-plan transition must not expose a misleading physical speed');
+assert.match(planBoundary.reason,/plan métrique|inter-segment/,'cross-plan rejection must stay auditable');
+const planSplit=Motion.splitRawSpikeRuns([
+  {time:0,x:10,y:10,segment:1},
+  {time:1,x:11,y:10,segment:1},
+  {time:2,x:12,y:10,segment:2},
+  {time:3,x:13,y:10,segment:2}
+]);
+assert.equal(planSplit.rejectedPairs,1,'one camera-plan boundary must create one explicit continuity cut');
+assert.deepStrictEqual(planSplit.runs.map(r=>r.length),[2,2],'motion runs must never span two calibration plans');
+
 // Missing temporal evidence must never be coerced to t=0.
 assert.strictEqual(Motion.transitionSpeedKmh({time:null,x:0,y:0},{time:1,x:1,y:0}),null);
 assert.strictEqual(Motion.transitionSpeedKmh({time:'   ',x:0,y:0},{time:1,x:1,y:0}),null);
