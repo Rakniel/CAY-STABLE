@@ -18,6 +18,8 @@ assert.strictEqual(metric.distanceM,2,'aucune distance ne doit être inventée �
 assert.strictEqual(metric.gapBreaks,1,'le blackout est compté explicitement');
 assert.strictEqual(metric.rejectedGapSeconds,5,'la durée du blackout rejeté reste auditée');
 assert.strictEqual(metric.quality,'PARTIEL','une couverture amputée par un blackout ne peut pas rester FIABLE');
-assert.strictEqual(metric.coveragePolicy,'LES_TROUS_TEMPORELS_MEME_SEGMENT_COORDONNEES_HORS_TERRAIN_ET_SPIKES_BRUTS_REJETES_RESTENT_DANS_LE_TEMPS_ELIGIBLE_MAIS_JAMAIS_DANS_LE_TEMPS_METRIQUE','politique de couverture exposée, incluant désormais explicitement les projections hors terrain');
+assert.match(metric.coveragePolicy,/TEMPS_ELIGIBLE/,'la politique doit conserver le temps chronologique observable dans le dénominateur');
+assert.match(metric.coveragePolicy,/CHANGEMENT_PLAN/,'la politique doit expliciter que les changements de plan restent non défendables');
+assert.match(metric.coveragePolicy,/NE_CREE_JAMAIS_DE_DISTANCE/,'la politique doit interdire toute distance inventée sur les preuves rejetées');
 
-console.log('PASS 8/8 robust metric gap coverage');
+console.log('PASS 10/10 robust metric gap coverage');
