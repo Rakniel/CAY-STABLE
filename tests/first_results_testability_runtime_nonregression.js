@@ -41,6 +41,8 @@ assert.strictEqual(report.marker,'preserved','testability wiring must preserve u
 assert(report.playerCards.testability,'runtime report must expose player-card testability without requiring a second consumer-side evaluation');
 assert.strictEqual(report.playerCards.testability.status,'PHYSICAL_TESTABLE');
 assert.strictEqual(report.playerCards.testability.metricReadyPlayers,1);
+assert.deepStrictEqual(report.playerCards.testability.blockers,{tracking:0,trajectory:0,heatmap:0,distance:0,avgSpeed:0,maxSpeed:0,sprints:0});
+assert.strictEqual(report.playerCards.testability.nextAction,'PREMIERS_RESULTATS_PRETS');
 assert.strictEqual(report.firstResultsTestability,report.playerCards.testability,'top-level runtime shortcut must reuse the exact same evaluation object, not recalculate it');
 assert.strictEqual(report.playerCards.summary.status,'TERRAIN_DISPONIBLE','testability wiring must not rewrite the existing player-card readiness summary');
 
@@ -48,6 +50,8 @@ const contradictory=Gate.evaluate({players:[{id:'B',firstResults:{tracking:false
 assert.strictEqual(contradictory.withCompletePhysicalMetrics,1,'existing physical evidence is preserved');
 assert.strictEqual(contradictory.metricReadyPlayers,0,'runtime testability must remain fail-closed when tracking evidence is absent');
 assert.strictEqual(contradictory.status,'INDISPONIBLE');
+assert.strictEqual(contradictory.blockers.tracking,1,'runtime diagnostics must expose the actual missing proof instead of promoting contradictory physical evidence');
+assert.strictEqual(contradictory.nextAction,'OBTENIR_TRACKING_DEFENDABLE');
 
 assert.strictEqual(Gate.installRuntime(),false,'runtime patch must be idempotent');
 delete global.CAYStableTrackingBridge;

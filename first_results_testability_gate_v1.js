@@ -7,6 +7,8 @@
 
   const bool=v=>v===true;
   const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const CORE_KEYS=['tracking','trajectory','heatmap'];
+  const PHYSICAL_KEYS=['distance','avgSpeed','maxSpeed','sprints'];
 
   function cardEvidence(card){
     const readiness=card?.firstResults||{};
@@ -21,6 +23,9 @@
     const physicalComplete=distance&&avgSpeed&&maxSpeed&&sprints;
     const pitchVisualCore=tracking&&trajectory&&heatmap;
     const metricReady=pitchVisualCore&&physicalComplete;
+    const flags={tracking,trajectory,heatmap,distance,avgSpeed,maxSpeed,sprints};
+    const missingPitchVisualCore=CORE_KEYS.filter(key=>flags[key]!==true);
+    const missingPhysicalMetrics=PHYSICAL_KEYS.filter(key=>flags[key]!==true);
     return {
       id:card?.id??null,
       tracking,
@@ -30,8 +35,33 @@
       physicalAny,
       physicalComplete,
       metricReady,
+      missingPitchVisualCore,
+      missingPhysicalMetrics,
       policy:'CORE_VISUEL = TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; PRET_METRIQUES = CORE_VISUEL_ET_DISTANCE_ET_VITESSE_MOYENNE_ET_VITESSE_MAX_ET_SPRINTS'
     };
+  }
+
+  function blockerCounts(evidence){
+    const keys=[...CORE_KEYS,...PHYSICAL_KEYS];
+    const counts={};
+    for(const key of keys)counts[key]=evidence.filter(item=>{
+      if(key==='tracking'||key==='trajectory'||key==='heatmap')return item.missingPitchVisualCore.includes(key);
+      return item.missingPhysicalMetrics.includes(key);
+    }).length;
+    return counts;
+  }
+
+  function nextAction(status,blockers){
+    if(status==='PHYSICAL_TESTABLE')return 'PREMIERS_RESULTATS_PRETS';
+    if(status==='PITCH_VISUAL_TESTABLE'){
+      const missing=PHYSICAL_KEYS.filter(key=>Number(blockers[key]||0)>0);
+      return missing.length?'COMPLETER_METRIQUES_PHYSIQUES:'+missing.join(','):'VALIDER_METRIQUES_PHYSIQUES';
+    }
+    if(status==='TRACKING_TESTABLE'){
+      const missing=['trajectory','heatmap'].filter(key=>Number(blockers[key]||0)>0);
+      return missing.length?'DEBLOQUER_VISUELS_TERRAIN:'+missing.join(','):'VALIDER_VISUELS_TERRAIN';
+    }
+    return 'OBTENIR_TRACKING_DEFENDABLE';
   }
 
   function evaluate(playerCards,options={}){
@@ -49,8 +79,9 @@
     const coreTestable=withCorePitchVisuals>=minCorePlayers;
     const physicalTestable=metricReadyPlayers>=minMetricPlayers;
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
+    const blockers=blockerCounts(evidence);
     return {
-      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_1',
+      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_2',
       status,
       players,
       withTracking,
@@ -61,6 +92,8 @@
       thresholds:{minCorePlayers,minMetricPlayers},
       coreTestable,
       physicalTestable,
+      blockers,
+      nextAction:nextAction(status,blockers),
       evidence,
       policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES'
     };
@@ -89,5 +122,5 @@
   }
 
   installRuntime();
-  return {cardEvidence,evaluate,installRuntime};
+  return {cardEvidence,blockerCounts,nextAction,evaluate,installRuntime};
 });
