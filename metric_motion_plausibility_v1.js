@@ -25,7 +25,7 @@
   }
   function splitRawSpikeRuns(run,maxRawSpeedKmh=RAW_SPIKE_THRESHOLD_KMH){
     const parts=[];let current=[],rejectedPairs=0,rejectedTimedIntervals=0,rejectedSeconds=0;
-    const rejectedByReason={};
+    const rejectedByReason={},rejectedTimedIntervalsByReason={},rejectedSecondsByReason={};
     for(const p of Array.isArray(run)?run:[]){
       if(!current.length){current=[p];continue;}
       const prev=current[current.length-1],evidence=transitionEvidence(prev,p,maxRawSpeedKmh);
@@ -36,12 +36,18 @@
         rejectedByReason[reason]=(rejectedByReason[reason]||0)+1;
         if(finite(prev?.time)&&finite(p?.time)){
           const dt=Number(p.time)-Number(prev.time);
-          if(dt>0){rejectedTimedIntervals++;rejectedSeconds+=dt;}
+          if(dt>0){
+            rejectedTimedIntervals++;
+            rejectedSeconds+=dt;
+            rejectedTimedIntervalsByReason[reason]=(rejectedTimedIntervalsByReason[reason]||0)+1;
+            rejectedSecondsByReason[reason]=(rejectedSecondsByReason[reason]||0)+dt;
+          }
         }
       }else current.push(p);
     }
     if(current.length)parts.push(current);
-    return {runs:parts,rejectedPairs,rejectedTimedIntervals,rejectedSeconds:+rejectedSeconds.toFixed(6),rejectedByReason};
+    for(const reason of Object.keys(rejectedSecondsByReason))rejectedSecondsByReason[reason]=+rejectedSecondsByReason[reason].toFixed(6);
+    return {runs:parts,rejectedPairs,rejectedTimedIntervals,rejectedSeconds:+rejectedSeconds.toFixed(6),rejectedByReason,rejectedTimedIntervalsByReason,rejectedSecondsByReason};
   }
   return {RAW_SPIKE_THRESHOLD_KMH,transitionSpeedKmh,transitionEvidence,splitRawSpikeRuns,sameSegmentOrUnspecified};
 });
