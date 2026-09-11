@@ -30,6 +30,11 @@ assert.deepStrictEqual(audit.byCause.outsidePitch,{samples:3,seconds:3.5,interva
 assert.deepStrictEqual(audit.byCause.rawMetricSpike,{pairs:3});
 assert.deepStrictEqual(audit.byCause.postSmoothingSpeedVeto,{pairs:3});
 assert(!Object.prototype.hasOwnProperty.call(audit,'rejectedSecondsTotal'),'overlapping causal evidence must never be exposed as a fake additive total');
+assert.equal(audit.summary.status,'DISPONIBLE');
+assert.equal(audit.summary.activeCauseCount,9);
+assert.deepStrictEqual(audit.summary.topCauses.map(row=>row.key),['projectionAffected','invalidPath','outsidePitch'],'summary must rank by affected seconds then events without summing overlapping evidence');
+assert.deepStrictEqual(audit.summary.topCauses[0],{key:'projectionAffected',label:'temps affecté par la projection',seconds:6,events:4,samples:0,intervals:4,pairs:0});
+assert.match(audit.summary.policy,/NON_ADDITIF/);
 
 const baseMetric={distanceM:10,metricCoverage:.5,quality:'PARTIEL'};
 const augmented=Audit.augmentMetric(baseMetric,windows);
@@ -38,14 +43,26 @@ assert.equal(augmented.metricCoverage,.5,'audit rollup must not change metric co
 assert.equal(augmented.rejectedProjectionSeconds,6);
 assert.equal(augmented.rejectedOutsidePitchSeconds,3.5);
 assert.equal(augmented.audit.byCause.invalidPath.samples,3);
+assert.equal(augmented.audit.summary.topCauses[0].key,'projectionAffected');
 
 const unavailable=Audit.augmentResult({status:'INDISPONIBLE',metric:null,windows});
 assert.equal(unavailable.status,'INDISPONIBLE','audit must never promote availability');
 assert.equal(unavailable.metric,null);
 assert.equal(unavailable.metricAudit.byCause.projectionFailure.samples,4);
+assert.equal(unavailable.metricAudit.summary.status,'DISPONIBLE','causal diagnostics remain available even when physical metrics are correctly unavailable');
+
+const custom=Audit.causalSummary({
+  outsidePitch:{seconds:2,intervals:1,samples:1},
+  rawMetricSpike:{pairs:5},
+  temporalGap:{seconds:2,intervals:3}
+},2);
+assert.deepStrictEqual(custom.topCauses.map(row=>row.key),['temporalGap','outsidePitch'],'equal durations must use event count as deterministic tie-breaker');
+assert.equal(custom.activeCauseCount,3);
+assert.equal(custom.topCauses.length,2);
 
 const empty=Audit.rollup([]);
 assert.equal(empty.windowCount,0);
 assert.deepStrictEqual(empty.byCause.invalidPath,{samples:0,seconds:0,intervals:0});
+assert.deepStrictEqual(empty.summary,{status:'AUCUN_REJET_AUDITE',topCauses:[],activeCauseCount:0,policy:'RESUME_CAUSAL_NON_ADDITIF; LES_CAUSES_PEUVENT_SE_RECOUVRIR; AUCUN_TOTAL_DE_SECONDES_PERDUES_N_EST_DEDUIT; ORDRE_PAR_DUREE_PUIS_NOMBRE_D_EVENEMENTS'});
 
 console.log('roster_metric_audit_rollup_nonregression: OK');
