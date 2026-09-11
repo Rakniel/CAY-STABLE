@@ -68,7 +68,11 @@ for(let i=0;i<latentPath.length;i++){
 assert.ok(maxTrajectoryError<=.25,`trajectory projection error too high: ${maxTrajectoryError} m`);
 
 const metric=Metrics.robustMetricForTrack(track,projectors);
-assert.equal(metric.metricCoverage,1,'distance/speed denominator must not bridge the explicit camera cut');
+assert.equal(metric.eligibleSeconds,5,'physical metric denominator must retain all adjacent observed chronology');
+assert.equal(metric.metricCoveredSeconds,4,'camera-cut second must remain non-defendable metric time');
+assert.equal(metric.segmentBoundarySeconds,1,'physical metric must expose camera-cut duration');
+assert.equal(metric.segmentBoundaryBreaks,1,'physical metric must count the explicit camera cut exactly once');
+assert.equal(metric.metricCoverage,.8,'distance/speed coverage must penalize rather than hide the explicit camera cut');
 assert.ok(Math.abs(metric.distanceM-8.4)<=.05,`distance drift: ${metric.distanceM} m`);
 assert.ok(Math.abs(metric.avgSpeedKmh-7.56)<=.05,`average speed drift: ${metric.avgSpeedKmh} km/h`);
 assert.equal(metric.sprintCount,0,'walking/jogging fixture must not create a sprint');
@@ -81,5 +85,5 @@ assert.ok(unavailable.metricCoverage<.95,'failed-plan coverage must be visible i
 console.log('synthetic_metric_chain_nonregression: PASS',JSON.stringify({
   segment1MeanErrorM:+p1.validation.meanM.toFixed(6),segment2MeanErrorM:+p2.validation.meanM.toFixed(6),
   maxTrajectoryErrorM:+maxTrajectoryError.toFixed(6),distanceM:metric.distanceM,avgSpeedKmh:metric.avgSpeedKmh,
-  heatmapCoverage:heat.metricCoverage,heatmapTemporalCoverage:heat.temporalCoverage,failedPlanCoverage:unavailable.metricCoverage
+  physicalMetricCoverage:metric.metricCoverage,heatmapCoverage:heat.metricCoverage,heatmapTemporalCoverage:heat.temporalCoverage,failedPlanCoverage:unavailable.metricCoverage
 }));
