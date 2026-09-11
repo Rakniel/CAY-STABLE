@@ -50,7 +50,7 @@
     const physicalTestable=metricReadyPlayers>=minMetricPlayers;
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
     return {
-      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1',
+      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_1',
       status,
       players,
       withTracking,
@@ -66,5 +66,28 @@
     };
   }
 
-  return {cardEvidence,evaluate};
+  function installRuntime(){
+    const Bridge=typeof globalThis!=='undefined'?globalThis.CAYStableTrackingBridge:null;
+    if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayFirstResultsTestabilityPatched)return false;
+    const baseCreate=Bridge.create.bind(Bridge);
+    Bridge.create=function(options){
+      const instance=baseCreate(options);
+      if(!instance||typeof instance.report!=='function')return instance;
+      const baseReport=instance.report.bind(instance);
+      instance.report=function(projectors,visualOptions){
+        const report=baseReport(projectors,visualOptions);
+        if(!report||!report.playerCards||!Array.isArray(report.playerCards.players))return report;
+        const testability=evaluate(report.playerCards);
+        report.playerCards={...report.playerCards,testability};
+        report.firstResultsTestability=testability;
+        return report;
+      };
+      return instance;
+    };
+    Bridge.__cayFirstResultsTestabilityPatched=true;
+    return true;
+  }
+
+  installRuntime();
+  return {cardEvidence,evaluate,installRuntime};
 });
