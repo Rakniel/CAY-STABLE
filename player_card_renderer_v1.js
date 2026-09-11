@@ -99,6 +99,14 @@ function readinessHtml(summary){
   return '<div class="cay-first-results-readiness-v1" aria-label="disponibilité premiers résultats C.A. Yenne" style="grid-column:1/-1;padding:10px 12px;border-radius:11px;background:linear-gradient(90deg,rgba(141,16,24,.28),rgba(0,0,0,.34));border:1px solid rgba(205,31,45,.42);font-size:11px;line-height:1.45">'+
     '<b style="letter-spacing:.04em">'+esc(stage)+'</b><br><span style="opacity:.78">'+players+' joueur(s) • tracking '+n('withTracking')+'/'+players+' • trajectoire '+n('withPitchTrajectory')+'/'+players+' • heatmap '+n('withPitchHeatmap')+'/'+players+' • distance '+n('withMetricDistance')+'/'+players+' • vitesse '+Math.max(n('withMetricAvgSpeed'),n('withMetricMaxSpeed'))+'/'+players+' • sprints '+n('withMetricSprints')+'/'+players+'</span><div style="margin-top:4px;opacity:.58;font-size:10px">Aucun résultat terrain n’est déduit sans preuve publiée ; les éléments non défendables restent INDISPONIBLE.</div></div>';
 }
+function playerReadinessHtml(card){
+  const r=card?.firstResults||{},status=String(r.status||'INDISPONIBLE').toUpperCase();
+  const stage=status==='TERRAIN_DISPONIBLE'?'TERRAIN PRÊT':status==='TRACKING_DISPONIBLE'?'TRACKING PRÊT — TERRAIN EN COURS':'PREUVES INSUFFISANTES';
+  const chip=(label,ready)=>'<span style="opacity:'+(ready?'.96':'.38')+';font-weight:'+(ready?'800':'600')+'">'+(ready?'✓ ':'— ')+esc(label)+'</span>';
+  return '<div class="cay-player-readiness-v1" aria-label="état des premiers résultats joueur" style="margin-top:8px;padding:7px 9px;border-radius:9px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);font-size:10px;line-height:1.4">'+
+    '<b style="letter-spacing:.04em">'+esc(stage)+'</b><div style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px">'+
+    chip('tracking',r.tracking===true)+chip('trajectoire',r.trajectory===true)+chip('heatmap',r.heatmap===true)+chip('stats',r.physicalMetrics===true)+'</div></div>';
+}
 function cardHtml(card){
   const p=card?.presence||{},obs=card?.observedVisuals||{},pitch=card?.pitchVisuals||{},m=card?.metrics||{};
   const obsLabel=obs.status==='DISPONIBLE'?'CAMÉRA • '+(p.trackingCoverage||0)+' %':'CAMÉRA INDISPONIBLE';
@@ -107,7 +115,7 @@ function cardHtml(card){
   return '<article class="cay-player-card-v1" style="padding:14px;border-radius:14px;background:linear-gradient(145deg,#151518,#09090b);border:1px solid rgba(205,31,45,.42);box-shadow:0 8px 24px rgba(0,0,0,.22);color:#fff">'+
     '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center">'+rosterHeader(card)+badge(card?.identity?.status)+'</div>'+
     '<div style="margin-top:5px;font-size:11px;opacity:.72">'+esc(obsLabel)+' • '+esc(pitchLabel)+'</div>'+
-    '<div style="margin-top:3px;font-size:11px;opacity:.72">'+esc(physicalLabel)+'</div>'+
+    '<div style="margin-top:3px;font-size:11px;opacity:.72">'+esc(physicalLabel)+'</div>'+playerReadinessHtml(card)+
     '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;font-size:12px">'+
       '<div><span style="opacity:.65">Temps observé</span><br><b>'+(finite(p.observedDuration)?Number(p.observedDuration).toFixed(1)+' s':'—')+'</b></div>'+
       '<div><span style="opacity:.65">Observations</span><br><b>'+esc(p.observations||0)+'</b></div>'+
@@ -145,5 +153,5 @@ function install(){
   return true;
 }
 if(typeof document!=='undefined')install();
-return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,splitAuditReason,explainUnavailable,pitchWindowText,physicalMetricCoverage,readinessHtml,render,install};
+return {cardHtml,rosterHeader,heatmapCells,heatmapHtml,trajectoryHtml,metricText,splitAuditReason,explainUnavailable,pitchWindowText,physicalMetricCoverage,readinessHtml,playerReadinessHtml,render,install};
 });
