@@ -31,9 +31,11 @@ assert.match(pitch.policy,/PARTIEL/);
 const card=PlayerCards.buildCard({
   id:'p1',cat:'SENIOR',identityQuality:'FIABLE',observations:4,rosterMetric:partialRosterMetric,metric:{rosterBound:true,metricCoverage:0,publication:{status:'INDISPONIBLE',fieldStatus:{}}}
 });
-assert.strictEqual(card.firstResults.status,'TERRAIN_DISPONIBLE','trajectory-only first result must still count as an available pitch result');
+assert.strictEqual(card.firstResults.status,'TRACKING_DISPONIBLE','trajectory-only evidence stays visible but must not advertise complete pitch results without a heatmap');
 assert.strictEqual(card.firstResults.trajectory,true);
 assert.strictEqual(card.firstResults.heatmap,false);
+assert.strictEqual(card.firstResults.pitchVisualCore,false);
+assert.strictEqual(card.firstResults.pitchResults,false);
 assert.strictEqual(card.firstResults.physicalMetrics,false);
 assert.strictEqual(card.metrics.distanceM.status,'INDISPONIBLE');
 assert.strictEqual(card.metrics.avgSpeedKmh.status,'INDISPONIBLE');
