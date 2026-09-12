@@ -9,7 +9,7 @@ const track=pts=>({fullPath:pts.map(([time,x])=>({time,x,y:0,segment:0}))});
 const source={...Stats.metricForTrack(track([[0,0],[0.5,3.5],[1,7],[1.5,10.5],[2,14],[2.5,17.5],[3,21],[3.5,24.5]]),projectors),defendableScore:.95,quality:'FIABLE'};
 assert.strictEqual(source.sprintCount,1);
 assert.strictEqual(source.sprintQualifiedSeconds,3.5);
-assert.strictEqual(source.minSprintDurationSeconds,1);
+assert.strictEqual(source.minSprintSeconds,1);
 
 const apply=overrides=>Guard.applyPublicationPolicy({...source,...overrides},{identityQuality:'FIABLE'});
 
