@@ -44,20 +44,24 @@
     const knownPlayers=knownRows.length;
     const unknownPlayers=Math.max(0,eligiblePlayers-knownPlayers);
     const knownPlayerSharePct=eligiblePlayers?+(knownPlayers/eligiblePlayers*100).toFixed(2):null;
+    const durationRows=rows.filter(item=>finite(item?.coverage?.participationSeconds)&&Number(item.coverage.participationSeconds)>0);
+    const durationKnownPlayers=durationRows.length;
+    const durationUnknownPlayers=Math.max(0,eligiblePlayers-durationKnownPlayers);
+    const durationKnownPlayerSharePct=eligiblePlayers?+(durationKnownPlayers/eligiblePlayers*100).toFixed(2):null;
+    const temporalWeightingComplete=eligiblePlayers>0&&durationKnownPlayers===eligiblePlayers;
     const weightedRows=knownRows.filter(item=>finite(item?.coverage?.participationSeconds)&&Number(item.coverage.participationSeconds)>0);
     const knownParticipationSeconds=weightedRows.reduce((sum,item)=>sum+Number(item.coverage.participationSeconds),0);
-    const eligibleParticipationSeconds=rows
-      .filter(item=>finite(item?.coverage?.participationSeconds)&&Number(item.coverage.participationSeconds)>0)
-      .reduce((sum,item)=>sum+Number(item.coverage.participationSeconds),0);
+    const eligibleParticipationSeconds=durationRows.reduce((sum,item)=>sum+Number(item.coverage.participationSeconds),0);
     const weightedAvgPct=knownParticipationSeconds
       ? +(weightedRows.reduce((sum,item)=>sum+Number(item.coverage[key])*Number(item.coverage.participationSeconds),0)/knownParticipationSeconds).toFixed(2)
       : null;
-    const knownParticipationSharePct=eligibleParticipationSeconds
+    const knownParticipationSharePct=temporalWeightingComplete&&eligibleParticipationSeconds
       ? +(knownParticipationSeconds/eligibleParticipationSeconds*100).toFixed(2)
       : null;
     if(!values.length)return {
       eligiblePlayers,knownPlayers,unknownPlayers,knownPlayerSharePct,
       minPct:null,avgPct:null,maxPct:null,weightedAvgPct:null,
+      durationKnownPlayers,durationUnknownPlayers,durationKnownPlayerSharePct,temporalWeightingComplete,
       eligibleParticipationSeconds:eligibleParticipationSeconds||null,
       knownParticipationSeconds:knownParticipationSeconds||null,
       knownParticipationSharePct
@@ -72,6 +76,10 @@
       avgPct:+(total/values.length).toFixed(2),
       maxPct:Math.max(...values),
       weightedAvgPct,
+      durationKnownPlayers,
+      durationUnknownPlayers,
+      durationKnownPlayerSharePct,
+      temporalWeightingComplete,
       eligibleParticipationSeconds:eligibleParticipationSeconds||null,
       knownParticipationSeconds:knownParticipationSeconds||null,
       knownParticipationSharePct
@@ -83,7 +91,7 @@
       tracking:summarizeCoverage(evidence,'trackingPct','tracking'),
       pitchSpatial:summarizeCoverage(evidence,'pitchSpatialPct','pitchVisualCore'),
       physicalMetric:summarizeCoverage(evidence,'physicalMetricPct','physicalComplete'),
-      policy:'RESUME_AUDIT_SEULEMENT_SUR_LES_JOUEURS_ELIGIBLES_A_CHAQUE_ETAPE; MOYENNE_PONDEREE_PAR_TEMPS_DE_PARTICIPATION_QUAND_DISPONIBLE; COUVERTURE_INCONNUE_RESTE_EXPLICITE; AUCUN_SEUIL_DE_COUVERTURE_N_EST_INVENTE_PAR_CE_GARDE'
+      policy:'RESUME_AUDIT_SEULEMENT_SUR_LES_JOUEURS_ELIGIBLES_A_CHAQUE_ETAPE; MOYENNE_PONDEREE_PAR_TEMPS_DE_PARTICIPATION_QUAND_DISPONIBLE; COMPLETUDE_DES_DUREES_EXPOSEE_EXPLICITEMENT; PART_TEMPORELLE_CONNUE_RESTE_INDISPONIBLE_SI_UNE_DUREE_ELIGIBLE_MANQUE; COUVERTURE_INCONNUE_RESTE_EXPLICITE; AUCUN_SEUIL_DE_COUVERTURE_N_EST_INVENTE_PAR_CE_GARDE'
     };
   }
 
@@ -152,7 +160,7 @@
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
     const blockers=blockerCounts(evidence);
     return {
-      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_6',
+      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_7',
       status,
       players,
       withTracking,
@@ -167,7 +175,7 @@
       coverageSummary:coverageSummary(evidence),
       nextAction:nextAction(status,blockers),
       evidence,
-      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_ET RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION'
+      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE'
     };
   }
 
