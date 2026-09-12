@@ -5,14 +5,15 @@ const sequenceIds=['cay-wide-pan-01','cay-zoom-02','cay-crowded-03','cay-multipl
 const trackingBaseline={hota:70,idf1:72,mota:68,idSwitches:10,falseCay:0,benchSpectatorFalseTracks:0,sequences:4,sequenceIds};
 const trackingCandidate={hota:71,idf1:73,mota:69,idSwitches:8,falseCay:0,benchSpectatorFalseTracks:0,sequences:4,sequenceIds:[...sequenceIds].reverse()};
 const trajectoryBaseline={status:'DISPONIBLE',totalGroundTruthPoints:1000,comparablePoints:900,rmseM:1.2,p95ErrorM:2.8,metricCoverage:.90,outOfPitchFalsePoints:0,sequenceIds,trajectoryGroundTruthId:'teamtrack-soccer-fixed-side-v1'};
+const near=(actual,expected,eps=1e-12)=>Math.abs(actual-expected)<=eps;
 
 {
   const candidate={...trajectoryBaseline,comparablePoints:930,rmseM:1.0,p95ErrorM:2.4,metricCoverage:.93};
   const r=Gate.evaluateTrajectoryEvidence(trajectoryBaseline,candidate);
   assert.equal(r.status,'PASS');
   assert.equal(r.pass,true);
-  assert.equal(r.delta.rmseM,-.2);
-  assert.equal(r.delta.metricCoverage,.03);
+  assert(near(r.delta.rmseM,-.2));
+  assert(near(r.delta.metricCoverage,.03));
   assert.equal(r.trajectoryGroundTruthId,'teamtrack-soccer-fixed-side-v1');
 }
 
