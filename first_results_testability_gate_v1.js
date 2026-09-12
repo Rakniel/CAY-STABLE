@@ -7,6 +7,7 @@
 
   const bool=v=>v===true;
   const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const pct=v=>finite(v)?Math.max(0,Math.min(100,Number(v))):null;
   const CORE_KEYS=['tracking','trajectory','heatmap'];
   const PHYSICAL_KEYS=['distance','avgSpeed','maxSpeed','sprints'];
 
@@ -21,6 +22,18 @@
       return missing.length?'DEBLOQUER_VISUELS_TERRAIN:'+missing.join(','):'VALIDER_VISUELS_TERRAIN';
     }
     return 'OBTENIR_TRACKING_DEFENDABLE';
+  }
+
+  function coverageEvidence(card){
+    return {
+      trackingPct:pct(card?.presence?.trackingCoverage),
+      pitchSpatialPct:pct(card?.pitchVisuals?.spatialCoverage),
+      physicalMetricPct:pct(card?.pitchVisuals?.physicalMetricCoverage),
+      pitchBasis:card?.pitchVisuals?.spatialCoverageBasis||null,
+      participationSeconds:finite(card?.pitchVisuals?.participationSeconds)?Number(card.pitchVisuals.participationSeconds):null,
+      renderedSeconds:finite(card?.pitchVisuals?.renderedSeconds)?Number(card.pitchVisuals.renderedSeconds):null,
+      policy:'COUVERTURES_REPRISES_EN_LECTURE_SEULE_DEPUIS_LA_FICHE_JOUEUR; AUCUNE_PROMOTION_DE_STATUT_PAR_LA_COUVERTURE_SEULE'
+    };
   }
 
   function cardEvidence(card){
@@ -53,6 +66,7 @@
       physicalAny,
       physicalComplete,
       metricReady,
+      coverage:coverageEvidence(card),
       missingPitchVisualCore,
       missingPhysicalMetrics,
       nextAction:nextAction(status,blockers),
@@ -87,7 +101,7 @@
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
     const blockers=blockerCounts(evidence);
     return {
-      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_3',
+      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_4',
       status,
       players,
       withTracking,
@@ -101,7 +115,7 @@
       blockers,
       nextAction:nextAction(status,blockers),
       evidence,
-      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES'
+      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_SANS_MODIFIER_LA_DECISION'
     };
   }
 
@@ -128,5 +142,5 @@
   }
 
   installRuntime();
-  return {cardEvidence,blockerCounts,nextAction,evaluate,installRuntime};
+  return {cardEvidence,coverageEvidence,blockerCounts,nextAction,evaluate,installRuntime};
 });
