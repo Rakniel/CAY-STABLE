@@ -9,7 +9,7 @@ const partialPhysical=card('C',{tracking:true,trajectory:true,heatmap:true,dista
 const fullPhysical=card('D',{tracking:true,trajectory:true,heatmap:true,distance:true,avgSpeed:true,maxSpeed:true,sprints:true,physicalMetrics:true,physicalMetricsComplete:true},{presence:{trackingCoverage:87},pitchVisuals:{spatialCoverage:72,physicalMetricCoverage:61,spatialCoverageBasis:'TEMPORAL_SECONDS',participationSeconds:100,renderedSeconds:72}});
 
 let result=Gate.evaluate({players:[]});
-assert.strictEqual(result.version,'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_4');
+assert.strictEqual(result.version,'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_5');
 assert.strictEqual(result.status,'INDISPONIBLE');
 assert.strictEqual(result.coreTestable,false);
 assert.strictEqual(result.physicalTestable,false);
