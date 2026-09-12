@@ -7,7 +7,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(ArtifactProvider){
   'use strict';
 
-  const VERSION='CAY_CAMERA_MOTION_BACKGROUND_EVIDENCE_GUARD_V1';
+  const VERSION='CAY_CAMERA_MOTION_BACKGROUND_EVIDENCE_GUARD_V1_1';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)));
 
@@ -78,16 +78,61 @@
     const verdict=validateArtifact(artifact,options);
     if(!verdict.ok)throw new Error(verdict.reason);
     const base=ArtifactProvider.createProvider(artifact,options.providerOptions||{});
+    const samples=Array.isArray(artifact.samples)?artifact.samples:[];
+    const guardOptions={
+      minMatchedReferencePointRatio:finite(options.minMatchedReferencePointRatio)
+        ?clamp(options.minMatchedReferencePointRatio,0,1)
+        :.75,
+      maxReferenceAgeFrames:finite(options.maxReferenceAgeFrames)
+        ?Math.max(0,Math.floor(Number(options.maxReferenceAgeFrames)))
+        :null
+    };
+
+    function evidenceForHit(hit,anchorTime){
+      if(!hit||!hit.motion||!finite(hit.sampleTime))return null;
+      const sample=samples.find(raw=>
+        Number(raw.segment)===Number(hit.segment)&&
+        Math.abs(Number(raw.time)-Number(hit.sampleTime))<=1e-9&&
+        Math.abs(Number(raw.anchorTime)-Number(anchorTime))<=base.anchorToleranceSec
+      );
+      if(!sample)return null;
+      const evidence=inspectSample(sample,guardOptions);
+      if(!evidence.ok)return null;
+      return {
+        guardVersion:VERSION,
+        backgroundMaskApplied:true,
+        matchedReferencePointRatio:evidence.matchedReferencePointRatio,
+        minMatchedReferencePointRatio:evidence.minMatchedReferencePointRatio,
+        referenceAgeFrames:evidence.referenceAgeFrames
+      };
+    }
+
+    function motionFor(anchorTime,time,segment){
+      const hit=base.motionFor(anchorTime,time,segment);
+      if(!hit||!hit.motion)return hit;
+      const backgroundEvidence=evidenceForHit(hit,anchorTime);
+      if(!backgroundEvidence)return {motion:null,reason:'BACKGROUND_MOTION_RUNTIME_EVIDENCE_UNAVAILABLE'};
+      return {...hit,backgroundEvidence};
+    }
+
+    function createPropagatedProjector(anchorProjector,anchorTime,time,segment,projectorOptions={}){
+      const hit=motionFor(anchorTime,time,segment);
+      if(!hit||!hit.motion)return {validated:false,project:null,reason:hit&&hit.reason?hit.reason:'CAMERA_MOTION_SAMPLE_UNAVAILABLE'};
+      const propagated=base.createPropagatedProjector(anchorProjector,anchorTime,time,segment,projectorOptions);
+      if(!propagated||propagated.validated!==true)return propagated;
+      return {
+        ...propagated,
+        artifact:{...(propagated.artifact||{}),backgroundEvidence:hit.backgroundEvidence}
+      };
+    }
+
     return {
       ...base,
+      motionFor,
+      createPropagatedProjector,
       backgroundEvidenceGuard:{
         version:VERSION,
-        minMatchedReferencePointRatio:finite(options.minMatchedReferencePointRatio)
-          ?clamp(options.minMatchedReferencePointRatio,0,1)
-          :.75,
-        maxReferenceAgeFrames:finite(options.maxReferenceAgeFrames)
-          ?Math.max(0,Math.floor(Number(options.maxReferenceAgeFrames)))
-          :null,
+        ...guardOptions,
         policy:'EXTERNAL_CAMERA_MOTION_ACCEPTED_ONLY_WITH_EXPLICIT_BACKGROUND_MASK_AND_REFERENCE_POINT_RETENTION_EVIDENCE'
       }
     };

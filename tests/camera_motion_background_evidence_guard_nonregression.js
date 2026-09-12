@@ -37,6 +37,24 @@ assert.strictEqual(guarded.backgroundEvidenceGuard.version,Guard.VERSION);
 assert.strictEqual(guarded.backgroundEvidenceGuard.minMatchedReferencePointRatio,.8);
 const hit=guarded.motionFor(1,1.031,0);
 assert(hit.motion,'guard must preserve the existing provider once evidence is validated');
+assert.deepStrictEqual(hit.backgroundEvidence,{
+  guardVersion:Guard.VERSION,
+  backgroundMaskApplied:true,
+  matchedReferencePointRatio:.91,
+  minMatchedReferencePointRatio:.8,
+  referenceAgeFrames:8
+},'accepted runtime motion must keep its background evidence auditable');
+
+const unavailable=guarded.motionFor(1,2,0);
+assert.strictEqual(unavailable.motion,null,'stale motion remains unavailable');
+assert.strictEqual(unavailable.backgroundEvidence,undefined,'unavailable motion must not fabricate evidence');
+
+const projector={project:p=>p};
+const propagated=guarded.createPropagatedProjector(projector,1,1.031,0,{maxAgeSec:1});
+if(propagated.validated===true){
+  assert(propagated.artifact&&propagated.artifact.backgroundEvidence,'propagated projector must expose the accepted background evidence');
+  assert.strictEqual(propagated.artifact.backgroundEvidence.matchedReferencePointRatio,.91);
+}
 
 const legalFailure=Guard.validateArtifact({...artifact,provenance:{source:'x',license:'GPL-3.0',revision:'r'}});
 assert.strictEqual(legalFailure.reason,'CAMERA_MOTION_ARTIFACT_LICENSE_REJECTED','existing license guard must remain authoritative');
