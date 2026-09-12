@@ -157,12 +157,15 @@
   }
 
   function blockerCounts(evidence){
-    const keys=[...CORE_KEYS,...PHYSICAL_KEYS];
-    const counts={};
-    for(const key of keys)counts[key]=evidence.filter(item=>{
-      if(key==='tracking'||key==='trajectory'||key==='heatmap')return item.missingPitchVisualCore.includes(key);
-      return item.missingPhysicalMetrics.includes(key);
-    }).length;
+    const rows=Array.isArray(evidence)?evidence:[];
+    const counts={
+      tracking:rows.filter(item=>item?.tracking!==true).length,
+      trajectory:rows.filter(item=>item?.tracking===true&&item?.trajectory!==true).length,
+      heatmap:rows.filter(item=>item?.tracking===true&&item?.heatmap!==true).length
+    };
+    for(const key of PHYSICAL_KEYS){
+      counts[key]=rows.filter(item=>item?.pitchVisualCore===true&&Array.isArray(item?.missingPhysicalMetrics)&&item.missingPhysicalMetrics.includes(key)).length;
+    }
     return counts;
   }
 
@@ -195,10 +198,11 @@
       coreTestable,
       physicalTestable,
       blockers,
+      blockerEligibility:{pitchVisualPlayers:withTracking,physicalPlayers:withCorePitchVisuals},
       coverageSummary:coverageSummary(evidence),
       nextAction:nextAction(status,blockers),
       evidence,
-      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE; FICHES_JOUEURS_REALIGNEES_SUR_CE_STATUT_CANONIQUE'
+      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; BLOQUEURS_VISUELS_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_TRACKES; BLOQUEURS_PHYSIQUES_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_AVEC_CORE_VISUEL_COMPLET; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE; FICHES_JOUEURS_REALIGNEES_SUR_CE_STATUT_CANONIQUE'
     };
   }
 

@@ -3,6 +3,7 @@ const assert=require('assert');
 const Gate=require('../first_results_testability_gate_v1.js');
 
 const card=(id,firstResults,extra={})=>({id,firstResults,...extra});
+const unavailable=card('U',{tracking:false,trajectory:false,heatmap:false,distance:false,avgSpeed:false,maxSpeed:false,sprints:false,physicalMetrics:false});
 const trackingOnly=card('A',{tracking:true,trajectory:false,heatmap:false,distance:false,avgSpeed:false,maxSpeed:false,sprints:false,physicalMetrics:false});
 const visualReady=card('B',{tracking:true,trajectory:true,heatmap:true,distance:false,avgSpeed:false,maxSpeed:false,sprints:false,physicalMetrics:false});
 const partialPhysical=card('C',{tracking:true,trajectory:true,heatmap:true,distance:true,avgSpeed:true,maxSpeed:false,sprints:false,physicalMetrics:true});
@@ -25,7 +26,14 @@ assert.deepStrictEqual(result.evidence[0].missingPitchVisualCore,['trajectory','
 assert.deepStrictEqual(result.evidence[0].missingPhysicalMetrics,['distance','avgSpeed','maxSpeed','sprints']);
 assert.strictEqual(result.evidence[0].nextAction,'DEBLOQUER_VISUELS_TERRAIN:trajectory,heatmap');
 assert.deepStrictEqual(result.evidence[0].coverage,{trackingPct:null,pitchSpatialPct:null,physicalMetricPct:null,pitchBasis:null,participationSeconds:null,renderedSeconds:null,policy:'COUVERTURES_REPRISES_EN_LECTURE_SEULE_DEPUIS_LA_FICHE_JOUEUR; AUCUNE_PROMOTION_DE_STATUT_PAR_LA_COUVERTURE_SEULE'});
-assert.deepStrictEqual(result.blockers,{tracking:0,trajectory:1,heatmap:1,distance:1,avgSpeed:1,maxSpeed:1,sprints:1});
+assert.deepStrictEqual(result.blockers,{tracking:0,trajectory:1,heatmap:1,distance:0,avgSpeed:0,maxSpeed:0,sprints:0},'physical blockers must not count a player before the pitch-visual core is complete');
+assert.deepStrictEqual(result.blockerEligibility,{pitchVisualPlayers:1,physicalPlayers:0});
+assert.strictEqual(result.nextAction,'DEBLOQUER_VISUELS_TERRAIN:trajectory,heatmap');
+
+result=Gate.evaluate({players:[unavailable,trackingOnly]});
+assert.strictEqual(result.status,'TRACKING_TESTABLE');
+assert.deepStrictEqual(result.blockers,{tracking:1,trajectory:1,heatmap:1,distance:0,avgSpeed:0,maxSpeed:0,sprints:0},'untracked roster entries must not inflate trajectory, heatmap or physical blockers');
+assert.deepStrictEqual(result.blockerEligibility,{pitchVisualPlayers:1,physicalPlayers:0});
 assert.strictEqual(result.nextAction,'DEBLOQUER_VISUELS_TERRAIN:trajectory,heatmap');
 
 result=Gate.evaluate({players:[trackingOnly,visualReady]});
@@ -38,7 +46,8 @@ assert.strictEqual(result.evidence[1].nextAction,'COMPLETER_METRIQUES_PHYSIQUES:
 assert.strictEqual(result.blockers.tracking,0);
 assert.strictEqual(result.blockers.trajectory,1);
 assert.strictEqual(result.blockers.heatmap,1);
-assert.strictEqual(result.blockers.distance,2);
+assert.strictEqual(result.blockers.distance,1,'physical blockers must count only players with tracking + trajectory + heatmap');
+assert.deepStrictEqual(result.blockerEligibility,{pitchVisualPlayers:2,physicalPlayers:1});
 assert.strictEqual(result.nextAction,'COMPLETER_METRIQUES_PHYSIQUES:distance,avgSpeed,maxSpeed,sprints');
 
 result=Gate.evaluate({players:[partialPhysical]});
@@ -47,6 +56,7 @@ assert.strictEqual(result.withAnyPhysicalMetrics,1);
 assert.strictEqual(result.withCompletePhysicalMetrics,0);
 assert.strictEqual(result.metricReadyPlayers,0);
 assert.deepStrictEqual(result.evidence[0].missingPhysicalMetrics,['maxSpeed','sprints']);
+assert.deepStrictEqual(result.blockers,{tracking:0,trajectory:0,heatmap:0,distance:0,avgSpeed:0,maxSpeed:1,sprints:1});
 assert.strictEqual(result.evidence[0].nextAction,'COMPLETER_METRIQUES_PHYSIQUES:maxSpeed,sprints');
 assert.strictEqual(result.nextAction,'COMPLETER_METRIQUES_PHYSIQUES:maxSpeed,sprints');
 
