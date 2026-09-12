@@ -32,9 +32,11 @@
     };
   }
   function compareBenchmarkInputs(baseline,candidate,options){
-    const cfg=Object.assign({requireSameBenchmarkInputs:true},options||{});
-    if(!cfg.requireSameBenchmarkInputs)return {pass:true,reason:'BENCHMARK_INPUT_PARITY_NOT_REQUIRED',baseline:benchmarkInputProtocol(baseline),candidate:benchmarkInputProtocol(candidate)};
+    const cfg=Object.assign({},options||{});
     const b=benchmarkInputProtocol(baseline),c=benchmarkInputProtocol(candidate);
+    const protocolDeclared=[b.detectorArtifactId,b.frameSetId,b.timestampMode,b.timestampSetId,c.detectorArtifactId,c.frameSetId,c.timestampMode,c.timestampSetId].some(v=>v!==null);
+    const required=cfg.requireSameBenchmarkInputs===true||(cfg.requireSameBenchmarkInputs!==false&&protocolDeclared);
+    if(!required)return {pass:true,reason:'BENCHMARK_INPUT_PARITY_NOT_DECLARED',baseline:b,candidate:c};
     const missing=[];
     for(const k of ['detectorArtifactId','frameSetId','timestampMode','referenceFrameRate']){
       if(b[k]===null)missing.push(`baseline.${k}`);
@@ -61,8 +63,7 @@
       maxFalseCayIncrease:0,
       maxBenchSpectatorIncrease:0,
       requireSameSequenceSet:true,
-      requireSameTotalSamples:true,
-      requireSameBenchmarkInputs:true
+      requireSameTotalSamples:true
     },options||{});
     const inputParity=compareBenchmarkInputs(baseline,candidate,cfg);
     if(!inputParity.pass)return {status:'INSUFFICIENT_EVIDENCE',pass:false,fullPromotion:false,reason:inputParity.reason,inputParity};
@@ -101,10 +102,10 @@
     if(delta.fragments>cfg.maxFragmentIncrease)blockers.push('IDENTITY_FRAGMENTATION_REGRESSION');
     if(cfg.requireStrictIdSwitchReduction?delta.idSwitches>=0:delta.idSwitches>0)blockers.push('IDENTITY_SWITCH_NOT_IMPROVED');
     const pass=blockers.length===0;
-    return {status:pass?'PRECHECK_PASS':'PRECHECK_REJECT',pass,fullPromotion:false,reason:pass?'LABELLED_IDENTITY_PRECHECK_PASSED':'LABELLED_IDENTITY_PRECHECK_BLOCKED',delta,blockers,validFloor,sequenceSetId:b.sequenceSetId,inputParity,thresholds:{...cfg},policy:'LABELLED_IDENTITY_PRECHECK_REQUIRES_IDENTICAL_DETECTIONS_FRAMES_AND_TIMEBASE_PLUS_NON_REGRESSING_FRAGMENTATION_AND_DOES_NOT_REPLACE_HOTA_IDF1_MOTA_PROMOTION_GATE'};
+    return {status:pass?'PRECHECK_PASS':'PRECHECK_REJECT',pass,fullPromotion:false,reason:pass?'LABELLED_IDENTITY_PRECHECK_PASSED':'LABELLED_IDENTITY_PRECHECK_BLOCKED',delta,blockers,validFloor,sequenceSetId:b.sequenceSetId,inputParity,thresholds:{...cfg},policy:'LABELLED_IDENTITY_PRECHECK_REQUIRES_IDENTICAL_DETECTIONS_FRAMES_AND_TIMEBASE_WHEN_DECLARED_PLUS_NON_REGRESSING_FRAGMENTATION_AND_DOES_NOT_REPLACE_HOTA_IDF1_MOTA_PROMOTION_GATE'};
   }
   function evaluate(baseline,candidate,options){
-    const cfg=Object.assign({minSequences:3,minHotaGain:0.5,minIdf1Gain:0,maxMotaDrop:0,maxIdSwitchIncrease:0,maxFalseCayIncrease:0,maxBenchSpectatorIncrease:0,requireSameSequenceSet:true,requireSameBenchmarkInputs:true},options||{});
+    const cfg=Object.assign({minSequences:3,minHotaGain:0.5,minIdf1Gain:0,maxMotaDrop:0,maxIdSwitchIncrease:0,maxFalseCayIncrease:0,maxBenchSpectatorIncrease:0,requireSameSequenceSet:true},options||{});
     const inputParity=compareBenchmarkInputs(baseline,candidate,cfg);
     if(!inputParity.pass)return {status:'INSUFFICIENT_EVIDENCE',promote:false,reason:inputParity.reason,inputParity};
     const required=['hota','idf1','mota','idSwitches','falseCay','benchSpectatorFalseTracks'];
@@ -137,7 +138,7 @@
     if(delta.idf1<cfg.minIdf1Gain)blockers.push('IDF1_REGRESSION');
     if(delta.mota<(-Math.abs(cfg.maxMotaDrop)))blockers.push('MOTA_REGRESSION');
     const promote=blockers.length===0;
-    return {status:promote?'PROMOTE':'REJECT',promote,reason:promote?'CAY_BENCHMARK_GATE_PASSED':'CAY_BENCHMARK_GATE_BLOCKED',delta,blockers,sequenceFloor,sequenceSetId:b.sequenceSetId,inputParity,thresholds:{...cfg},policy:'TRACKER_CHANGES_REQUIRE_IDENTICAL_CAY_SEQUENCE_DETECTION_FRAME_AND_TIMEBASE_INPUTS_WITH_ZERO_TOLERANCE_FOR_FALSE_CAY_BENCH_SPECTATOR_OR_IDENTITY_REGRESSION_BY_DEFAULT'};
+    return {status:promote?'PROMOTE':'REJECT',promote,reason:promote?'CAY_BENCHMARK_GATE_PASSED':'CAY_BENCHMARK_GATE_BLOCKED',delta,blockers,sequenceFloor,sequenceSetId:b.sequenceSetId,inputParity,thresholds:{...cfg},policy:'TRACKER_CHANGES_REQUIRE_IDENTICAL_CAY_SEQUENCE_INPUTS_AND_IDENTICAL_DECLARED_DETECTION_FRAME_TIMEBASE_INPUTS_WITH_ZERO_TOLERANCE_FOR_FALSE_CAY_BENCH_SPECTATOR_OR_IDENTITY_REGRESSION_BY_DEFAULT'};
   }
   return {evaluate,evaluateLabelledIdentityEvidence,normalizeSequenceIds,sequenceSetId,benchmarkInputProtocol,compareBenchmarkInputs};
 });
