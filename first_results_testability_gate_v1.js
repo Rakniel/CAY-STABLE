@@ -24,6 +24,13 @@
     return 'OBTENIR_TRACKING_DEFENDABLE';
   }
 
+  function rosterEligibility(card){
+    const rosterScoped=!!card&&Object.prototype.hasOwnProperty.call(card,'roster');
+    if(!rosterScoped)return {clubEligible:true,rosterScoped:false,reason:null};
+    const clubEligible=card?.roster?.status==='LIÉ';
+    return {clubEligible,rosterScoped:true,reason:clubEligible?null:'ROSTER_NON_LIE'};
+  }
+
   function coverageEvidence(card){
     return {
       trackingPct:pct(card?.presence?.trackingCoverage),
@@ -87,16 +94,18 @@
   }
 
   function coverageSummary(evidence){
+    const clubEvidence=(Array.isArray(evidence)?evidence:[]).filter(item=>item?.clubEligible!==false);
     return {
-      tracking:summarizeCoverage(evidence,'trackingPct','tracking'),
-      pitchSpatial:summarizeCoverage(evidence,'pitchSpatialPct','pitchVisualCore'),
-      physicalMetric:summarizeCoverage(evidence,'physicalMetricPct','physicalComplete'),
-      policy:'RESUME_AUDIT_SEULEMENT_SUR_LES_JOUEURS_ELIGIBLES_A_CHAQUE_ETAPE; MOYENNE_PONDEREE_PAR_TEMPS_DE_PARTICIPATION_QUAND_DISPONIBLE; COMPLETUDE_DES_DUREES_EXPOSEE_EXPLICITEMENT; PART_TEMPORELLE_CONNUE_RESTE_INDISPONIBLE_SI_UNE_DUREE_ELIGIBLE_MANQUE; COUVERTURE_INCONNUE_RESTE_EXPLICITE; AUCUN_SEUIL_DE_COUVERTURE_N_EST_INVENTE_PAR_CE_GARDE'
+      tracking:summarizeCoverage(clubEvidence,'trackingPct','tracking'),
+      pitchSpatial:summarizeCoverage(clubEvidence,'pitchSpatialPct','pitchVisualCore'),
+      physicalMetric:summarizeCoverage(clubEvidence,'physicalMetricPct','physicalComplete'),
+      policy:'RESUME_AUDIT_SEULEMENT_SUR_LES_JOUEURS_CAY_ELIGIBLES_ET_ELIGIBLES_A_CHAQUE_ETAPE; UNE_PISTE_NON_LIEE_AU_ROSTER_EST_EXCLUE_DES_DENOMINATEURS; MOYENNE_PONDEREE_PAR_TEMPS_DE_PARTICIPATION_QUAND_DISPONIBLE; COMPLETUDE_DES_DUREES_EXPOSEE_EXPLICITEMENT; PART_TEMPORELLE_CONNUE_RESTE_INDISPONIBLE_SI_UNE_DUREE_ELIGIBLE_MANQUE; COUVERTURE_INCONNUE_RESTE_EXPLICITE; AUCUN_SEUIL_DE_COUVERTURE_N_EST_INVENTE_PAR_CE_GARDE'
     };
   }
 
   function cardEvidence(card){
     const readiness=card?.firstResults||{};
+    const eligibility=rosterEligibility(card);
     const tracking=bool(readiness.tracking);
     const trajectory=bool(readiness.trajectory);
     const heatmap=bool(readiness.heatmap);
@@ -111,13 +120,18 @@
     const flags={tracking,trajectory,heatmap,distance,avgSpeed,maxSpeed,sprints};
     const missingPitchVisualCore=CORE_KEYS.filter(key=>flags[key]!==true);
     const missingPhysicalMetrics=PHYSICAL_KEYS.filter(key=>flags[key]!==true);
-    const status=metricReady?'PHYSICAL_TESTABLE':pitchVisualCore?'PITCH_VISUAL_TESTABLE':tracking?'TRACKING_TESTABLE':'INDISPONIBLE';
+    const rawStatus=metricReady?'PHYSICAL_TESTABLE':pitchVisualCore?'PITCH_VISUAL_TESTABLE':tracking?'TRACKING_TESTABLE':'INDISPONIBLE';
+    const status=eligibility.clubEligible?rawStatus:'INDISPONIBLE';
     const blockers={};
     for(const key of CORE_KEYS)blockers[key]=missingPitchVisualCore.includes(key)?1:0;
     for(const key of PHYSICAL_KEYS)blockers[key]=missingPhysicalMetrics.includes(key)?1:0;
     return {
       id:card?.id??null,
       status,
+      diagnosticStatus:rawStatus,
+      clubEligible:eligibility.clubEligible,
+      rosterScoped:eligibility.rosterScoped,
+      exclusionReason:eligibility.reason,
       tracking,
       trajectory,
       heatmap,
@@ -128,14 +142,36 @@
       coverage:coverageEvidence(card),
       missingPitchVisualCore,
       missingPhysicalMetrics,
-      nextAction:nextAction(status,blockers),
-      policy:'CORE_VISUEL = TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; PRET_METRIQUES = CORE_VISUEL_ET_DISTANCE_ET_VITESSE_MOYENNE_ET_VITESSE_MAX_ET_SPRINTS'
+      nextAction:eligibility.clubEligible?nextAction(status,blockers):'LIER_PISTE_AU_ROSTER_CAY',
+      policy:'CORE_VISUEL = TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; PRET_METRIQUES = CORE_VISUEL_ET_DISTANCE_ET_VITESSE_MOYENNE_ET_VITESSE_MAX_ET_SPRINTS; SI_CONTEXTE_ROSTER_PRESENT_SEULE_UNE_PISTE_EXPLICITEMENT_LIEE_EST_ELIGIBLE_AUX_RESULTATS_CAY'
     };
   }
 
   function canonicalCardReadiness(card,evidence){
     const source=card?.firstResults||{};
     const item=evidence||cardEvidence(card);
+    if(item.clubEligible===false){
+      return {
+        ...source,
+        status:'INDISPONIBLE',
+        tracking:false,
+        trajectory:false,
+        heatmap:false,
+        distance:false,
+        avgSpeed:false,
+        maxSpeed:false,
+        sprints:false,
+        physicalMetrics:false,
+        physicalMetricsComplete:false,
+        pitchVisualCore:false,
+        pitchResults:false,
+        metricReady:false,
+        clubEligible:false,
+        exclusionReason:item.exclusionReason||'ROSTER_NON_LIE',
+        nextAction:'LIER_PISTE_AU_ROSTER_CAY',
+        policy:'PISTE_NON_LIEE_AU_ROSTER_CAY_EXCLUE_DES_PREMIERS_RESULTATS; LES_PREUVES_BRUTES_RESTENT_DIAGNOSTIQUES_MAIS_NE_SONT_JAMAIS_PUBLIEES_COMME_RESULTATS_JOUEUR_CAY'
+      };
+    }
     return {
       ...source,
       status:item.status,
@@ -151,13 +187,15 @@
       pitchVisualCore:item.pitchVisualCore,
       pitchResults:item.pitchVisualCore,
       metricReady:item.metricReady,
+      clubEligible:true,
+      exclusionReason:null,
       nextAction:item.nextAction,
-      policy:'STATUT_CANONIQUE_ALIGNE_SUR_CAY_FIRST_RESULTS_TESTABILITY_GATE; TERRAIN_PRET_UNIQUEMENT_AVEC_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; PHYSIQUE_PRET_UNIQUEMENT_AVEC_4_METRIQUES'
+      policy:'STATUT_CANONIQUE_ALIGNE_SUR_CAY_FIRST_RESULTS_TESTABILITY_GATE; TERRAIN_PRET_UNIQUEMENT_AVEC_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; PHYSIQUE_PRET_UNIQUEMENT_AVEC_4_METRIQUES; EN_CONTEXTE_ROSTER_SEULE_UNE_PISTE_LIEE_PEUT_ETRE_PUBLIEE_COMME_JOUEUR_CAY'
     };
   }
 
   function blockerCounts(evidence){
-    const rows=Array.isArray(evidence)?evidence:[];
+    const rows=(Array.isArray(evidence)?evidence:[]).filter(item=>item?.clubEligible!==false);
     const counts={
       tracking:rows.filter(item=>item?.tracking!==true).length,
       trajectory:rows.filter(item=>item?.tracking===true&&item?.trajectory!==true).length,
@@ -172,8 +210,11 @@
   function evaluate(playerCards,options={}){
     const cards=Array.isArray(playerCards?.players)?playerCards.players:[];
     const evidence=cards.map(cardEvidence);
-    const count=key=>evidence.filter(item=>item[key]===true).length;
+    const eligibleEvidence=evidence.filter(item=>item?.clubEligible!==false);
+    const count=key=>eligibleEvidence.filter(item=>item[key]===true).length;
     const players=evidence.length;
+    const eligibleClubPlayers=eligibleEvidence.length;
+    const excludedNonClubPlayers=Math.max(0,players-eligibleClubPlayers);
     const minCorePlayers=finite(options.minCorePlayers)?Math.max(1,Math.floor(Number(options.minCorePlayers))):1;
     const minMetricPlayers=finite(options.minMetricPlayers)?Math.max(1,Math.floor(Number(options.minMetricPlayers))):1;
     const withTracking=count('tracking');
@@ -189,6 +230,8 @@
       version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_8',
       status,
       players,
+      eligibleClubPlayers,
+      excludedNonClubPlayers,
       withTracking,
       withCorePitchVisuals,
       withAnyPhysicalMetrics,
@@ -202,7 +245,7 @@
       coverageSummary:coverageSummary(evidence),
       nextAction:nextAction(status,blockers),
       evidence,
-      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; BLOQUEURS_VISUELS_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_TRACKES; BLOQUEURS_PHYSIQUES_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_AVEC_CORE_VISUEL_COMPLET; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE; FICHES_JOUEURS_REALIGNEES_SUR_CE_STATUT_CANONIQUE'
+      policy:'FAIL_CLOSED; EN_CONTEXTE_ROSTER_SEULE_UNE_PISTE_EXPLICITEMENT_LIEE_COMPTE_COMME_JOUEUR_CAY; PISTES_NON_LIEES_EXCLUES_DES_STATUTS_BLOQUEURS_ET_DENOMINATEURS_DE_COUVERTURE; SANS_CONTEXTE_ROSTER_COMPORTEMENT_LEGACY_CONSERVE; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; BLOQUEURS_VISUELS_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_TRACKES; BLOQUEURS_PHYSIQUES_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_AVEC_CORE_VISUEL_COMPLET; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE; FICHES_JOUEURS_REALIGNEES_SUR_CE_STATUT_CANONIQUE'
     };
   }
 
@@ -210,16 +253,27 @@
     if(!playerCards||!Array.isArray(playerCards.players))return playerCards;
     const evidence=Array.isArray(testability?.evidence)?testability.evidence:playerCards.players.map(cardEvidence);
     const players=playerCards.players.map((card,index)=>({...card,firstResults:canonicalCardReadiness(card,evidence[index])}));
-    const coreReadyPlayers=evidence.filter(item=>item?.pitchVisualCore===true).length;
-    const physicalReadyPlayers=evidence.filter(item=>item?.metricReady===true).length;
+    const eligibleEvidence=evidence.filter(item=>item?.clubEligible!==false);
+    const coreReadyPlayers=eligibleEvidence.filter(item=>item?.pitchVisualCore===true).length;
+    const physicalReadyPlayers=eligibleEvidence.filter(item=>item?.metricReady===true).length;
     const summary={
       ...(playerCards.summary||{}),
       status:testability?.status||'INDISPONIBLE',
+      detectedPlayerCards:evidence.length,
+      players:eligibleEvidence.length,
+      excludedNonClubPlayers:Math.max(0,evidence.length-eligibleEvidence.length),
+      withTracking:eligibleEvidence.filter(item=>item?.tracking===true).length,
+      withPitchTrajectory:eligibleEvidence.filter(item=>item?.trajectory===true).length,
+      withPitchHeatmap:eligibleEvidence.filter(item=>item?.heatmap===true).length,
+      withMetricDistance:eligibleEvidence.filter(item=>item?.clubEligible!==false&&item?.missingPhysicalMetrics&&!item.missingPhysicalMetrics.includes('distance')).length,
+      withMetricAvgSpeed:eligibleEvidence.filter(item=>item?.clubEligible!==false&&item?.missingPhysicalMetrics&&!item.missingPhysicalMetrics.includes('avgSpeed')).length,
+      withMetricMaxSpeed:eligibleEvidence.filter(item=>item?.clubEligible!==false&&item?.missingPhysicalMetrics&&!item.missingPhysicalMetrics.includes('maxSpeed')).length,
+      withMetricSprints:eligibleEvidence.filter(item=>item?.clubEligible!==false&&item?.missingPhysicalMetrics&&!item.missingPhysicalMetrics.includes('sprints')).length,
       withPitchResults:coreReadyPlayers,
       withCorePitchVisuals:coreReadyPlayers,
-      withCompletePhysicalMetrics:evidence.filter(item=>item?.physicalComplete===true).length,
+      withCompletePhysicalMetrics:eligibleEvidence.filter(item=>item?.physicalComplete===true).length,
       metricReadyPlayers:physicalReadyPlayers,
-      readinessPolicy:'RESUME_ALIGNE_SUR_CAY_FIRST_RESULTS_TESTABILITY_GATE; UN_VISUEL_TERRAIN_ISOLE_NE_DECLARE_PLUS_LA_FICHE_TERRAIN_PRETE'
+      readinessPolicy:'RESUME_ALIGNE_SUR_CAY_FIRST_RESULTS_TESTABILITY_GATE; EN_CONTEXTE_ROSTER_LES_PISTES_NON_LIEES_RESTENT_DIAGNOSTIQUES_MAIS_SONT_EXCLUES_DES_RESULTATS_CAY; UN_VISUEL_TERRAIN_ISOLE_NE_DECLARE_PLUS_LA_FICHE_TERRAIN_PRETE'
     };
     return {...playerCards,players,summary,canonicalReadinessVersion:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_8'};
   }
@@ -247,5 +301,5 @@
   }
 
   installRuntime();
-  return {cardEvidence,canonicalCardReadiness,alignPlayerCards,coverageEvidence,summarizeCoverage,coverageSummary,blockerCounts,nextAction,evaluate,installRuntime};
+  return {rosterEligibility,cardEvidence,canonicalCardReadiness,alignPlayerCards,coverageEvidence,summarizeCoverage,coverageSummary,blockerCounts,nextAction,evaluate,installRuntime};
 });
