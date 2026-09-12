@@ -7,7 +7,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Pipeline){
   'use strict';
 
-  const VERSION='CAY_ROSTER_METRIC_AUDIT_ROLLUP_V1_2';
+  const VERSION='CAY_ROSTER_METRIC_AUDIT_ROLLUP_V1_3';
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const round=(value,digits=3)=>+Number(value||0).toFixed(digits);
   const metricRows=windows=>(Array.isArray(windows)?windows:[]).map(window=>window&&window.metric?window.metric:window).filter(row=>row&&typeof row==='object');
@@ -134,9 +134,36 @@
     return {...metric,...flatAudit(audit),audit,publication:augmentPublication(metric.publication,audit),diagnosticReason:causalReason(audit.summary)};
   }
 
+  function guardSpatialQuality(spatial){
+    if(!spatial||typeof spatial!=='object')return spatial;
+    const sourceHeatmaps=Array.isArray(spatial.heatmaps)?spatial.heatmaps:[];
+    if(!spatial.heatmap||!sourceHeatmaps.length)return spatial;
+    const sourceQualities=sourceHeatmaps.map(row=>String(row?.quality||'').trim().toUpperCase());
+    const reliableWindowCount=sourceQualities.filter(quality=>quality==='FIABLE').length;
+    const mergedQuality=reliableWindowCount===sourceHeatmaps.length?'FIABLE':'PARTIEL';
+    const heatmap={...spatial.heatmap,quality:mergedQuality,reliableWindowCount,sourceWindowCount:sourceHeatmaps.length,qualityPolicy:'QUALITE_HEATMAP_AGREGEE_NE_PEUT_ETRE_FIABLE_QUE_SI_TOUTES_LES_FENETRES_SOURCE_SONT_FIABLES'};
+    if(spatial.status!=='FIABLE'||mergedQuality==='FIABLE')return {...spatial,heatmap};
+    const qualityReason='heatmap terrain disponible mais qualité de preuve insuffisante pour la qualifier de fiable';
+    const existing=String(spatial.coverageNote||'').trim();
+    return {
+      ...spatial,
+      status:'PARTIEL',
+      reason:spatial.reason||qualityReason,
+      coverageNote:existing?(existing.includes(qualityReason)?existing:`${existing} ; ${qualityReason}`):qualityReason,
+      heatmap,
+      qualityGuard:{status:'PARTIEL',reliableHeatmapWindowCount:reliableWindowCount,heatmapWindowCount:sourceHeatmaps.length,policy:'LE_ROLLUP_ROSTER_NE_PROMEUT_JAMAIS_UNE_HEATMAP_SOURCE_PARTIELLE_EN_FIABLE'}
+    };
+  }
+
   function augmentResult(result){
     if(!result||typeof result!=='object'||!Array.isArray(result.windows))return result;
-    return {...result,metric:augmentMetric(result.metric,result.windows),metricAudit:rollup(result.windows)};
+    const metric=augmentMetric(result.metric,result.windows);
+    const spatial=guardSpatialQuality(result.spatial);
+    const metricReliable=metric?.publication?.status==='FIABLE';
+    const downgradedSpatial=result.spatial?.status==='FIABLE'&&spatial?.status==='PARTIEL';
+    const status=downgradedSpatial&&!metricReliable?'PARTIEL':result.status;
+    const reason=status==='PARTIEL'&&result.status==='FIABLE'?(spatial?.coverageNote||'résultat terrain disponible mais qualité de preuve insuffisante pour le qualifier de fiable'):result.reason;
+    return {...result,status,reason,metric,spatial,metricAudit:rollup(result.windows)};
   }
 
   function patch(){
@@ -152,5 +179,5 @@
   }
 
   patch();
-  return {VERSION,CAUSES,CAUSE_LABELS,causalSummary,causalReason,augmentPublication,rollup,flatAudit,augmentMetric,augmentResult,patch};
+  return {VERSION,CAUSES,CAUSE_LABELS,causalSummary,causalReason,augmentPublication,rollup,flatAudit,augmentMetric,guardSpatialQuality,augmentResult,patch};
 });
