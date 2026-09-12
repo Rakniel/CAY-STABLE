@@ -164,7 +164,7 @@
       heatmap:rows.filter(item=>item?.tracking===true&&item?.heatmap!==true).length
     };
     for(const key of PHYSICAL_KEYS){
-      counts[key]=rows.filter(item=>item?.pitchVisualCore===true&&item?.[key]!==true).length;
+      counts[key]=rows.filter(item=>item?.pitchVisualCore===true&&Array.isArray(item?.missingPhysicalMetrics)&&item.missingPhysicalMetrics.includes(key)).length;
     }
     return counts;
   }
