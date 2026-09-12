@@ -36,6 +36,29 @@
     };
   }
 
+  function summarizeCoverage(evidence,key,eligibleKey){
+    const rows=(Array.isArray(evidence)?evidence:[]).filter(item=>item&&item[eligibleKey]===true);
+    const values=rows.map(item=>item?.coverage?.[key]).filter(finite).map(Number);
+    if(!values.length)return {eligiblePlayers:rows.length,knownPlayers:0,minPct:null,avgPct:null,maxPct:null};
+    const total=values.reduce((sum,value)=>sum+value,0);
+    return {
+      eligiblePlayers:rows.length,
+      knownPlayers:values.length,
+      minPct:Math.min(...values),
+      avgPct:+(total/values.length).toFixed(2),
+      maxPct:Math.max(...values)
+    };
+  }
+
+  function coverageSummary(evidence){
+    return {
+      tracking:summarizeCoverage(evidence,'trackingPct','tracking'),
+      pitchSpatial:summarizeCoverage(evidence,'pitchSpatialPct','pitchVisualCore'),
+      physicalMetric:summarizeCoverage(evidence,'physicalMetricPct','physicalComplete'),
+      policy:'RESUME_AUDIT_SEULEMENT_SUR_LES_JOUEURS_ELIGIBLES_A_CHAQUE_ETAPE; AUCUN_SEUIL_DE_COUVERTURE_N_EST_INVENTE_PAR_CE_GARDE'
+    };
+  }
+
   function cardEvidence(card){
     const readiness=card?.firstResults||{};
     const tracking=bool(readiness.tracking);
@@ -101,7 +124,7 @@
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
     const blockers=blockerCounts(evidence);
     return {
-      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_4',
+      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_5',
       status,
       players,
       withTracking,
@@ -113,9 +136,10 @@
       coreTestable,
       physicalTestable,
       blockers,
+      coverageSummary:coverageSummary(evidence),
       nextAction:nextAction(status,blockers),
       evidence,
-      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_SANS_MODIFIER_LA_DECISION'
+      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_ET_RESUMEES_SANS_MODIFIER_LA_DECISION'
     };
   }
 
@@ -142,5 +166,5 @@
   }
 
   installRuntime();
-  return {cardEvidence,coverageEvidence,blockerCounts,nextAction,evaluate,installRuntime};
+  return {cardEvidence,coverageEvidence,summarizeCoverage,coverageSummary,blockerCounts,nextAction,evaluate,installRuntime};
 });
