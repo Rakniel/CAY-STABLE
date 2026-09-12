@@ -118,12 +118,12 @@
 
     const sprintCount=Number(metric.sprintCount),qualifiedSeconds=Number(metric.sprintQualifiedSeconds);
     const coveredSeconds=finite(metric?.metricCoveredSeconds)?Number(metric.metricCoveredSeconds):null;
-    const minSprintDurationSeconds=finite(metric?.minSprintDurationSeconds)&&Number(metric.minSprintDurationSeconds)>0?Number(metric.minSprintDurationSeconds):1;
+    const minSprintSeconds=finite(metric?.minSprintSeconds)&&Number(metric.minSprintSeconds)>0?Number(metric.minSprintSeconds):1;
 
     if(sprintCount===0&&qualifiedSeconds>SPRINT_EVIDENCE_TOLERANCE_SECONDS)return {...qualified,publishable:false,status:'INDISPONIBLE',reason:'preuve sprint incohérente : secondes qualifiées positives sans sprint'};
-    if(sprintCount>0&&qualifiedSeconds+SPRINT_EVIDENCE_TOLERANCE_SECONDS<sprintCount*minSprintDurationSeconds)return {...qualified,publishable:false,status:'INDISPONIBLE',reason:'preuve sprint incohérente : durée qualifiée insuffisante pour le nombre de sprints'};
+    if(sprintCount>0&&qualifiedSeconds+SPRINT_EVIDENCE_TOLERANCE_SECONDS<sprintCount*minSprintSeconds)return {...qualified,publishable:false,status:'INDISPONIBLE',reason:'preuve sprint incohérente : durée qualifiée insuffisante pour le nombre de sprints'};
     if(coveredSeconds!==null&&qualifiedSeconds>coveredSeconds+SPRINT_EVIDENCE_TOLERANCE_SECONDS)return {...qualified,publishable:false,status:'INDISPONIBLE',reason:'preuve sprint incohérente : durée qualifiée supérieure au temps métrique couvert'};
-    return {...qualified,minSprintDurationSeconds};
+    return {...qualified,minSprintSeconds};
   }
 
   function maxSpeedDecision(metric,speedDecision){
