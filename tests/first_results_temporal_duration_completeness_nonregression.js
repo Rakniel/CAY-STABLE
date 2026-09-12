@@ -64,7 +64,7 @@ const evaluation=Gate.evaluate({players:[{
   presence:{trackingCoverage:80},
   pitchVisuals:{participationSeconds:null}
 }]});
-assert.strictEqual(evaluation.version,'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_7');
+assert.strictEqual(evaluation.version,'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_8');
 assert.strictEqual(evaluation.status,'TRACKING_TESTABLE','la complétude temporelle reste une preuve d’audit et ne change pas le statut métier');
 assert.strictEqual(evaluation.coverageSummary.tracking.temporalWeightingComplete,false);
 assert.strictEqual(evaluation.coverageSummary.tracking.knownParticipationSharePct,null);

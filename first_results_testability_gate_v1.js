@@ -133,6 +133,29 @@
     };
   }
 
+  function canonicalCardReadiness(card,evidence){
+    const source=card?.firstResults||{};
+    const item=evidence||cardEvidence(card);
+    return {
+      ...source,
+      status:item.status,
+      tracking:item.tracking,
+      trajectory:item.trajectory,
+      heatmap:item.heatmap,
+      distance:bool(source.distance),
+      avgSpeed:bool(source.avgSpeed),
+      maxSpeed:bool(source.maxSpeed),
+      sprints:bool(source.sprints),
+      physicalMetrics:item.physicalAny,
+      physicalMetricsComplete:item.physicalComplete,
+      pitchVisualCore:item.pitchVisualCore,
+      pitchResults:item.pitchVisualCore,
+      metricReady:item.metricReady,
+      nextAction:item.nextAction,
+      policy:'STATUT_CANONIQUE_ALIGNE_SUR_CAY_FIRST_RESULTS_TESTABILITY_GATE; TERRAIN_PRET_UNIQUEMENT_AVEC_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; PHYSIQUE_PRET_UNIQUEMENT_AVEC_4_METRIQUES'
+    };
+  }
+
   function blockerCounts(evidence){
     const keys=[...CORE_KEYS,...PHYSICAL_KEYS];
     const counts={};
@@ -160,7 +183,7 @@
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
     const blockers=blockerCounts(evidence);
     return {
-      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_7',
+      version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_8',
       status,
       players,
       withTracking,
@@ -175,8 +198,26 @@
       coverageSummary:coverageSummary(evidence),
       nextAction:nextAction(status,blockers),
       evidence,
-      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE'
+      policy:'FAIL_CLOSED; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE; FICHES_JOUEURS_REALIGNEES_SUR_CE_STATUT_CANONIQUE'
     };
+  }
+
+  function alignPlayerCards(playerCards,testability){
+    if(!playerCards||!Array.isArray(playerCards.players))return playerCards;
+    const evidence=Array.isArray(testability?.evidence)?testability.evidence:playerCards.players.map(cardEvidence);
+    const players=playerCards.players.map((card,index)=>({...card,firstResults:canonicalCardReadiness(card,evidence[index])}));
+    const coreReadyPlayers=evidence.filter(item=>item?.pitchVisualCore===true).length;
+    const physicalReadyPlayers=evidence.filter(item=>item?.metricReady===true).length;
+    const summary={
+      ...(playerCards.summary||{}),
+      status:testability?.status||'INDISPONIBLE',
+      withPitchResults:coreReadyPlayers,
+      withCorePitchVisuals:coreReadyPlayers,
+      withCompletePhysicalMetrics:evidence.filter(item=>item?.physicalComplete===true).length,
+      metricReadyPlayers:physicalReadyPlayers,
+      readinessPolicy:'RESUME_ALIGNE_SUR_CAY_FIRST_RESULTS_TESTABILITY_GATE; UN_VISUEL_TERRAIN_ISOLE_NE_DECLARE_PLUS_LA_FICHE_TERRAIN_PRETE'
+    };
+    return {...playerCards,players,summary,canonicalReadinessVersion:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_8'};
   }
 
   function installRuntime(){
@@ -191,7 +232,7 @@
         const report=baseReport(projectors,visualOptions);
         if(!report||!report.playerCards||!Array.isArray(report.playerCards.players))return report;
         const testability=evaluate(report.playerCards);
-        report.playerCards={...report.playerCards,testability};
+        report.playerCards={...alignPlayerCards(report.playerCards,testability),testability};
         report.firstResultsTestability=testability;
         return report;
       };
@@ -202,5 +243,5 @@
   }
 
   installRuntime();
-  return {cardEvidence,coverageEvidence,summarizeCoverage,coverageSummary,blockerCounts,nextAction,evaluate,installRuntime};
+  return {cardEvidence,canonicalCardReadiness,alignPlayerCards,coverageEvidence,summarizeCoverage,coverageSummary,blockerCounts,nextAction,evaluate,installRuntime};
 });
