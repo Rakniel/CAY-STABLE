@@ -14,6 +14,16 @@ assert.strictEqual(Registry.runtimeLicenseCompatible({license:''}),false,'missin
 assert.strictEqual(Registry.runtimeLicenseCompatible({license:'MIT AND Unknown-1.0'}),false,'mixed unrecognized tracking license expressions must fail closed');
 assert.strictEqual(Registry.runtimeLicenseVerdict({license:'Proprietary'}).reason,'LICENSE_NOT_ALLOWLISTED');
 
+const roboflow=Registry.get('roboflow-trackers-apache');
+assert.strictEqual(Registry.version,'1.4.0');
+assert.strictEqual(roboflow.upstreamVersion,'2.6.0','registry must match the audited Roboflow release');
+assert.strictEqual(roboflow.upstreamRevision,'0e839f348d8bf4ed09eea9f3bef58fd5f95dca3f','registry must pin the immutable audited revision');
+assert.strictEqual(roboflow.releaseDate,'2026-08-06');
+assert.strictEqual(roboflow.timestampSupport,true,'2.6.0 timestamp-aware update support must be explicit');
+assert.strictEqual(roboflow.cameraMotionCapability,'CMC');
+assert.deepStrictEqual(roboflow.algorithms,['ByteTrack','BoT-SORT','OC-SORT','SORT','CBIoU','McByte']);
+assert.strictEqual(roboflow.runtimeDefaultAllowed,false,'external Python tracker remains benchmark-only');
+
 const camel=Registry.get('cameltrack-apache');
 assert.strictEqual(camel.status,'BENCHMARK_ONLY');
 assert.strictEqual(camel.runtimeDefaultAllowed,false);
@@ -46,7 +56,8 @@ assert.strictEqual(verdict.reason,'PERSISTENT_IDENTITY_GAIN_REQUIRED');
 verdict=Registry.promotionVerdict('roboflow-trackers-apache',good,{compatible:true});
 assert.strictEqual(verdict.allowed,true);
 assert.strictEqual(verdict.reason,'OPTIONAL_BACKEND_ELIGIBLE');
-assert.strictEqual(verdict.candidate.upstreamVersion,'2.4.0');
+assert.strictEqual(verdict.candidate.upstreamVersion,'2.6.0');
+assert.strictEqual(verdict.candidate.upstreamRevision,'0e839f348d8bf4ed09eea9f3bef58fd5f95dca3f');
 assert.strictEqual(verdict.candidate.preferredProfiles.cameraMotion,'BoT-SORT');
 
 const identityRegression={...good,afterReidRecoveryRate:.65};

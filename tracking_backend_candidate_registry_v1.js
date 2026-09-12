@@ -1,14 +1,15 @@
 (function(root){
 'use strict';
 
-const VERSION='1.3.0';
+const VERSION='1.4.0';
 const candidates={
   'roboflow-trackers-apache':{
     id:'roboflow-trackers-apache',family:'mot',license:'Apache-2.0',status:'BENCHMARK_ONLY',
-    source:'https://github.com/roboflow/trackers',upstreamVersion:'2.4.0',runtimeDefaultAllowed:false,
-    requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,
+    source:'https://github.com/roboflow/trackers',upstreamVersion:'2.6.0',upstreamRevision:'0e839f348d8bf4ed09eea9f3bef58fd5f95dca3f',releaseDate:'2026-08-06',runtimeDefaultAllowed:false,
+    requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,timestampSupport:true,
+    algorithms:['ByteTrack','BoT-SORT','OC-SORT','SORT','CBIoU','McByte'],cameraMotionCapability:'CMC',
     preferredProfiles:{cameraMotion:'BoT-SORT',variableDetectionConfidence:'ByteTrack'},
-    note:'Permissive reference/backend candidate exposing ByteTrack, BoT-SORT, OC-SORT and evaluation tooling. Python backend must remain optional until real CAY footage proves measurable short-term tracking AND persistent-identity gains.'
+    note:'Permissive reference/backend candidate exposing ByteTrack, BoT-SORT, OC-SORT and evaluation tooling. Version/revision are pinned to the audited 2.6.0 release because lifecycle/timestamp behavior changed upstream. Python backend must remain optional until real CAY footage proves measurable short-term tracking AND persistent-identity gains.'
   },
   'cameltrack-apache':{
     id:'cameltrack-apache',family:'learned-multi-cue-mot',license:'Apache-2.0',status:'BENCHMARK_ONLY',
