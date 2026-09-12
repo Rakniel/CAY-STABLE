@@ -144,8 +144,8 @@
 
   function normalizeMatrix(matrix){
     if(!Array.isArray(matrix)||!matrix.length)return [];
-    const max=Math.max(0,...matrix.flat());
-    return matrix.map(row=>row.map(v=>max>0?v/max:0));
+    const total=matrix.flat().reduce((acc,value)=>acc+(finite(value)&&Number(value)>0?Number(value):0),0);
+    return matrix.map(row=>row.map(value=>total>0?+(Number(value)/total).toFixed(6):0));
   }
 
   function mergeHeatmaps(heatmaps){
@@ -167,7 +167,8 @@
       normalizedObservationCells:cells?normalizeMatrix(cells):[],normalizedTimeCells:timeCells?normalizeMatrix(timeCells):[],windowCount:rowsIn.length,
       sourceWindowIndexes:rowsIn.map(h=>h.windowIndex).filter(v=>v!==null&&v!==undefined),
       heatmapBasis:useTime?'TIME_WEIGHTED_CONFIRMED_PARTICIPATION':'OBSERVATION_COUNT_CONFIRMED_PARTICIPATION',
-      policy:'CELLS_RESTE_UN_COMPTE_D_OBSERVATIONS; TIMECELLS_RESTE_EN_SECONDES; NORMALIZEDCELLS_SUIT_EXPLICITEMENT_HEATMAPBASIS; AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE_ET_SANS_MELANGE_D_UNITE_TEMPS_OBSERVATIONS'
+      normalization:'TOTAL_DISTRIBUTION_SUM_1',
+      policy:'CELLS_RESTE_UN_COMPTE_D_OBSERVATIONS; TIMECELLS_RESTE_EN_SECONDES; NORMALIZEDCELLS_SUIT_EXPLICITEMENT_HEATMAPBASIS_ET_REPRESENTE_UNE_DISTRIBUTION_DONT_LA_SOMME_VAUT_1; AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE_ET_SANS_MELANGE_D_UNITE_TEMPS_OBSERVATIONS'
     };
   }
 

@@ -2,7 +2,7 @@
 const assert=require('assert');
 const Pipeline=require('../roster_metric_pipeline_v1.js');
 
-function source({basis,time=0,observations=3,index=0}={}){
+function source({basis,time=0,observations=3,index=0,cells=null,timeCells=null}={}){
   return {
     windowIndex:index,
     pitchLengthM:105,
@@ -10,8 +10,8 @@ function source({basis,time=0,observations=3,index=0}={}){
     rows:2,
     cols:2,
     heatmapBasis:basis,
-    cells:[[observations,0],[0,0]],
-    timeCells:[[time,0],[0,0]]
+    cells:cells||[[observations,0],[0,0]],
+    timeCells:timeCells||[[time,0],[0,0]]
   };
 }
 
@@ -36,6 +36,22 @@ assert.deepStrictEqual(timed.timeCells,[[1,0],[0,0]],'timeCells must aggregate t
 assert.deepStrictEqual(timed.normalizedCells,[[1,0],[0,0]],'normalizedCells must follow the declared time basis');
 assert.deepStrictEqual(timed.normalizedObservationCells,[[1,0],[0,0]]);
 assert.deepStrictEqual(timed.normalizedTimeCells,[[1,0],[0,0]]);
+
+const distributed=Pipeline.mergeHeatmaps([
+  source({basis:'TIME_SECONDS',index:0,cells:[[3,1],[0,0]],timeCells:[[3,1],[0,0]]}),
+  source({basis:'TIME_SECONDS',index:1,cells:[[1,3],[0,0]],timeCells:[[1,3],[0,0]]})
+]);
+assert.ok(distributed);
+assert.deepStrictEqual(distributed.timeCells,[[4,4],[0,0]]);
+assert.deepStrictEqual(distributed.normalizedCells,[[.5,.5],[0,0]],'merged heatmaps must preserve occupancy-share semantics instead of max-normalizing each hottest cell to 1');
+assert.strictEqual(distributed.normalization,'TOTAL_DISTRIBUTION_SUM_1');
+assert.strictEqual(distributed.normalizedCells.flat().reduce((sum,value)=>sum+value,0),1,'merged normalized heatmap must remain a probability distribution');
+
+const asymmetric=Pipeline.mergeHeatmaps([
+  source({basis:'OBSERVATIONS',index:0,cells:[[3,1],[0,0]],timeCells:[[0,0],[0,0]]}),
+  source({basis:'OBSERVATIONS',index:1,cells:[[3,1],[0,0]],timeCells:[[0,0],[0,0]]})
+]);
+assert.deepStrictEqual(asymmetric.normalizedCells,[[.75,.25],[0,0]],'relative occupancy shares must be preserved across merged participation windows');
 
 const mixed=Pipeline.mergeHeatmaps([
   source({basis:'TIME_SECONDS',time:.4,observations:3,index:0}),
