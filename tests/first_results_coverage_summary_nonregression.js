@@ -8,7 +8,7 @@ const physicalReady=card('B',{tracking:true,trajectory:true,heatmap:true,distanc
 const unknownCoverage=card('C',{tracking:true,trajectory:false,heatmap:false,distance:false,avgSpeed:false,maxSpeed:false,sprints:false,physicalMetrics:false},{pitchVisuals:{participationSeconds:40}});
 
 let result=Gate.evaluate({players:[trackingOnly,physicalReady]});
-assert.strictEqual(result.version,'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_7');
+assert.strictEqual(result.version,'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_8');
 assert.deepStrictEqual(result.coverageSummary.tracking,{eligiblePlayers:2,knownPlayers:2,unknownPlayers:0,knownPlayerSharePct:100,minPct:80,avgPct:85,maxPct:90,weightedAvgPct:88,durationKnownPlayers:2,durationUnknownPlayers:0,durationKnownPlayerSharePct:100,temporalWeightingComplete:true,eligibleParticipationSeconds:100,knownParticipationSeconds:100,knownParticipationSharePct:100});
 assert.deepStrictEqual(result.coverageSummary.pitchSpatial,{eligiblePlayers:1,knownPlayers:1,unknownPlayers:0,knownPlayerSharePct:100,minPct:75,avgPct:75,maxPct:75,weightedAvgPct:75,durationKnownPlayers:1,durationUnknownPlayers:0,durationKnownPlayerSharePct:100,temporalWeightingComplete:true,eligibleParticipationSeconds:80,knownParticipationSeconds:80,knownParticipationSharePct:100});
 assert.deepStrictEqual(result.coverageSummary.physicalMetric,{eligiblePlayers:1,knownPlayers:1,unknownPlayers:0,knownPlayerSharePct:100,minPct:60,avgPct:60,maxPct:60,weightedAvgPct:60,durationKnownPlayers:1,durationUnknownPlayers:0,durationKnownPlayerSharePct:100,temporalWeightingComplete:true,eligibleParticipationSeconds:80,knownParticipationSeconds:80,knownParticipationSharePct:100});
