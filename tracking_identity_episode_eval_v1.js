@@ -6,7 +6,7 @@
   else root.CAYTrackingIdentityEpisodeEval=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(TrackingEval){
   'use strict';
-  const VERSION='CAY_TRACKING_IDENTITY_EPISODE_EVAL_V1_1';
+  const VERSION='CAY_TRACKING_IDENTITY_EPISODE_EVAL_V1_2';
   const finite=v=>Number.isFinite(Number(v));
   const round=(v,n=4)=>Number(Number(v).toFixed(n));
   const idOf=o=>o?(o.id??o.trackId??o.playerId??null):null;
@@ -35,13 +35,16 @@
 
       for(const t of truth){
         const tid=idOf(t),pid=matchedByTruth.has(tid)?matchedByTruth.get(tid):null;
-        const s=state.get(tid)||{lastPred:null,lastMatchedFrame:null,lastTruthFrame:null,lastTruthSegment:null,everMatched:false};
+        const s=state.get(tid)||{lastPred:null,lastMatchedFrame:null,lastTruthFrame:null,lastTruthSegment:null,everMatched:false,everTruthSeen:false};
 
         const gtGap=s.lastTruthFrame!==null?Math.max(0,frame-s.lastTruthFrame-1):0;
         const gtCrossedSegment=s.lastTruthSegment!==null&&s.lastTruthSegment!==segment;
-        const gtOpportunity=s.everMatched&&(gtGap>0||gtCrossedSegment);
+        // The opportunity denominator must depend only on ground truth. A weak
+        // candidate must not erase its own re-entry opportunities simply because
+        // it failed to establish a prediction identity before the disappearance.
+        const gtOpportunity=s.everTruthSeen&&(gtGap>0||gtCrossedSegment);
         if(gtOpportunity){
-          const same=pid!==null&&s.lastPred===pid;
+          const same=s.lastPred!==null&&pid!==null&&s.lastPred===pid;
           gtAttempts++; if(same)gtRecovered++;
           if(gtGap>=cfg.minLongGapFrames){gtLongGapAttempts++;if(same)gtLongGapRecovered++;}
           if(gtCrossedSegment){gtCrossSegmentAttempts++;if(same)gtCrossSegmentRecovered++;}
@@ -61,7 +64,7 @@
           }
           s.lastPred=pid;s.lastMatchedFrame=frame;s.everMatched=true;
         }
-        s.lastTruthFrame=frame;s.lastTruthSegment=segment;
+        s.lastTruthFrame=frame;s.lastTruthSegment=segment;s.everTruthSeen=true;
         state.set(tid,s);
       }
     }
