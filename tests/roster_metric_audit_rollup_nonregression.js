@@ -19,6 +19,7 @@ const windows=[
 ];
 
 const audit=Audit.rollup(windows);
+assert.equal(Audit.VERSION,'CAY_ROSTER_METRIC_AUDIT_ROLLUP_V1_3');
 assert.equal(audit.windowCount,2);
 assert.deepStrictEqual(audit.byCause.invalidPath,{samples:3,seconds:3.5,intervals:3});
 assert.deepStrictEqual(audit.byCause.segmentBoundary,{seconds:3,intervals:2});
@@ -78,6 +79,42 @@ assert.equal(unavailable.status,'INDISPONIBLE','audit must never promote availab
 assert.equal(unavailable.metric,null);
 assert.equal(unavailable.metricAudit.byCause.projectionFailure.samples,4);
 assert.equal(unavailable.metricAudit.summary.status,'DISPONIBLE','causal diagnostics remain available even when physical metrics are correctly unavailable');
+
+function spatialResult(qualities,metricPublicationStatus='INDISPONIBLE'){
+  const heatmaps=qualities.map((quality,index)=>({windowIndex:index,quality,status:'DISPONIBLE'}));
+  return {
+    status:'FIABLE',reason:null,windows:[],
+    metric:{publication:{status:metricPublicationStatus,fieldStatus:{}}},
+    spatial:{
+      status:'FIABLE',coverageNote:null,
+      heatmap:{status:'DISPONIBLE',windowCount:heatmaps.length},
+      heatmaps,
+      trajectory:{status:'FIABLE',runs:[[{x:1,y:1,time:0},{x:2,y:2,time:1}]]}
+    }
+  };
+}
+
+const reliableSpatial=Audit.augmentResult(spatialResult(['FIABLE','FIABLE']));
+assert.equal(reliableSpatial.status,'FIABLE','all reliable heatmap windows must preserve the reliable roster result');
+assert.equal(reliableSpatial.spatial.status,'FIABLE');
+assert.equal(reliableSpatial.spatial.heatmap.quality,'FIABLE');
+assert.equal(reliableSpatial.spatial.heatmap.reliableWindowCount,2);
+assert.equal(reliableSpatial.spatial.heatmap.sourceWindowCount,2);
+
+const partialSpatial=Audit.augmentResult(spatialResult(['FIABLE','PARTIEL']));
+assert.equal(partialSpatial.status,'PARTIEL','a partial source heatmap must never be promoted to a reliable roster result');
+assert.equal(partialSpatial.spatial.status,'PARTIEL');
+assert.equal(partialSpatial.spatial.heatmap.status,'DISPONIBLE','available heatmap evidence remains visible even when reliability is insufficient');
+assert.equal(partialSpatial.spatial.heatmap.quality,'PARTIEL');
+assert.equal(partialSpatial.spatial.heatmap.reliableWindowCount,1);
+assert.equal(partialSpatial.spatial.heatmap.sourceWindowCount,2);
+assert.match(partialSpatial.spatial.coverageNote,/qualité de preuve insuffisante/i);
+assert.match(partialSpatial.spatial.qualityGuard.policy,/NE_PROMEUT_JAMAIS/i);
+
+const physicalReliable=Audit.augmentResult(spatialResult(['PARTIEL'],'FIABLE'));
+assert.equal(physicalReliable.status,'FIABLE','reliable physical metrics may keep the parent result reliable without falsely upgrading the spatial block');
+assert.equal(physicalReliable.spatial.status,'PARTIEL');
+assert.equal(physicalReliable.spatial.heatmap.quality,'PARTIEL');
 
 const custom=Audit.causalSummary({
   outsidePitch:{seconds:2,intervals:1,samples:1},
