@@ -19,7 +19,7 @@ No Roboflow Trackers source code, weights or data are copied into CAY-STABLE in 
 
 ## CAY-STABLE adaptation
 
-A new clean-room contract, `tracking_backend_candidate_v1.js`, reuses the existing CAY permissive-license policy from `detector_license_guard_v1.js` rather than duplicating a second license allowlist.
+The clean-room contract `tracking_backend_candidate_v1.js` reuses the existing CAY permissive-license policy from `detector_license_guard_v1.js` rather than duplicating a second license allowlist.
 
 Before an external tracker backend can even enter the benchmark queue, the contract requires:
 
@@ -30,15 +30,31 @@ Before an external tracker backend can even enter the benchmark queue, the contr
 - a declared camera-motion capability when BoT-SORT is claimed;
 - explicit marking of optional or bundled weights so their licenses can be audited independently.
 
-The contract returns only `ELIGIBLE_FOR_BENCHMARK`. It never promotes a backend to STABLE by itself. Promotion still requires the existing CAY tracking, false-CAY/bench-spectator, metric-trajectory and persistent-identity gates.
+The admission contract returns only `ELIGIBLE_FOR_BENCHMARK`. It never promotes a backend to STABLE by itself.
+
+### Canonical promotion boundary — registry 1.5.0
+
+The backend registry previously retained a legacy shortcut based on a small summary (`before/after ID-switch rate`, frame count and simplified ReID recovery). That summary remains useful as a diagnostic helper, but it is no longer sufficient to make an external backend eligible for runtime use.
+
+For benchmark-only tracker families such as Roboflow Trackers and CAMELTrack, `tracking_backend_candidate_registry_v1.js` now requires a successful result produced by the existing canonical `CAY_TRACKING_PERSISTENT_IDENTITY_PROMOTION_GATE_V1` chain. The registry checks that the evidence still contains:
+
+- successful canonical tracking promotion;
+- successful identical-input/timebase parity from the tracking gate;
+- successful metric-trajectory preservation;
+- successful persistent-identity preservation;
+- the exact canonical gate version/status/reason.
+
+This removes a duplicated promotion path instead of adding another tracker-specific rule. A tracker can no longer be marked `OPTIONAL_BACKEND_ELIGIBLE` by the registry while failing HOTA/IDF1/MOTA input parity, pitch-trajectory quality or long-gap/cross-plan identity recovery elsewhere in CAY-STABLE.
 
 ## What this replaces / work avoided
 
-This replaces future per-library legal/provenance glue for ByteTrack/BoT-SORT candidates and gives one reusable admission contract before benchmark execution. Estimated engineering work avoided: roughly 0.5–1 day for each new external tracker family, because license/provenance/runtime-boundary validation no longer needs to be rewritten.
+This replaces future per-library legal/provenance glue for ByteTrack/BoT-SORT candidates and removes the former registry-local promotion shortcut. Estimated engineering work avoided: roughly 0.5–1 day for each new external tracker family, because license/provenance/runtime-boundary validation and the final promotion decision no longer need to be rewritten separately.
 
 ## Expected measurable impact
 
-The immediate measurable impact is procedural rather than accuracy-related: incompatible candidates (for example AGPL declarations), missing immutable revisions, unsupported algorithms or hidden runtime assumptions are rejected before benchmark work starts. The expected tracking benefit comes later, if Roboflow Trackers 2.6.0 beats the current CAY baseline on the already-existing HOTA/IDF1/MOTA, false-CAY, trajectory and persistent-identity gates.
+The immediate measurable impact is procedural rather than accuracy-related: incompatible candidates (for example AGPL declarations), missing immutable revisions, unsupported algorithms or hidden runtime assumptions are rejected before benchmark work starts, while a backend cannot be promoted unless the same canonical C.A. Yenne benchmark chain passes end-to-end.
+
+The expected tracking benefit comes later, if Roboflow Trackers 2.6.0 beats the current CAY baseline on the already-existing HOTA/IDF1/MOTA, false-CAY, trajectory and persistent-identity gates.
 
 No accuracy gain is claimed yet because representative C.A. Yenne clips have not been benchmarked through this external backend in this change.
 
@@ -46,6 +62,7 @@ No accuracy gain is claimed yet because representative C.A. Yenne clips have not
 
 - Roboflow Trackers 2.6.0: **studied / eligible for benchmark**.
 - Direct runtime integration: **not yet integrated**.
+- Canonical promotion enforcement in CAY registry: **integrated**.
 - Code copied from upstream: **none**.
 - New mandatory browser dependency: **none**.
 - BoxMOT remains **rejected for runtime incorporation under the current CAY permissive-license policy** because its public package/repository is AGPL-3.0.
@@ -56,3 +73,4 @@ No accuracy gain is claimed yet because representative C.A. Yenne clips have not
 - BoT-SORT camera-motion compensation must still feed CAY's existing audited camera-motion evidence contract rather than bypassing calibration safeguards.
 - Optional ReID/mask weights require separate license/provenance review.
 - Version 2.6.0 changed lost-track boundary semantics; benchmarks must pin the exact version and revision above so HOTA/IDF1 comparisons remain reproducible.
+- Upstream development after 2.6.0 is experimenting with additional adaptive ReID/appearance fusion. This is only monitored as a future candidate: CAY-STABLE does not claim or import unreleased/develop behavior until a pinned release, license/dependency audit and C.A. Yenne benchmark exist.

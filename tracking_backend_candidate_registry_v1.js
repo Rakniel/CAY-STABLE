@@ -1,22 +1,23 @@
 (function(root){
 'use strict';
 
-const VERSION='1.4.0';
+const VERSION='1.5.0';
+const CANONICAL_PROMOTION_VERSION='CAY_TRACKING_PERSISTENT_IDENTITY_PROMOTION_GATE_V1';
 const candidates={
   'roboflow-trackers-apache':{
     id:'roboflow-trackers-apache',family:'mot',license:'Apache-2.0',status:'BENCHMARK_ONLY',
     source:'https://github.com/roboflow/trackers',upstreamVersion:'2.6.0',upstreamRevision:'0e839f348d8bf4ed09eea9f3bef58fd5f95dca3f',releaseDate:'2026-08-06',runtimeDefaultAllowed:false,
-    requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,timestampSupport:true,
+    requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,requiresCanonicalPromotionGate:true,timestampSupport:true,
     algorithms:['ByteTrack','BoT-SORT','OC-SORT','SORT','CBIoU','McByte'],cameraMotionCapability:'CMC',
     preferredProfiles:{cameraMotion:'BoT-SORT',variableDetectionConfidence:'ByteTrack'},
-    note:'Permissive reference/backend candidate exposing ByteTrack, BoT-SORT, OC-SORT and evaluation tooling. Version/revision are pinned to the audited 2.6.0 release because lifecycle/timestamp behavior changed upstream. Python backend must remain optional until real CAY footage proves measurable short-term tracking AND persistent-identity gains.'
+    note:'Permissive reference/backend candidate exposing ByteTrack, BoT-SORT, OC-SORT and evaluation tooling. Version/revision are pinned to the audited 2.6.0 release because lifecycle/timestamp behavior changed upstream. Python backend must remain optional until real CAY footage proves measurable short-term tracking, metric-trajectory and persistent-identity gains through the canonical promotion gate.'
   },
   'cameltrack-apache':{
     id:'cameltrack-apache',family:'learned-multi-cue-mot',license:'Apache-2.0',status:'BENCHMARK_ONLY',
     source:'https://github.com/TrackingLaboratory/CAMELTrack',upstreamVersion:'46a74bb22a28d2d699b4c5c5e317a26d3b87f1e2',runtimeDefaultAllowed:false,
-    requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,
+    requiresBenchmark:true,requiresDependencyAudit:true,requiresIdentityBenchmark:true,requiresCanonicalPromotionGate:true,
     preferredProfiles:{crowdedSports:'CAMEL bbox+appearance+keypoints',crossDomain:'global multi-dataset checkpoint'},
-    note:'Context-aware learned association candidate from the TrackLab ecosystem. SportsMOT reports HOTA 80.3 upstream, but CAY promotion remains blocked until dependency/model-weight licensing and real C.A. Yenne persistent-identity benchmarks are validated. No CAMELTrack source or weights are bundled.'
+    note:'Context-aware learned association candidate from the TrackLab ecosystem. SportsMOT reports HOTA 80.3 upstream, but CAY promotion remains blocked until dependency/model-weight licensing and the canonical C.A. Yenne tracking+trajectory+persistent-identity promotion gate are validated. No CAMELTrack source or weights are bundled.'
   },
   'sportslabkit-gpl':{
     id:'sportslabkit-gpl',family:'sports-mot',license:'GPL-3.0',status:'REFERENCE_ONLY',
@@ -73,21 +74,37 @@ function identityBenchmarkValid(report){
   return true;
 }
 function benchmarkReportValid(report){return shortTermBenchmarkValid(report)&&identityBenchmarkValid(report);}
-function promotionVerdict(id,report,dependencyAudit){
+function canonicalPromotionValid(evidence){
+  if(!evidence||typeof evidence!=='object')return false;
+  if(evidence.version!==CANONICAL_PROMOTION_VERSION)return false;
+  if(evidence.promote!==true||evidence.status!=='PROMOTE')return false;
+  if(evidence.reason!=='TRACKING_TRAJECTORY_AND_PERSISTENT_IDENTITY_GATES_PASSED')return false;
+  if(evidence.trackingAndTrajectory?.promote!==true)return false;
+  if(evidence.trackingAndTrajectory?.tracking?.promote!==true)return false;
+  if(evidence.trackingAndTrajectory?.tracking?.inputParity?.pass!==true)return false;
+  if(evidence.trackingAndTrajectory?.trajectory?.pass!==true)return false;
+  if(evidence.persistentIdentity?.pass!==true)return false;
+  return true;
+}
+function promotionVerdict(id,report,dependencyAudit,canonicalPromotionEvidence){
   const c=get(id);
   if(!c)return {allowed:false,reason:'UNKNOWN_CANDIDATE'};
   const licenseVerdict=runtimeLicenseVerdict(c);
   if(!licenseVerdict.allowed)return {allowed:false,reason:'LICENSE_REFERENCE_ONLY',licenseVerdict,candidate:c};
   if(c.requiresDependencyAudit&&dependencyAudit?.compatible!==true)return {allowed:false,reason:'DEPENDENCY_AUDIT_REQUIRED',candidate:c};
+  if(c.requiresCanonicalPromotionGate){
+    if(!canonicalPromotionValid(canonicalPromotionEvidence))return {allowed:false,reason:'CANONICAL_PROMOTION_GATE_REQUIRED',candidate:c};
+    return {allowed:true,reason:'OPTIONAL_BACKEND_ELIGIBLE',candidate:{...c,status:'ELIGIBLE_AFTER_CANONICAL_BENCHMARK'},canonicalPromotionVersion:CANONICAL_PROMOTION_VERSION};
+  }
   if(c.requiresBenchmark&&!shortTermBenchmarkValid(report))return {allowed:false,reason:'REAL_VIDEO_GAIN_REQUIRED',candidate:c};
   if(c.requiresIdentityBenchmark&&!identityBenchmarkValid(report))return {allowed:false,reason:'PERSISTENT_IDENTITY_GAIN_REQUIRED',candidate:c};
   return {allowed:true,reason:'OPTIONAL_BACKEND_ELIGIBLE',candidate:{...c,status:'ELIGIBLE_AFTER_BENCHMARK'}};
 }
-function assertPromotable(id,report,dependencyAudit){
-  const verdict=promotionVerdict(id,report,dependencyAudit);
+function assertPromotable(id,report,dependencyAudit,canonicalPromotionEvidence){
+  const verdict=promotionVerdict(id,report,dependencyAudit,canonicalPromotionEvidence);
   if(!verdict.allowed){const e=new Error('CAY tracking backend promotion blocked: '+verdict.reason);e.code='CAY_TRACKING_BACKEND_PROMOTION_BLOCKED';e.reason=verdict.reason;throw e;}
   return verdict;
 }
-root.CAYTrackingBackendCandidateRegistry={version:VERSION,get,list,resolveLicenseGuard,runtimeLicenseVerdict,runtimeLicenseCompatible,shortTermBenchmarkValid,identityBenchmarkValid,benchmarkReportValid,promotionVerdict,assertPromotable};
+root.CAYTrackingBackendCandidateRegistry={version:VERSION,CANONICAL_PROMOTION_VERSION,get,list,resolveLicenseGuard,runtimeLicenseVerdict,runtimeLicenseCompatible,shortTermBenchmarkValid,identityBenchmarkValid,benchmarkReportValid,canonicalPromotionValid,promotionVerdict,assertPromotable};
 if(typeof module!=='undefined'&&module.exports)module.exports=root.CAYTrackingBackendCandidateRegistry;
 })(typeof globalThis!=='undefined'?globalThis:this);
