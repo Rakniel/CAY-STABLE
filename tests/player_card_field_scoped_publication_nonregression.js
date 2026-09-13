@@ -40,4 +40,24 @@ const reliableCard=VM.buildCard({id:9,identityQuality:'FIABLE',metric:explicitRe
 assert.equal(reliableCard.metrics.maxSpeedKmh.status,'FIABLE');
 assert.equal(reliableCard.metrics.maxSpeedKmh.value,24.8);
 
+const legacyWithoutFieldVerdicts={
+  metricCoverage:.95,
+  distanceM:1800,
+  avgSpeedKmh:8.1,
+  maxSpeedKmh:27.4,
+  sprintCount:4,
+  quality:'FIABLE',
+  rosterBound:true
+};
+const legacyCard=VM.buildCard({id:10,identityQuality:'FIABLE',metric:legacyWithoutFieldVerdicts});
+for(const key of ['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount']){
+  assert.equal(legacyCard.metrics[key].status,'PARTIEL',`${key} must not become reliable without a field-scoped publication verdict`);
+  assert.notEqual(legacyCard.metrics[key].value,null,`${key} diagnostic value should remain visible`);
+  assert.match(legacyCard.metrics[key].reason,/verdict de publication spécifique/i);
+}
+assert.equal(legacyCard.firstResults.physicalMetrics,false,'legacy parent FIABLE must not unlock reliable physical results');
+assert.equal(legacyCard.firstResults.physicalMetricsAvailable,true,'legacy values remain available for diagnostic display');
+assert.equal(legacyCard.firstResults.physicalMetricsComplete,false);
+assert.equal(legacyCard.firstResults.metricReady,false);
+
 console.log('player card field-scoped publication non-regression: PASS');

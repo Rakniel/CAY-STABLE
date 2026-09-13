@@ -43,7 +43,8 @@ const rosterMetric={status:'FIABLE',spatial:{
     {windowIndex:1,pitchLengthM:105,pitchWidthM:68,rows:2,cols:2,cells:[[0,0],[0,1]],timeCells:[[0,0],[0,2]]}
   ]
 }};
-const metricCard=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',pitchLengthM:999,pitchWidthM:999,metricCoverage:1,trajectory:{status:'DISPONIBLE',runs:[[{x:999,y:999}]]},pitchHeatmap:{status:'DISPONIBLE',cells:[[99]]}},metric:{metricCoverage:.8,distanceM:1234.5,avgSpeedKmh:7.2,maxSpeedKmh:28.1,sprintCount:2,quality:'FIABLE',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'},rosterMetric});
+const fieldStatus={distanceM:{status:'FIABLE',reason:null},avgSpeedKmh:{status:'FIABLE',reason:null},maxSpeedKmh:{status:'FIABLE',reason:null},sprintCount:{status:'FIABLE',reason:null}};
+const metricCard=VM.buildCard({...report.players[0],metricVisuals:{status:'DISPONIBLE',pitchLengthM:999,pitchWidthM:999,metricCoverage:1,trajectory:{status:'DISPONIBLE',runs:[[{x:999,y:999}]]},pitchHeatmap:{status:'DISPONIBLE',cells:[[99]]}},metric:{metricCoverage:.8,distanceM:1234.5,avgSpeedKmh:7.2,maxSpeedKmh:28.1,sprintCount:2,quality:'FIABLE',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1',publication:{status:'FIABLE',fieldStatus}},rosterMetric});
 assert.equal(metricCard.metrics.distanceM.status,'FIABLE');
 assert.equal(metricCard.metrics.distanceM.value,1234.5);
 assert.equal(metricCard.metrics.sprintCount.value,2);

@@ -17,8 +17,9 @@
     const scoped=metric?.publication?.fieldStatus?.[key];
     if(scoped?.status==='INDISPONIBLE')return unavailable(scoped.reason||'preuve spécifique insuffisante pour cette métrique');
     if(!finite(metric.metricCoverage)||Number(metric.metricCoverage)<=0||!finite(metric[key]))return unavailable(scoped?.reason||'projection terrain métrique non défendable');
-    const status=scoped?.status==='FIABLE'?'FIABLE':metric.quality==='FIABLE'?'FIABLE':'PARTIEL';
-    return {status,value:Number(metric[key]),label,coverage:pct(metric.metricCoverage),reason:null};
+    const status=scoped?.status==='FIABLE'?'FIABLE':'PARTIEL';
+    const reason=status==='FIABLE'?null:(scoped?.reason||'verdict de publication spécifique au champ absent : valeur conservée uniquement pour diagnostic');
+    return {status,value:Number(metric[key]),label,coverage:pct(metric.metricCoverage),reason};
   }
   function legacySpatialCoveragePct(spatial){
     const total=Number(spatial?.participationWindowCount||0),rendered=Number(spatial?.renderedWindowCount||0);
