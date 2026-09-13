@@ -9,7 +9,7 @@ bindingState=Binding.bind(bindingState,{trackId:'track-10',playerId:'cay-10',sou
 
 const players=[
   {id:'ghost-cay',team:'CAY',pitchX:10.05,pitchY:10,confidence:.99,onField:true},
-  {id:'track-9',team:'CAY',pitchX:10.35,pitchY:10,confidence:.95,onField:true},
+  {id:'track-9',team:'CAY',pitchX:11.2,pitchY:10,confidence:.95,onField:true},
   {id:'opp-4',team:'ADV',pitchX:30,pitchY:10,confidence:.95,onField:true}
 ];
 
