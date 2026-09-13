@@ -72,7 +72,7 @@ assert.strictEqual(report.playerCards.players[0].firstResults.avgSpeed,false);
 assert.strictEqual(report.playerCards.players[0].firstResults.maxSpeed,false);
 assert.strictEqual(report.playerCards.players[0].firstResults.sprints,false);
 assert.strictEqual(report.playerCards.players[0].firstResults.metricReady,false);
-assert.strictEqual(report.playerCards.players[0].firstResults.diagnosticReadiness.metricReady,undefined,'raw card readiness remains auditable without inventing derived flags');
+assert.strictEqual(report.playerCards.players[0].firstResults.diagnosticReadiness.metricReady,true,'raw canonical card readiness must remain auditable');
 assert.strictEqual(report.observationCoverageGuard.physicalResultsAllowed,false);
 assert.strictEqual(report.observationCoverageGuard.visualResultsAllowed,true);
 
@@ -83,6 +83,7 @@ assert.strictEqual(report.firstResultsTestability.coreTestable,false);
 assert.strictEqual(report.firstResultsTestability.physicalTestable,false);
 assert.strictEqual(report.playerCards.players[0].firstResults.status,'INDISPONIBLE');
 assert.strictEqual(report.playerCards.players[0].firstResults.tracking,false);
+assert.strictEqual(report.playerCards.players[0].firstResults.runtimeTrackingReady,true,'coverage failure must not masquerade as a runtime tracking failure');
 assert.strictEqual(report.playerCards.players[0].firstResults.nextAction,'AMELIORER_COUVERTURE_ANALYSE');
 assert.strictEqual(report.observationCoverageGuard.visualResultsAllowed,false);
 
