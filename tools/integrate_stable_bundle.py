@@ -11,10 +11,13 @@ def run(script_name):
 
 def main():
     # Canonical shipped STABLE build order: tracking runtime first, then the
-    # semantic calibration overlay. Keeping this in one entry point prevents
-    # scheduled workflows from alternately rewriting the same HTML ordering.
+    # semantic calibration overlay. The fail-closed runtime guard is injected
+    # last so it observes the exact tracker/camera stack delivered to the club.
+    # Keeping this in one entry point prevents scheduled workflows from
+    # alternately rewriting the same HTML ordering.
     run('integrate_tracking_v2.py')
     run('integrate_calibration_v2.py')
+    run('integrate_tracking_runtime_guard.py')
 
 
 if __name__ == '__main__':
