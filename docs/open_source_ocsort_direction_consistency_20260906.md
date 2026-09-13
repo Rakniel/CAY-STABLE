@@ -24,7 +24,7 @@ No OC-SORT source code, model weights, Kalman implementation or dependency is co
 Therefore importing OC-SORT wholesale would duplicate working CAY logic and add unnecessary Python/NumPy/filterpy/YOLOX baggage. OC-SORT's observation-centric re-update is also not copied blindly: CAY's lightweight predictor already derives velocity from real observations rather than recursively feeding predicted boxes back into the observed trajectory.
 
 ## CAY adaptation implemented
-`tracking_core_v1.js` now contains an optional `directionPenalty()` used only when `directionConsistencyEnabled === true`.
+`tracking_core_v1.js` contains an optional `directionPenalty()` used only when `directionConsistencyEnabled === true`.
 
 The adaptation:
 1. Requires at least two accepted observations in the current track history.
@@ -46,6 +46,18 @@ This result proves only that the optional term resolves the targeted determinist
 
 The test also verifies that `directionPenalty()` returns zero when the feature is not explicitly enabled, preserving runtime compatibility.
 
+## STABLE bridge wiring — 2026-09-13
+Inspection of `stable_tracking_bridge_v1.js` found that the core option existed but the STABLE bridge did not forward it to `CAYTrackingCore.assignFrame()`. The same omission affected the existing appearance-memory tuning knobs (`appearanceUpdateMinScore`, `appearanceSmoothingAlpha`, `reidGalleryMaxSamples`, `reidGalleryMinSamples`, `reidGalleryEmaWeight`). This meant a core-only benchmark could exercise these features while the actual STABLE bridge path could not reproduce the same configuration.
+
+The bridge now forwards those existing core options from create-level configuration and supports explicit per-frame overrides where appropriate. **No option is enabled by default by this wiring change.** Production behaviour therefore stays fail-safe while the real C.A. Yenne benchmark remains authoritative.
+
+`tests/stable_bridge_tracking_option_passthrough_nonregression.js` verifies through the STABLE bridge that:
+- the same synthetic crossing changes from 2 identity reversals to 0 only when direction consistency is explicitly enabled;
+- a frame-level explicit `false` can disable it for deterministic A/B evaluation;
+- ReID gallery cap and low-score appearance-update guard configured at bridge creation really reach the tracking core.
+
+This replaces a misleading split between “core benchmark configuration” and “STABLE runtime benchmark configuration”; the same association policy can now be evaluated end-to-end through the bridge without duplicating tracking logic.
+
 ## Benchmark gate before runtime promotion
 Minimum gate remains:
 - >= 300 labelled/evaluable frames on the **same sequence before/after**;
@@ -58,16 +70,17 @@ Minimum gate remains:
 - all existing tracking, integration and syntax non-regression suites green.
 
 ## What this replaces / work avoided
-This adapts one narrow mature MOT cue inside the existing `tracking_core_v1.js` instead of importing or rewriting an entire tracker backend. Estimated avoided prototype/plumbing work: **0.5–1 day**, plus avoidance of a heavy optional runtime stack.
+This adapts one narrow mature MOT cue inside the existing `tracking_core_v1.js` instead of importing or rewriting an entire tracker backend. Estimated avoided prototype/plumbing work: **0.5–1 day**, plus avoidance of a heavy optional runtime stack. The 2026-09-13 bridge wiring additionally avoids maintaining a second tracking-policy implementation solely for STABLE benchmarking.
 
 ## Expected impact
 Expected, pending real-video benchmark:
 - fewer identity swaps during player crossings and short occlusions;
 - cleaner player-card trajectories before distance/speed metrics consume them;
+- reproducible A/B evaluation through the actual STABLE bridge;
 - negligible dependency impact because the adaptation adds no external runtime package.
 
 ## Status
-**INTÉGRÉ COMME OPTION DE BENCHMARK / NON ACTIVÉ PAR DÉFAUT.**
+**INTÉGRÉ COMME OPTION DE BENCHMARK ET RACCORDÉ AU BRIDGE STABLE / NON ACTIVÉ PAR DÉFAUT.**
 
 Production promotion is blocked until the >=300-frame same-sequence C.A. Yenne benchmark gate passes.
 
@@ -77,4 +90,4 @@ Production promotion is blocked until the >=300-frame same-sequence C.A. Yenne b
 - tiny movements are numerically unstable;
 - too much weight could reject legitimate reacquisition.
 
-Mitigation: bounded secondary penalty, motion-amplitude guard, explicit opt-in, existing camera-cut segment reset, same-sequence before/after benchmark, and no automatic production promotion without measurable CAY gain.
+Mitigation: bounded secondary penalty, motion-amplitude guard, explicit opt-in, existing camera-cut segment reset, same-sequence before/after benchmark, frame-level A/B override, and no automatic production promotion without measurable CAY gain.
