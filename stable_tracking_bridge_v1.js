@@ -120,7 +120,15 @@
         reidScoreUniquenessMargin:Number.isFinite(ctx.reidScoreUniquenessMargin)?ctx.reidScoreUniquenessMargin:opts.reidScoreUniquenessMargin,
         maxReidGap:Number.isFinite(ctx.maxReidGap)?ctx.maxReidGap:opts.maxReidGap,
         minSameSegmentReidGap:Number.isFinite(ctx.minSameSegmentReidGap)?ctx.minSameSegmentReidGap:opts.minSameSegmentReidGap,
-        baseThreshold:Number.isFinite(ctx.baseThreshold)?ctx.baseThreshold:opts.baseThreshold
+        baseThreshold:Number.isFinite(ctx.baseThreshold)?ctx.baseThreshold:opts.baseThreshold,
+        directionConsistencyEnabled:ctx.directionConsistencyEnabled===true?true:ctx.directionConsistencyEnabled===false?false:opts.directionConsistencyEnabled===true,
+        directionPenaltyWeight:Number.isFinite(ctx.directionPenaltyWeight)?ctx.directionPenaltyWeight:opts.directionPenaltyWeight,
+        directionMinMotion:Number.isFinite(ctx.directionMinMotion)?ctx.directionMinMotion:opts.directionMinMotion,
+        appearanceUpdateMinScore:Number.isFinite(ctx.appearanceUpdateMinScore)?ctx.appearanceUpdateMinScore:opts.appearanceUpdateMinScore,
+        appearanceSmoothingAlpha:Number.isFinite(ctx.appearanceSmoothingAlpha)?ctx.appearanceSmoothingAlpha:opts.appearanceSmoothingAlpha,
+        reidGalleryMaxSamples:Number.isFinite(ctx.reidGalleryMaxSamples)?ctx.reidGalleryMaxSamples:opts.reidGalleryMaxSamples,
+        reidGalleryMinSamples:Number.isFinite(ctx.reidGalleryMinSamples)?ctx.reidGalleryMinSamples:opts.reidGalleryMinSamples,
+        reidGalleryEmaWeight:Number.isFinite(ctx.reidGalleryEmaWeight)?ctx.reidGalleryEmaWeight:opts.reidGalleryEmaWeight
       });
       const ids=new Set();
       for(const a of assigned){ if(ids.has(a.trackId))throw new Error('invariant violé: ID joueur dupliqué sur une frame'); ids.add(a.trackId); }
