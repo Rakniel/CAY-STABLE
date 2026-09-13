@@ -53,6 +53,13 @@ const asymmetric=Pipeline.mergeHeatmaps([
 ]);
 assert.deepStrictEqual(asymmetric.normalizedCells,[[.75,.25],[0,0]],'relative occupancy shares must be preserved across merged participation windows');
 
+const thirds=Pipeline.normalizeMatrix([[1,1,1]]);
+assert.deepStrictEqual(thirds,[[.333334,.333333,.333333]],'largest-remainder normalization must preserve deterministic six-decimal shares');
+assert.strictEqual(thirds.flat().reduce((sum,value)=>sum+value,0),1,'rounded thirds must still sum exactly to one');
+const awkward=Pipeline.normalizeMatrix([[1,2,3,5,8,13,21]]);
+assert.strictEqual(awkward.flat().reduce((sum,value)=>sum+value,0),1,'arbitrary positive distributions must sum exactly to one after six-decimal quantization');
+assert.ok(awkward.flat().every(value=>value>=0&&value<=1),'normalized heatmap shares must stay bounded');
+
 const mixed=Pipeline.mergeHeatmaps([
   source({basis:'TIME_SECONDS',time:.4,observations:3,index:0}),
   source({basis:'OBSERVATIONS',time:0,observations:2,index:1})

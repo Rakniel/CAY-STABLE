@@ -144,8 +144,18 @@
 
   function normalizeMatrix(matrix){
     if(!Array.isArray(matrix)||!matrix.length)return [];
-    const total=matrix.flat().reduce((acc,value)=>acc+(finite(value)&&Number(value)>0?Number(value):0),0);
-    return matrix.map(row=>row.map(value=>total>0?+(Number(value)/total).toFixed(6):0));
+    const rows=matrix.length,cols=Array.isArray(matrix[0])?matrix[0].length:0;
+    if(!cols||!matrix.every(row=>Array.isArray(row)&&row.length===cols))return [];
+    const values=matrix.flat().map(value=>finite(value)&&Number(value)>0?Number(value):0);
+    const total=values.reduce((acc,value)=>acc+value,0);
+    if(!(total>0))return matrix.map(row=>row.map(()=>0));
+    const scale=1000000;
+    const scaled=values.map(value=>value/total*scale);
+    const units=scaled.map(value=>Math.floor(value));
+    let remaining=scale-units.reduce((acc,value)=>acc+value,0);
+    const order=scaled.map((value,index)=>({index,fraction:value-units[index]})).sort((a,b)=>b.fraction-a.fraction||a.index-b.index);
+    for(let i=0;i<remaining;i++)units[order[i].index]++;
+    return Array.from({length:rows},(_,y)=>Array.from({length:cols},(_,x)=>units[y*cols+x]/scale));
   }
 
   function mergeHeatmaps(heatmaps){
