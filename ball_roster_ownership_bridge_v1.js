@@ -35,7 +35,8 @@
       const result=scopedPlayer(raw,options,sample&&sample.time);
       if(result.player){
         kept.push(result.player);
-        if(clean(raw&&raw.team??raw&&raw.teamId)===clean(options.clubTeam||'CAY'))mappedClubPlayers+=1;
+        const rawTeam=clean(raw?(raw.team??raw.teamId):'');
+        if(rawTeam===clean(options.clubTeam||'CAY'))mappedClubPlayers+=1;
       }else{
         rejectedClubPlayers+=1;
         rejectedReasons[result.reason]=(rejectedReasons[result.reason]||0)+1;
