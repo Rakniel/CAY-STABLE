@@ -7,6 +7,11 @@ text = path.read_text(encoding='utf-8')
 tag = '<script src="./stable_tracking_runtime_guard_v1.js"></script>'
 
 text = re.sub(rf'^[ \t]*{re.escape(tag)}[ \t]*(?:\r?\n)?', '', text, flags=re.MULTILINE)
+# `integrate_tracking_v2.py` rebuilds its canonical block on every pass. If the
+# guard was previously placed just before that block, removing it can leave one
+# extra blank line behind. Normalize that seam so the whole bundle reaches a
+# true fixed point after one execution.
+text = re.sub(r'\n{3,}(<!-- STABLE_LONG_TERM_TRACKING_V2 -->)', r'\n\n\1', text)
 needle = '</body>'
 if needle not in text:
     raise SystemExit('ERROR: </body> not found')
