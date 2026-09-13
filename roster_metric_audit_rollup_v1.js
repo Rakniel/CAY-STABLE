@@ -138,10 +138,10 @@
     if(!spatial||typeof spatial!=='object')return spatial;
     const sourceHeatmaps=Array.isArray(spatial.heatmaps)?spatial.heatmaps:[];
     if(!spatial.heatmap||!sourceHeatmaps.length)return spatial;
-    const sourceQualities=sourceHeatmaps.map(row=>String(row?.quality||'').trim().toUpperCase());
-    const reliableWindowCount=sourceQualities.filter(quality=>quality==='FIABLE').length;
-    const mergedQuality=reliableWindowCount===sourceHeatmaps.length?'FIABLE':'PARTIEL';
-    const heatmap={...spatial.heatmap,quality:mergedQuality,reliableWindowCount,sourceWindowCount:sourceHeatmaps.length,qualityPolicy:'QUALITE_HEATMAP_AGREGEE_NE_PEUT_ETRE_FIABLE_QUE_SI_TOUTES_LES_FENETRES_SOURCE_SONT_FIABLES'};
+    if(!Pipeline||typeof Pipeline.heatmapQualitySummary!=='function')throw new Error('ROSTER_METRIC_HEATMAP_QUALITY_SUMMARY_REQUIRED');
+    const quality=Pipeline.heatmapQualitySummary(sourceHeatmaps);
+    const mergedQuality=quality.quality;
+    const heatmap={...spatial.heatmap,quality:mergedQuality,reliableWindowCount:quality.reliableWindowCount,sourceWindowCount:quality.sourceWindowCount,qualityPolicy:quality.qualityPolicy};
     if(spatial.status!=='FIABLE'||mergedQuality==='FIABLE')return {...spatial,heatmap};
     const qualityReason='heatmap terrain disponible mais qualité de preuve insuffisante pour la qualifier de fiable';
     const existing=String(spatial.coverageNote||'').trim();
@@ -151,7 +151,7 @@
       reason:spatial.reason||qualityReason,
       coverageNote:existing?(existing.includes(qualityReason)?existing:`${existing} ; ${qualityReason}`):qualityReason,
       heatmap,
-      qualityGuard:{status:'PARTIEL',reliableHeatmapWindowCount:reliableWindowCount,heatmapWindowCount:sourceHeatmaps.length,policy:'LE_ROLLUP_ROSTER_NE_PROMEUT_JAMAIS_UNE_HEATMAP_SOURCE_PARTIELLE_EN_FIABLE'}
+      qualityGuard:{status:'PARTIEL',reliableHeatmapWindowCount:quality.reliableWindowCount,heatmapWindowCount:quality.sourceWindowCount,policy:'LE_ROLLUP_ROSTER_NE_PROMEUT_JAMAIS_UNE_HEATMAP_SOURCE_PARTIELLE_EN_FIABLE'}
     };
   }
 

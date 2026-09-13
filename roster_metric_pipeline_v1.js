@@ -158,6 +158,18 @@
     return Array.from({length:rows},(_,y)=>Array.from({length:cols},(_,x)=>units[y*cols+x]/scale));
   }
 
+  function heatmapQualitySummary(heatmaps){
+    const sourceHeatmaps=Array.isArray(heatmaps)?heatmaps:[];
+    const reliableWindowCount=sourceHeatmaps.filter(row=>String(row?.quality||'').trim().toUpperCase()==='FIABLE').length;
+    const sourceWindowCount=sourceHeatmaps.length;
+    return {
+      quality:sourceWindowCount===0?'INDISPONIBLE':(reliableWindowCount===sourceWindowCount?'FIABLE':'PARTIEL'),
+      reliableWindowCount,
+      sourceWindowCount,
+      qualityPolicy:'QUALITE_HEATMAP_AGREGEE_NE_PEUT_ETRE_FIABLE_QUE_SI_TOUTES_LES_FENETRES_SOURCE_SONT_FIABLES'
+    };
+  }
+
   function mergeHeatmaps(heatmaps){
     const rowsIn=Array.isArray(heatmaps)?heatmaps:[];
     if(!rowsIn.length)return null;
@@ -171,6 +183,7 @@
     const timeCells=aggregateMatrix(rowsIn,'timeCells',rows,cols);
     const selected=useTime?timeCells:cells;
     if(!selected)return null;
+    const quality=heatmapQualitySummary(rowsIn);
     return {
       status:'DISPONIBLE',coordinateSystem:'PITCH_METERS',pitchLengthM:Number(first.pitchLengthM),pitchWidthM:Number(first.pitchWidthM),
       rows,cols,cells:cells||[],timeCells:timeCells||[],normalizedCells:normalizeMatrix(selected),
@@ -178,6 +191,7 @@
       sourceWindowIndexes:rowsIn.map(h=>h.windowIndex).filter(v=>v!==null&&v!==undefined),
       heatmapBasis:useTime?'TIME_WEIGHTED_CONFIRMED_PARTICIPATION':'OBSERVATION_COUNT_CONFIRMED_PARTICIPATION',
       normalization:'TOTAL_DISTRIBUTION_SUM_1',
+      quality:quality.quality,reliableWindowCount:quality.reliableWindowCount,sourceWindowCount:quality.sourceWindowCount,qualityPolicy:quality.qualityPolicy,
       policy:'CELLS_RESTE_UN_COMPTE_D_OBSERVATIONS; TIMECELLS_RESTE_EN_SECONDES; NORMALIZEDCELLS_SUIT_EXPLICITEMENT_HEATMAPBASIS_ET_REPRESENTE_UNE_DISTRIBUTION_DONT_LA_SOMME_VAUT_1; AGREGE_UNIQUEMENT_DES_FENETRES_DE_PARTICIPATION_SUR_UNE_GEOMETRIE_TERRAIN_COHERENTE_ET_SANS_MELANGE_D_UNITE_TEMPS_OBSERVATIONS'
     };
   }
@@ -208,7 +222,8 @@
     const excludedGeometryWindowCount=Math.max(0,availableWindowCount-coherentWindowCount);
     const renderedWindowCount=+coherent.reduce((acc,window)=>acc+evidenceCoverage(window?.spatial),0).toFixed(4);
     const complete=coherentWindowCount>0&&coherentWindowCount===all.length&&excludedGeometryWindowCount===0;
-    const status=coherentWindowCount===0||(!heatmap&&!trajectoryAvailable)?'INDISPONIBLE':(heatmap&&complete?'FIABLE':'PARTIEL');
+    const heatmapReliable=heatmap?.quality==='FIABLE';
+    const status=coherentWindowCount===0||(!heatmap&&!trajectoryAvailable)?'INDISPONIBLE':(heatmap&&heatmapReliable&&complete?'FIABLE':'PARTIEL');
     const geometry=dominant?{
       coordinateSystem:'PITCH_METERS',pitchLengthM:Number(dominant.first.spatial.pitchLengthM),pitchWidthM:Number(dominant.first.spatial.pitchWidthM),
       rows:dominant.rows,cols:dominant.cols,sourceWindowIndexes:coherent.map(window=>window.index),evidenceWeight:+dominant.evidenceWeight.toFixed(4),
@@ -216,6 +231,7 @@
     }:null;
     const coverageReasons=[];
     if(excludedGeometryWindowCount>0)coverageReasons.push('certaines fenêtres terrain ont été exclues car leur géométrie est incompatible avec le référentiel dominant');
+    if(heatmap&&!heatmapReliable)coverageReasons.push('heatmap terrain disponible mais au moins une fenêtre source possède une qualité de preuve insuffisante pour la qualifier de fiable');
     if(trajectoryAvailable&&!heatmap)coverageReasons.push('trajectoire terrain publiée sans heatmap : couverture temporelle/heatmap insuffisante, résultat spatial explicitement partiel');
     return {
       status,
@@ -271,5 +287,5 @@
     };
   }
 
-  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,windowDurationSeconds,dominantGeometryGroup,mergeHeatmaps,heatmapUnit,aggregateMatrix,normalizeMatrix};
+  return {build,aggregateMetrics,summarizeSpatial,unavailable,samePitch,matrixOk,hasTrajectory,hasHeatmap,hasSpatialVisual,evidenceCoverage,windowDurationSeconds,dominantGeometryGroup,mergeHeatmaps,heatmapQualitySummary,heatmapUnit,aggregateMatrix,normalizeMatrix};
 });
