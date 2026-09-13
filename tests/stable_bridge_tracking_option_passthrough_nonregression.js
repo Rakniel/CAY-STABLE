@@ -28,12 +28,19 @@ const disabledAtFrame=byX(contextual.processFrame([det(.39),det(.61)],2,{directi
 assert.strictEqual(disabledAtFrame.get(.39),contextualFirst.get(.30),'un contexte frame peut désactiver explicitement le garde pour benchmark A/B');
 assert.strictEqual(disabledAtFrame.get(.61),contextualFirst.get(.70),'override frame désactivé reste déterministe');
 
-const gallery=Bridge.create({baseThreshold:.90,longGapSeconds:999,reidGalleryMaxSamples:3,appearanceUpdateMinScore:.99});
+const gallery=Bridge.create({baseThreshold:.90,longGapSeconds:999,reidGalleryMaxSamples:3});
 gallery.processFrame([det(.20,.95)],0,{});
 for(let i=1;i<=5;i++)gallery.processFrame([det(.20+i*.005,.95)],i,{});
-const track=gallery.state.active[0];
-assert(track,'piste active attendue');
-assert.strictEqual(track.appearanceGallery.length,3,'reidGalleryMaxSamples create-level atteint le cœur via le bridge');
-assert(track.appearanceUpdatesRejectedLowScore>=5,'appearanceUpdateMinScore create-level atteint le cœur via le bridge');
+const galleryTrack=gallery.state.active[0];
+assert(galleryTrack,'piste galerie active attendue');
+assert.strictEqual(galleryTrack.appearanceGallery.length,3,'reidGalleryMaxSamples create-level atteint le cœur via le bridge');
+
+const guardedAppearance=Bridge.create({baseThreshold:.90,longGapSeconds:999,appearanceUpdateMinScore:.99});
+guardedAppearance.processFrame([det(.20,.95)],0,{});
+guardedAppearance.processFrame([det(.205,.95)],1,{});
+const appearanceTrack=guardedAppearance.state.active[0];
+assert(appearanceTrack,'piste apparence active attendue');
+assert(appearanceTrack.appearanceUpdatesRejectedLowScore>=1,'appearanceUpdateMinScore create-level atteint le cœur via le bridge');
+assert.strictEqual(appearanceTrack.appearanceGallery.length,1,'une mise à jour apparence sous seuil ne pollue pas la galerie');
 
 console.log('PASS STABLE bridge advanced tracking option passthrough: direction A/B 2 reversals -> 0 when enabled; frame override preserved; ReID gallery cap/update guard propagated');
