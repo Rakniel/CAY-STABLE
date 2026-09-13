@@ -33,7 +33,9 @@ No class map is guessed. A candidate must provide `personClassIds` explicitly be
 - `julianzu9612/RFDETR-Soccernet` — **BENCHMARK_ONLY**, Apache-2.0 declared pending exact weight/class-map provenance;
 - `rudrasinghm/dfine-football-detector` — **BENCHMARK_ONLY**, Apache-2.0 declared pending runtime/weight verification.
 
-A green synthetic test cannot promote a model. Runtime promotion requires the real Sarcelles–Aubervilliers benchmark contract plus source/license/weight identifier. If actual provenance later exposes GPL/AGPL, promotion remains blocked even when the registry entry originally looked permissive.
+A green synthetic test cannot promote a model. Runtime promotion requires the real Sarcelles–Aubervilliers benchmark contract plus source, actual artifact license and an **immutable SHA-256 of the exact weight file that was benchmarked**. A repository revision, mutable model name or informal weight identifier is not sufficient because it does not prove that runtime is loading the same bytes that passed the benchmark. `sha256:<64 hex>` and raw 64-hex SHA-256 forms are normalized to one canonical digest. The normalized digest is returned by the promotion verdict for audit logging. If actual provenance exposes GPL/AGPL, proprietary, unknown or mixed-unknown terms, promotion remains blocked even when the registry entry originally looked permissive.
+
+This checksum requirement is intentionally stronger than ordinary source-version provenance: source revision identifies the implementation, while weight SHA-256 identifies the model artifact. Both should be recorded in release/audit metadata when a candidate is eventually packaged, but only an exact weight checksum can bind a benchmark result to the bytes promoted into STABLE.
 
 ## What this replaces / work avoided
 Before these modules, an RF-DETR experiment required model-specific preprocessing/decoding embedded inside the large HTML runtime and had no hard boundary between “candidate” and “production default”.
@@ -43,7 +45,8 @@ Estimated work avoided: roughly **1.5–3 engineering days** across ONNX contrac
 ## Expected impact
 - Immediate measured detection gain: none claimed until real weights run on the locked 640×360 benchmark.
 - Engineering gain: RF-DETR can now be benchmarked without altering ByteTrack/BoT-SORT/ReID/pitch/metric contracts.
-- Quality protection: wrong preprocessing, unknown class maps, failed benchmark reports and missing weight provenance all fail closed.
+- Reproducibility gain: the exact model bytes promoted into runtime must match an immutable SHA-256, preventing a different file behind the same model/revision label from inheriting a passing benchmark.
+- Quality protection: wrong preprocessing, unknown class maps, failed benchmark reports, missing exact checksum and incompatible weight licensing all fail closed.
 
 ## Status
 **BROWSER RUNTIME CONTRACT INTEGRATED FOR BENCHMARKING / NO RF-DETR WEIGHT PROMOTED AS DEFAULT.**
