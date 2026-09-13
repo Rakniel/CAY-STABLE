@@ -43,7 +43,7 @@ let checks=0;const ok=(c,m)=>{assert.ok(c,m);checks++;};
 
   assert.throws(()=>Runtime.createDetector(session,{candidateId:'rfdetr-soccernet-julianzu9612',profile:{personClassIds:[1,2]},Tensor:FakeTensor,mode:'runtime'}),/promotion blocked/i);checks++;
   const pass={version:'CAY_DETECTOR_BENCHMARK_V1',summary:{promotionEligible:true}};
-  const provenance={source:'local-audited.onnx',license:'Apache-2.0',weightId:'sha256:test'};
+  const provenance={source:'local-audited.onnx',license:'Apache-2.0',sha256:'0123456789abcdef'.repeat(4)};
   const stable=Runtime.createDetector(session,{candidateId:'rfdetr-soccernet-julianzu9612',profile:{personClassIds:[1,2]},Tensor:FakeTensor,mode:'runtime',benchmarkReport:pass,provenance});
   ok(stable.kind==='football-rfdetr','runtime mode unlocks only after promotion contract passes');
 
