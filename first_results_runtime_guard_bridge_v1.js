@@ -7,6 +7,7 @@
 
   const VERSION='CAY_FIRST_RESULTS_RUNTIME_GUARD_BRIDGE_V1';
   const BLOCKED_ACTION='RETABLIR_RUNTIME_TRACKING_STABLE';
+  const COVERAGE_ACTION='AMELIORER_COUVERTURE_ANALYSE';
 
   function runtimeState(env=root){
     const guard=env?.CAYStableTrackingRuntimeGuard;
@@ -28,7 +29,28 @@
     };
   }
 
-  function blockedReadiness(readiness,reasons){
+  function observationState(report){
+    const bridge=report?.bridge||{};
+    const attempted=Number(bridge.attemptedObservationFrames);
+    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    const coverage=Number(bridge.observationCoverage);
+    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
+    const declared=String(bridge.observationQuality||'').trim().toUpperCase();
+    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
+      ?declared
+      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
+    return {
+      available:true,
+      quality,
+      coverage:normalizedCoverage,
+      attempted,
+      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
+      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
+      reasons:{...(bridge.unavailableReasons||{})}
+    };
+  }
+
+  function blockedReadiness(readiness,reasons,action=BLOCKED_ACTION){
     const source=readiness&&typeof readiness==='object'?readiness:{};
     return {
       ...source,
@@ -52,11 +74,117 @@
       pitchVisualCore:false,
       pitchResults:false,
       metricReady:false,
-      runtimeTrackingReady:false,
+      runtimeTrackingReady:action===BLOCKED_ACTION?false:source.runtimeTrackingReady,
       runtimeBlockers:[...reasons],
-      nextAction:BLOCKED_ACTION,
-      policy:'PUBLICATION_FAIL_CLOSED_PAR_CAY_FIRST_RESULTS_RUNTIME_GUARD_BRIDGE; LES_PREUVES_PRECEDENTES_RESTENT_DANS_DIAGNOSTIC_READINESS_MAIS_NE_SONT_PAS_PUBLIEES_COMME_RESULTATS_CAY_TANT_QUE_BYTETRACK_ET_GMC_NE_SONT_PAS_PROUVES_ACTIFS'
+      nextAction:action,
+      policy:'PUBLICATION_FAIL_CLOSED_PAR_CAY_FIRST_RESULTS_RUNTIME_GUARD_BRIDGE; LES_PREUVES_PRECEDENTES_RESTENT_DANS_DIAGNOSTIC_READINESS_MAIS_NE_SONT_PAS_PUBLIEES_COMME_RESULTATS_CAY_TANT_QUE_LES_PREUVES_RUNTIME_ET_COUVERTURE_NE_SONT_PAS_DEFENDABLES'
     };
+  }
+
+  function blockPhysicalReadiness(readiness,observation){
+    const source=readiness&&typeof readiness==='object'?readiness:{};
+    const visualReady=source.tracking===true&&source.trajectory===true&&source.heatmap===true;
+    return {
+      ...source,
+      diagnosticReadiness:{...source},
+      diagnosticStatus:source.status||null,
+      status:visualReady?'PITCH_VISUAL_TESTABLE':(source.tracking===true?'TRACKING_TESTABLE':'INDISPONIBLE'),
+      distance:false,
+      avgSpeed:false,
+      maxSpeed:false,
+      sprints:false,
+      distanceAvailable:false,
+      avgSpeedAvailable:false,
+      maxSpeedAvailable:false,
+      sprintsAvailable:false,
+      physicalMetrics:false,
+      physicalMetricsAvailable:false,
+      physicalMetricsComplete:false,
+      metricReady:false,
+      runtimeTrackingReady:true,
+      observationCoverageReady:false,
+      observationCoverageQuality:observation.quality,
+      observationCoverage:observation.coverage,
+      runtimeBlockers:['OBSERVATION_COVERAGE_NOT_FIABLE'],
+      nextAction:COVERAGE_ACTION,
+      policy:'METRIQUES_PHYSIQUES_NON_PUBLIEES_TANT_QUE_LA_COUVERTURE_GLOBALE_DES_FRAMES_TENTEES_N_EST_PAS_FIABLE; TRAJECTOIRE_ET_HEATMAP_RESTANTES_PUBLIEES_SEULEMENT_SI_LEUR_PREUVE_CANONIQUE_EXISTE'
+    };
+  }
+
+  function applyObservationGuard(report,observation){
+    if(!observation.available)return report;
+    report.observationCoverageGuard={
+      version:'CAY_FIRST_RESULTS_OBSERVATION_COVERAGE_GUARD_V1',
+      ...observation,
+      physicalResultsAllowed:observation.quality==='FIABLE',
+      visualResultsAllowed:observation.quality!=='INDISPONIBLE',
+      policy:'REUTILISE_LA_QUALITE_DU_STRICT_TRACKING_FRAME_GUARD; FIABLE_AUTORISE_PHYSIQUE, PARTIEL_BLOQUE_PHYSIQUE, INDISPONIBLE_BLOQUE_TOUS_PREMIERS_RESULTATS'
+    };
+    if(observation.quality==='FIABLE'){
+      if(report.firstResultsTestability)report.firstResultsTestability.observationCoverageReady=true;
+      if(report.playerCards?.testability)report.playerCards.testability.observationCoverageReady=true;
+      return report;
+    }
+    if(observation.quality==='INDISPONIBLE'){
+      const reasons=['OBSERVATION_COVERAGE_INDISPONIBLE'];
+      const current=report.firstResultsTestability||report.playerCards?.testability||null;
+      if(current){
+        const blocked={
+          ...current,
+          diagnosticStatus:current.status||null,
+          status:'INDISPONIBLE',
+          coreTestable:false,
+          physicalTestable:false,
+          runtimeTrackingReady:true,
+          observationCoverageReady:false,
+          observationCoverageQuality:observation.quality,
+          observationCoverage:observation.coverage,
+          runtimeBlockers:reasons,
+          nextAction:COVERAGE_ACTION,
+          policy:String(current.policy||'')+'; PREMIERS_RESULTATS_BLOQUES_SI_AUCUNE_FRAME_TENTEE_N_EST_EXPLOITABLE'
+        };
+        report.firstResultsTestability=blocked;
+        if(report.playerCards)report.playerCards.testability=blocked;
+      }
+      if(report.playerCards&&Array.isArray(report.playerCards.players)){
+        report.playerCards={
+          ...report.playerCards,
+          summary:{...(report.playerCards.summary||{}),diagnosticStatus:report.playerCards.summary?.status||null,status:'INDISPONIBLE',observationCoverageReady:false,observationCoverageQuality:observation.quality,observationCoverage:observation.coverage,nextAction:COVERAGE_ACTION},
+          players:report.playerCards.players.map(card=>({...card,firstResults:blockedReadiness(card?.firstResults,reasons,COVERAGE_ACTION)}))
+        };
+        if(report.firstResultsTestability)report.playerCards.testability=report.firstResultsTestability;
+      }
+      return report;
+    }
+
+    const current=report.firstResultsTestability||report.playerCards?.testability||null;
+    if(current){
+      const physicalWasReady=current.status==='PHYSICAL_TESTABLE'||current.physicalTestable===true;
+      const downgraded={
+        ...current,
+        diagnosticStatus:current.status||null,
+        status:physicalWasReady?'PITCH_VISUAL_TESTABLE':current.status,
+        physicalTestable:false,
+        runtimeTrackingReady:true,
+        observationCoverageReady:false,
+        observationCoverageQuality:observation.quality,
+        observationCoverage:observation.coverage,
+        runtimeBlockers:['OBSERVATION_COVERAGE_NOT_FIABLE'],
+        nextAction:COVERAGE_ACTION,
+        policy:String(current.policy||'')+'; METRIQUES_PHYSIQUES_BLOQUEES_TANT_QUE_LA_COUVERTURE_ANALYSE_EST_PARTIELLE'
+      };
+      report.firstResultsTestability=downgraded;
+      if(report.playerCards)report.playerCards.testability=downgraded;
+    }
+    if(report.playerCards&&Array.isArray(report.playerCards.players)){
+      report.playerCards={
+        ...report.playerCards,
+        summary:{...(report.playerCards.summary||{}),diagnosticStatus:report.playerCards.summary?.status||null,status:report.firstResultsTestability?.status||report.playerCards.summary?.status||'PARTIEL',observationCoverageReady:false,observationCoverageQuality:observation.quality,observationCoverage:observation.coverage,nextAction:COVERAGE_ACTION},
+        players:report.playerCards.players.map(card=>({...card,firstResults:blockPhysicalReadiness(card?.firstResults,observation)}))
+      };
+      if(report.firstResultsTestability)report.playerCards.testability=report.firstResultsTestability;
+    }
+    return report;
   }
 
   function apply(report,env=root){
@@ -66,7 +194,7 @@
     if(state.ok===true){
       if(report.firstResultsTestability)report.firstResultsTestability.runtimeTrackingReady=true;
       if(report.playerCards?.testability)report.playerCards.testability.runtimeTrackingReady=true;
-      return report;
+      return applyObservationGuard(report,observationState(report));
     }
 
     const reasons=Array.isArray(state.reasons)&&state.reasons.length?state.reasons:['TRACKING_RUNTIME_INDISPONIBLE'];
@@ -126,5 +254,5 @@
   }
 
   install(root);
-  return {VERSION,BLOCKED_ACTION,runtimeState,blockedReadiness,apply,install};
+  return {VERSION,BLOCKED_ACTION,COVERAGE_ACTION,runtimeState,observationState,blockedReadiness,blockPhysicalReadiness,applyObservationGuard,apply,install};
 });
