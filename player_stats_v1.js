@@ -10,15 +10,19 @@
   const MetricSmoother=(typeof module==='object'&&module.exports&&typeof require==='function')?require('./metric_trajectory_smoother_v1.js'):((typeof globalThis!=='undefined'&&globalThis.CAYMetricTrajectorySmoother)||null);
   const MAX_METRIC_GAP_SEC=1;
   const MIN_METRIC_CALIBRATION_CONFIDENCE=.5;
+  const DEFAULT_PITCH_LENGTH_M=105;
+  const DEFAULT_PITCH_WIDTH_M=68;
   function qualityFromCoverage(c){ return c>=.8?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE'; }
+  function positivePitchDimension(value,fallback){ return presentFinite(value)&&Number(value)>0?Number(value):fallback; }
   function projectorInfo(entry){
-    if(!entry)return {validated:false,project:null,source:null,confidence:null,reason:'aucune projection terrain fournie'};
-    if(typeof entry==='function')return {validated:false,project:null,source:'legacy_function',confidence:null,reason:'projection fournie sans validation explicite'};
+    if(!entry)return {validated:false,project:null,source:null,confidence:null,pitchLengthM:DEFAULT_PITCH_LENGTH_M,pitchWidthM:DEFAULT_PITCH_WIDTH_M,reason:'aucune projection terrain fournie'};
+    if(typeof entry==='function')return {validated:false,project:null,source:'legacy_function',confidence:null,pitchLengthM:DEFAULT_PITCH_LENGTH_M,pitchWidthM:DEFAULT_PITCH_WIDTH_M,reason:'projection fournie sans validation explicite'};
     const validated=entry.validated===true&&typeof entry.project==='function';
     const rawConfidence=entry.confidence;
     const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
     const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
-    return {validated,project:validated?entry.project:null,source:entry.source||entry.method||null,confidence:Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null,reason:validated?null:(entry.reason||'projection terrain non validée')};
+    const pitchLengthM=positivePitchDimension(entry.pitch?.lengthM,DEFAULT_PITCH_LENGTH_M),pitchWidthM=positivePitchDimension(entry.pitch?.widthM,DEFAULT_PITCH_WIDTH_M);
+    return {validated,project:validated?entry.project:null,source:entry.source||entry.method||null,confidence:Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null,pitchLengthM,pitchWidthM,reason:validated?null:(entry.reason||'projection terrain non validée')};
   }
   function metricProjectorInfo(entry){
     const info=projectorInfo(entry);
@@ -29,6 +33,12 @@
     if(info.validated&&!confidenceKnown)reason='confiance calibration indisponible pour des métriques terrain défendables';
     else if(info.validated&&!confidenceSufficient)reason='confiance calibration insuffisante pour des métriques terrain défendables';
     return {...info,metricEligible,confidenceKnown,confidenceSufficient,reason};
+  }
+  function insideMetricPitch(p){
+    if(!p||!presentFinite(p.x)||!presentFinite(p.y))return false;
+    const pitchLengthM=positivePitchDimension(p.pitchLengthM,DEFAULT_PITCH_LENGTH_M),pitchWidthM=positivePitchDimension(p.pitchWidthM,DEFAULT_PITCH_WIDTH_M);
+    if(MetricSmoother&&typeof MetricSmoother.insidePitch==='function')return MetricSmoother.insidePitch(p,pitchLengthM,pitchWidthM);
+    const x=Number(p.x),y=Number(p.y);return x>=0&&x<=pitchLengthM&&y>=0&&y<=pitchWidthM;
   }
   function heatmap(points,cols=6,rows=4){
     const cells=Array.from({length:rows},()=>Array(cols).fill(0));
@@ -51,18 +61,20 @@
       const info=metricProjectorInfo(projectors&&projectors[p.segment]);if(!info.metricEligible)return null;
       let q=null;try{q=info.project(p);}catch(e){return null;}
       if(!q||!presentFinite(q.x)||!presentFinite(q.y))return null;
-      return {x:Number(q.x),y:Number(q.y),time:Number(p.time),segment:p.segment,calibrationConfidence:Number(info.confidence),smoothing:'RAW'};
+      const projected={x:Number(q.x),y:Number(q.y),time:Number(p.time),segment:p.segment,calibrationConfidence:Number(info.confidence),pitchLengthM:info.pitchLengthM,pitchWidthM:info.pitchWidthM,smoothing:'RAW'};
+      return insideMetricPitch(projected)?projected:null;
     });
   }
   function metricForTrack(track,projectors){
-    const path=track.fullPath||[],rawProjected=projectedMetricSeries(path,projectors||{}),smoothResult=MetricSmoother&&typeof MetricSmoother.smoothSeries==='function'?MetricSmoother.smoothSeries(rawProjected,{maxGapSec:MAX_METRIC_GAP_SEC,maxSpacingRatio:1.35}):{points:rawProjected,smoothedSamples:0,smoothingCoverage:0,method:'NONE',policy:'MODULE_LISSAGE_INDISPONIBLE'},projected=smoothResult.points||rawProjected;
-    let eligibleDt=0,metricDt=0,distanceM=0,rawDistanceM=0,maxSpeedKmh=0,sprintCount=0,sprintQualifiedSeconds=0,rejectedGapSeconds=0,gapBreaks=0,rejectedRawSpikePairs=0,rejectedInvalidPathPairs=0,smoothingPairs=0;const speeds=[];const SPRINT_THRESHOLD_KMH=25,MIN_SPRINT_SECONDS=1;let sprintDuration=0,sprintCounted=false;
+    const path=track.fullPath||[],rawProjected=projectedMetricSeries(path,projectors||{}),smoothResult=MetricSmoother&&typeof MetricSmoother.smoothSeries==='function'?MetricSmoother.smoothSeries(rawProjected,{maxGapSec:MAX_METRIC_GAP_SEC,maxSpacingRatio:1.35,rejectOutsidePitch:false}):{points:rawProjected,smoothedSamples:0,smoothingCoverage:0,method:'NONE',policy:'MODULE_LISSAGE_INDISPONIBLE'},projected=smoothResult.points||rawProjected;
+    let eligibleDt=0,metricDt=0,distanceM=0,rawDistanceM=0,maxSpeedKmh=0,sprintCount=0,sprintQualifiedSeconds=0,rejectedGapSeconds=0,gapBreaks=0,rejectedRawSpikePairs=0,rejectedInvalidPathPairs=0,rejectedOutsidePitchPairs=0,smoothingPairs=0;const speeds=[];const SPRINT_THRESHOLD_KMH=25,MIN_SPRINT_SECONDS=1;let sprintDuration=0,sprintCounted=false;
     const breakSprintContinuity=()=>{sprintDuration=0;sprintCounted=false;};
     for(let i=1;i<path.length;i++){
       const a=path[i-1],b=path[i];
       if(!a||!b||typeof a!=='object'||typeof b!=='object'||a.segment===undefined||a.segment===null||b.segment===undefined||b.segment===null){rejectedInvalidPathPairs++;breakSprintContinuity();continue;}
       if(a.segment!==b.segment){breakSprintContinuity();continue;}if(!presentFinite(a.time)||!presentFinite(b.time)){rejectedInvalidPathPairs++;breakSprintContinuity();continue;}const dt=Number(b.time)-Number(a.time);if(!(dt>0)){rejectedInvalidPathPairs++;breakSprintContinuity();continue;}eligibleDt+=dt;if(dt>MAX_METRIC_GAP_SEC){rejectedGapSeconds+=dt;gapBreaks++;breakSprintContinuity();continue;}
-      const ra=rawProjected[i-1],rb=rawProjected[i],pa=projected[i-1],pb=projected[i];if(!ra||!rb||!pa||!pb){breakSprintContinuity();continue;}
+      const ra=rawProjected[i-1],rb=rawProjected[i],pa=projected[i-1],pb=projected[i];if(!ra||!rb||!pa||!pb){if((ra&&rb)&&(!pa||!pb))rejectedOutsidePitchPairs++;breakSprintContinuity();continue;}
+      if(!insideMetricPitch(pa)||!insideMetricPitch(pb)){rejectedOutsidePitchPairs++;breakSprintContinuity();continue;}
       const rawD=hypot(ra,rb),d=hypot(pa,pb);if(!Number.isFinite(rawD)||!Number.isFinite(d)||rawD<0||d<0){breakSprintContinuity();continue;}
       const rawSpeedKmh=(rawD/dt)*3.6,speedKmh=(d/dt)*3.6;
       if(!Number.isFinite(rawSpeedKmh)||rawSpeedKmh>55){rejectedRawSpikePairs++;breakSprintContinuity();continue;}
@@ -75,7 +87,7 @@
       }else breakSprintContinuity();
     }
     const coverage=eligibleDt>0?metricDt/eligibleDt:0,avgSpeedKmh=metricDt>0?(distanceM/metricDt)*3.6:null,distanceCorrectionPct=rawDistanceM>0?((distanceM/rawDistanceM)-1)*100:null;
-    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,rawDistanceM:metricDt>0?+rawDistanceM.toFixed(2):null,distanceCorrectionPct:distanceCorrectionPct===null?null:+distanceCorrectionPct.toFixed(2),avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,quality:qualityFromCoverage(coverage),speedSamples:speeds,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,minMetricCalibrationConfidence:MIN_METRIC_CALIBRATION_CONFIDENCE,rejectedGapSeconds:+rejectedGapSeconds.toFixed(3),gapBreaks,rejectedRawSpikePairs,rejectedInvalidPathPairs,smoothingPairs,smoothingSamples:smoothResult.smoothedSamples||0,smoothingCoverage:smoothResult.smoothingCoverage||0,smoothingMethod:smoothResult.method||'NONE',smoothingPolicy:smoothResult.policy||null,sprintContinuityPolicy:'COMPTE_APRES_1S_CONTINUE_GE_25_KMH_ET_PUBLIE_SECONDES_QUALIFIEES_DE_L_EPISODE_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_SUPERIEUR_A_1S_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL',distancePolicy:'DISTANCE_ET_VITESSE_SUR_TRAJECTOIRE_TERRAIN_VALIDEE_CONFIANCE_CALIBRATION_EXPLICITE_MIN_0_5_LISSEE_CONSERVATIVEMENT_REJET_SPIKE_BRUT_SUPERIEUR_A_55_KMH; ENTREE_TRAJECTOIRE_CORROMPUE = COUPURE_EXPLICITE_SANS_CRASH_NI_DISTANCE'};
+    return {metricCoverage:+coverage.toFixed(4),metricCoveredSeconds:+metricDt.toFixed(3),eligibleSeconds:+eligibleDt.toFixed(3),distanceM:metricDt>0?+distanceM.toFixed(2):null,rawDistanceM:metricDt>0?+rawDistanceM.toFixed(2):null,distanceCorrectionPct:distanceCorrectionPct===null?null:+distanceCorrectionPct.toFixed(2),avgSpeedKmh:avgSpeedKmh===null?null:+avgSpeedKmh.toFixed(2),maxSpeedKmh:metricDt>0?+maxSpeedKmh.toFixed(2):null,sprintCount:metricDt>0?sprintCount:null,sprintQualifiedSeconds:metricDt>0?+sprintQualifiedSeconds.toFixed(3):null,quality:qualityFromCoverage(coverage),speedSamples:speeds,sprintThresholdKmh:SPRINT_THRESHOLD_KMH,minSprintSeconds:MIN_SPRINT_SECONDS,maxMetricGapSec:MAX_METRIC_GAP_SEC,minMetricCalibrationConfidence:MIN_METRIC_CALIBRATION_CONFIDENCE,rejectedGapSeconds:+rejectedGapSeconds.toFixed(3),gapBreaks,rejectedRawSpikePairs,rejectedInvalidPathPairs,rejectedOutsidePitchPairs,smoothingPairs,smoothingSamples:smoothResult.smoothedSamples||0,smoothingCoverage:smoothResult.smoothingCoverage||0,smoothingMethod:smoothResult.method||'NONE',smoothingPolicy:smoothResult.policy||null,sprintContinuityPolicy:'COMPTE_APRES_1S_CONTINUE_GE_25_KMH_ET_PUBLIE_SECONDES_QUALIFIEES_DE_L_EPISODE_RESET_SUR_CUT_SEGMENT_GAP_TEMPOREL_SUPERIEUR_A_1S_PAIRE_METRIQUE_REJETEE_OU_RETOUR_SOUS_SEUIL',distancePolicy:'DISTANCE_ET_VITESSE_SUR_TRAJECTOIRE_TERRAIN_VALIDEE_CONFIANCE_CALIBRATION_EXPLICITE_MIN_0_5_BORNES_TERRAIN_ISSUES_DU_PROJECTEUR_LISSEE_CONSERVATIVEMENT_REJET_SPIKE_BRUT_SUPERIEUR_A_55_KMH; ENTREE_TRAJECTOIRE_CORROMPUE = COUPURE_EXPLICITE_SANS_CRASH_NI_DISTANCE'};
   }
   function rosterState(trackSummary,trackRaw,analysisStart){
     const uncertain=(trackSummary.dataQuality?.identity||trackSummary.quality)!=='FIABLE',active=trackRaw&&trackRaw.archived!==true,presentAtStart=Number.isFinite(analysisStart)&&trackSummary.firstTime<=analysisStart+2.5;
@@ -106,5 +118,5 @@
     const base=coreApi.summary(coreState),rawById=new Map([...(coreState.archive||[]),...(coreState.active||[])].filter(t=>t&&t.cayIdentityConfirmed!==false).map(t=>[t.globalId,t])),starts=base.tracks.map(t=>t.firstTime).filter(Number.isFinite),analysisStart=starts.length?Math.min(...starts):null,players=base.tracks.map(s=>buildPlayerCard(s,rawById.get(s.id),projectors||{},analysisStart)),measuredPlayers=players.filter(p=>p.metric.metricCoverage>0),totalDistanceM=measuredPlayers.reduce((s,p)=>s+(p.metric.distanceM||0),0),avgMetricCoverage=players.length?players.reduce((s,p)=>s+p.metric.metricCoverage,0)/players.length:0,instant=buildInstantTeamTimeline(coreState,base,projectors||{});
     return {version:'STABLE_PLAYER_STATS_V1',segments:base.segments,rosterTotal:base.rosterTotal,maxVisible:base.maxVisible,analysisStart,players,team:{playersTracked:players.length,playersWithMetricData:measuredPlayers.length,activeTracking:players.filter(p=>p.rosterState.visibility==='ACTIF_TRACKING').length,uncertainIdentity:players.filter(p=>p.rosterState.visibility==='IDENTITE_INCERTAINE').length,appearedLater:players.filter(p=>p.rosterState.entry==='APPARU_PLUS_TARD').length,confirmedReplacements:0,measuredDistanceM:+totalDistanceM.toFixed(2),avgMetricCoverage:+avgMetricCoverage.toFixed(4),instantaneousIdentityCoverage:instant.identityCoverage,instantaneousMetricCoverage:instant.metricCoverage,observedInstants:instant.observedInstants,invalidObservedInstants:instant.invalidObservedInstants,observedPlayerSlots:instant.observedPlayerSlots,quality:instant.identityQuality,calculation:instant.calculation},teamTimeline:instant.frames,teamCoverage:{identity:instant.identityCoverage,metric:instant.metricCoverage,identityQuality:instant.identityQuality,metricQuality:instant.metricQuality,calculation:instant.calculation,validObservedInstants:instant.validObservedInstants,invalidObservedInstants:instant.invalidObservedInstants,invalidReasons:instant.invalidReasons,integrityPolicy:instant.integrityPolicy},unavailable:{possession:'détecteur ballon/événements non validé',passes:'détecteur ballon/événements non validé',shots:'détecteur ballon/événements non validé',confirmedReplacements:'aucun détecteur de remplacement validé'}};
   }
-  return {heatmap,metricPitchHeatmap,projectedMetricSeries,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage,projectorInfo,metricProjectorInfo,MAX_METRIC_GAP_SEC,MIN_METRIC_CALIBRATION_CONFIDENCE};
+  return {heatmap,metricPitchHeatmap,projectedMetricSeries,metricForTrack,rosterState,buildPlayerCard,buildInstantTeamTimeline,buildReport,qualityFromCoverage,projectorInfo,metricProjectorInfo,insideMetricPitch,MAX_METRIC_GAP_SEC,MIN_METRIC_CALIBRATION_CONFIDENCE,DEFAULT_PITCH_LENGTH_M,DEFAULT_PITCH_WIDTH_M};
 });
