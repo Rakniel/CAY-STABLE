@@ -8,7 +8,8 @@ const ready=(id,roster)=>({
   firstResults:{
     tracking:true,trajectory:true,heatmap:true,
     distance:true,avgSpeed:true,maxSpeed:true,sprints:true,
-    physicalMetrics:true,physicalMetricsComplete:true
+    distanceAvailable:true,avgSpeedAvailable:true,maxSpeedAvailable:true,sprintsAvailable:true,
+    physicalMetrics:true,physicalMetricsAvailable:true,physicalMetricsComplete:true
   },
   presence:{trackingCoverage:90},
   pitchVisuals:{spatialCoverage:80,physicalMetricCoverage:70,participationSeconds:60,renderedSeconds:48}
@@ -45,6 +46,10 @@ assert.strictEqual(aligned.players[1].firstResults.metricReady,false);
 assert.strictEqual(aligned.players[1].firstResults.clubEligible,false);
 assert.strictEqual(aligned.players[1].firstResults.exclusionReason,'ROSTER_NON_LIE');
 assert.strictEqual(aligned.players[1].firstResults.nextAction,'LIER_PISTE_AU_ROSTER_CAY');
+for(const key of ['distanceAvailable','avgSpeedAvailable','maxSpeedAvailable','sprintsAvailable','physicalMetricsAvailable']){
+  assert.strictEqual(aligned.players[1].firstResults[key],false,`${key} must fail closed for a non-CAY roster track`);
+}
+assert.strictEqual(aligned.players[1].metrics,unlinked.metrics,'raw metric diagnostics must stay outside the club-facing firstResults gate');
 
 result=Gate.evaluate({players:[unlinked]});
 assert.strictEqual(result.status,'INDISPONIBLE','an unlinked track alone must never unlock first CAY results');
