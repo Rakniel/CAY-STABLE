@@ -161,7 +161,12 @@
         avgSpeed:false,
         maxSpeed:false,
         sprints:false,
+        distanceAvailable:false,
+        avgSpeedAvailable:false,
+        maxSpeedAvailable:false,
+        sprintsAvailable:false,
         physicalMetrics:false,
+        physicalMetricsAvailable:false,
         physicalMetricsComplete:false,
         pitchVisualCore:false,
         pitchResults:false,
@@ -169,7 +174,7 @@
         clubEligible:false,
         exclusionReason:item.exclusionReason||'ROSTER_NON_LIE',
         nextAction:'LIER_PISTE_AU_ROSTER_CAY',
-        policy:'PISTE_NON_LIEE_AU_ROSTER_CAY_EXCLUE_DES_PREMIERS_RESULTATS; LES_PREUVES_BRUTES_RESTENT_DIAGNOSTIQUES_MAIS_NE_SONT_JAMAIS_PUBLIEES_COMME_RESULTATS_JOUEUR_CAY'
+        policy:'PISTE_NON_LIEE_AU_ROSTER_CAY_EXCLUE_DES_PREMIERS_RESULTATS_Y_COMPRIS_DRAPEAUX_DE_DISPONIBILITE; LES_PREUVES_BRUTES_RESTENT_DIAGNOSTIQUES_DANS_LES_OBJETS_METRIQUES_ET_VISUELS_MAIS_NE_SONT_JAMAIS_PUBLIEES_COMME_RESULTATS_JOUEUR_CAY'
       };
     }
     return {
