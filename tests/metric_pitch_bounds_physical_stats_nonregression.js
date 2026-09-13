@@ -41,4 +41,28 @@ assert.strictEqual(metric.distanceM,null,'distance must be INDISPONIBLE instead 
 assert.strictEqual(metric.maxSpeedKmh,null,'speed must be INDISPONIBLE instead of fabricated');
 assert.strictEqual(metric.sprintCount,null,'sprints must be INDISPONIBLE instead of fabricated');
 
+// A validated larger pitch must not be silently forced back to the historical 105x68 default.
+const largePitchTrack={fullPath:[
+  {x:.1,y:.2,time:0,segment:0,metricX:106,metricY:69},
+  {x:.2,y:.2,time:1,segment:0,metricX:108,metricY:69}
+]};
+const largePitchProjectors={0:{validated:true,confidence:.95,source:'TEST_110x70',pitch:{lengthM:110,widthM:70},project:p=>({x:p.metricX,y:p.metricY})}};
+const largePitchMetric=PlayerStats.metricForTrack(largePitchTrack,largePitchProjectors);
+assert.strictEqual(largePitchMetric.metricCoverage,1,'projector-specific 110x70 geometry must preserve valid metric coverage');
+assert.strictEqual(largePitchMetric.metricCoveredSeconds,1,'the valid interval must remain measurable');
+assert.strictEqual(largePitchMetric.distanceM,2,'distance on the validated larger pitch must remain measurable');
+assert.strictEqual(largePitchMetric.avgSpeedKmh,7.2,'speed on the validated larger pitch must remain measurable');
+assert.strictEqual(largePitchMetric.quality,'FIABLE','complete valid coverage on the larger pitch must remain reliable');
+
+// The exact same coordinates must remain unavailable on a standard 105x68 projector.
+const standardPitchProjectors={0:{validated:true,confidence:.95,source:'TEST_105x68',pitch:{lengthM:105,widthM:68},project:p=>({x:p.metricX,y:p.metricY})}};
+const standardPitchMetric=PlayerStats.metricForTrack(largePitchTrack,standardPitchProjectors);
+assert.strictEqual(standardPitchMetric.metricCoverage,0,'coordinates outside the projector pitch must be rejected');
+assert.strictEqual(standardPitchMetric.distanceM,null,'out-of-pitch distance must stay unavailable');
+assert.strictEqual(standardPitchMetric.avgSpeedKmh,null,'out-of-pitch speed must stay unavailable');
+
+const info=PlayerStats.metricProjectorInfo(largePitchProjectors[0]);
+assert.strictEqual(info.pitchLengthM,110,'player stats projector metadata must preserve pitch length');
+assert.strictEqual(info.pitchWidthM,70,'player stats projector metadata must preserve pitch width');
+
 console.log('metric pitch bounds physical stats non-regression: OK');
