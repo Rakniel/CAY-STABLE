@@ -52,6 +52,7 @@
 
   function blockedReadiness(readiness,reasons,action=BLOCKED_ACTION){
     const source=readiness&&typeof readiness==='object'?readiness:{};
+    const runtimeTrackingReady=action===BLOCKED_ACTION?false:true;
     return {
       ...source,
       diagnosticReadiness:{...source},
@@ -74,7 +75,8 @@
       pitchVisualCore:false,
       pitchResults:false,
       metricReady:false,
-      runtimeTrackingReady:action===BLOCKED_ACTION?false:source.runtimeTrackingReady,
+      runtimeTrackingReady,
+      observationCoverageReady:action===COVERAGE_ACTION?false:source.observationCoverageReady,
       runtimeBlockers:[...reasons],
       nextAction:action,
       policy:'PUBLICATION_FAIL_CLOSED_PAR_CAY_FIRST_RESULTS_RUNTIME_GUARD_BRIDGE; LES_PREUVES_PRECEDENTES_RESTENT_DANS_DIAGNOSTIC_READINESS_MAIS_NE_SONT_PAS_PUBLIEES_COMME_RESULTATS_CAY_TANT_QUE_LES_PREUVES_RUNTIME_ET_COUVERTURE_NE_SONT_PAS_DEFENDABLES'
@@ -149,7 +151,7 @@
       if(report.playerCards&&Array.isArray(report.playerCards.players)){
         report.playerCards={
           ...report.playerCards,
-          summary:{...(report.playerCards.summary||{}),diagnosticStatus:report.playerCards.summary?.status||null,status:'INDISPONIBLE',observationCoverageReady:false,observationCoverageQuality:observation.quality,observationCoverage:observation.coverage,nextAction:COVERAGE_ACTION},
+          summary:{...(report.playerCards.summary||{}),diagnosticStatus:report.playerCards.summary?.status||null,status:'INDISPONIBLE',runtimeTrackingReady:true,observationCoverageReady:false,observationCoverageQuality:observation.quality,observationCoverage:observation.coverage,nextAction:COVERAGE_ACTION},
           players:report.playerCards.players.map(card=>({...card,firstResults:blockedReadiness(card?.firstResults,reasons,COVERAGE_ACTION)}))
         };
         if(report.firstResultsTestability)report.playerCards.testability=report.firstResultsTestability;
@@ -179,7 +181,7 @@
     if(report.playerCards&&Array.isArray(report.playerCards.players)){
       report.playerCards={
         ...report.playerCards,
-        summary:{...(report.playerCards.summary||{}),diagnosticStatus:report.playerCards.summary?.status||null,status:report.firstResultsTestability?.status||report.playerCards.summary?.status||'PARTIEL',observationCoverageReady:false,observationCoverageQuality:observation.quality,observationCoverage:observation.coverage,nextAction:COVERAGE_ACTION},
+        summary:{...(report.playerCards.summary||{}),diagnosticStatus:report.playerCards.summary?.status||null,status:report.firstResultsTestability?.status||report.playerCards.summary?.status||'PARTIEL',runtimeTrackingReady:true,observationCoverageReady:false,observationCoverageQuality:observation.quality,observationCoverage:observation.coverage,nextAction:COVERAGE_ACTION},
         players:report.playerCards.players.map(card=>({...card,firstResults:blockPhysicalReadiness(card?.firstResults,observation)}))
       };
       if(report.firstResultsTestability)report.playerCards.testability=report.firstResultsTestability;
