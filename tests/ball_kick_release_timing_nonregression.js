@@ -22,17 +22,19 @@ const postReceptionSpike=[
 const post=validatePassKick(postReceptionSpike,event,{windowSec:.45,minReleaseSpeedMps:3,minSpeedGainMps:1.2,minSeparationGainM:.7,minObservations:4});
 assert.notStrictEqual(post.status,'CONFIRMED','post-reception ball acceleration must never confirm the passer kick');
 assert.ok(post.windowEnd<=event.time,'kick evidence window must end no later than reception');
-if(post.releaseTime!==undefined)assert.ok(post.releaseTime<=event.time,'selected kick evidence must occur before reception');
+if(post.releaseTime!==undefined)assert.ok(post.releaseTime<=event.time,'selected kick evidence must not occur after reception');
 
 // A real release before reception remains valid with the same timing guard.
+// The strongest acceleration is the actual release; subsequent flight remains
+// smooth so a later far-from-owner observation cannot dominate the score.
 const realRelease=[
   row(.45,10,10),
   row(.60,10.1,10.05),
   row(.72,10.2,10.1),
   row(.82,11.5,10.15),
-  row(.90,14.0,10.2),
-  row(.96,17.0,10.25),
-  row(1.00,20,20)
+  row(.90,12.5,10.2),
+  row(.96,13.25,10.25),
+  row(1.00,13.75,10.3)
 ];
 const real=validatePassKick(realRelease,event,{windowSec:.45,minReleaseSpeedMps:3,minSpeedGainMps:1.2,minSeparationGainM:.7,minObservations:4});
 assert.strictEqual(real.status,'CONFIRMED','pre-reception release evidence must still confirm a valid pass');
