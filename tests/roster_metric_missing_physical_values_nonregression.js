@@ -71,6 +71,33 @@ assert.strictEqual(negativeMaxSpeed.maxSpeedKmh,null,'negative max-speed evidenc
 assert.strictEqual(negativeMaxSpeed.maxSpeedEvidenceComplete,false);
 assert.strictEqual(negativeMaxSpeed.maxSpeedEvidenceMissingWindowCount,1);
 
+const negativeSprintCount=Pipeline.aggregateMetrics([
+  {...common,maxSpeedKmh:17,sprintCount:-1,sprintQualifiedSeconds:0.8},
+  {...common,maxSpeedKmh:18.5,sprintCount:2,sprintQualifiedSeconds:1.25}
+]);
+assert.strictEqual(negativeSprintCount.sprintCount,null,'negative sprint counts are physically invalid and must fail closed');
+assert.strictEqual(negativeSprintCount.sprintQualifiedSeconds,null,'invalid sprint-count evidence must invalidate the paired aggregate duration');
+assert.strictEqual(negativeSprintCount.sprintEvidenceComplete,false);
+assert.strictEqual(negativeSprintCount.sprintEvidenceMissingWindowCount,1);
+
+const negativeSprintDuration=Pipeline.aggregateMetrics([
+  {...common,maxSpeedKmh:17,sprintCount:1,sprintQualifiedSeconds:-0.1},
+  {...common,maxSpeedKmh:18.5,sprintCount:2,sprintQualifiedSeconds:1.25}
+]);
+assert.strictEqual(negativeSprintDuration.sprintCount,null,'negative qualified sprint duration must invalidate the sprint aggregate');
+assert.strictEqual(negativeSprintDuration.sprintQualifiedSeconds,null);
+assert.strictEqual(negativeSprintDuration.sprintEvidenceComplete,false);
+assert.strictEqual(negativeSprintDuration.sprintEvidenceMissingWindowCount,1);
+
+const fractionalSprintCount=Pipeline.aggregateMetrics([
+  {...common,maxSpeedKmh:17,sprintCount:1.5,sprintQualifiedSeconds:0.8},
+  {...common,maxSpeedKmh:18.5,sprintCount:2,sprintQualifiedSeconds:1.25}
+]);
+assert.strictEqual(fractionalSprintCount.sprintCount,null,'sprint counts must be integer event counts');
+assert.strictEqual(fractionalSprintCount.sprintQualifiedSeconds,null);
+assert.strictEqual(fractionalSprintCount.sprintEvidenceComplete,false);
+assert.strictEqual(fractionalSprintCount.sprintEvidenceMissingWindowCount,1);
+
 const guardedMissing=PublicationGuard.applyPublicationPolicy(entirelyMissing,{identityQuality:'FIABLE'});
 assert.strictEqual(guardedMissing.maxSpeedKmh,null);
 assert.strictEqual(guardedMissing.sprintCount,null);
@@ -83,5 +110,10 @@ assert.strictEqual(guardedPartial.sprintCount,null,'publication must keep an inc
 assert.strictEqual(guardedPartial.sprintQualifiedSeconds,null);
 assert.strictEqual(guardedPartial.publication.fieldStatus.maxSpeedKmh.status,'INDISPONIBLE');
 assert.strictEqual(guardedPartial.publication.fieldStatus.sprintCount.status,'INDISPONIBLE');
+
+const guardedInvalidSprint=PublicationGuard.applyPublicationPolicy(negativeSprintCount,{identityQuality:'FIABLE'});
+assert.strictEqual(guardedInvalidSprint.sprintCount,null,'publication must keep physically invalid sprint evidence unavailable');
+assert.strictEqual(guardedInvalidSprint.sprintQualifiedSeconds,null);
+assert.strictEqual(guardedInvalidSprint.publication.fieldStatus.sprintCount.status,'INDISPONIBLE');
 
 console.log('roster metric missing physical values non-regression: PASS');
