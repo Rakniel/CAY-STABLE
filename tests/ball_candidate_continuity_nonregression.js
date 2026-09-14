@@ -36,6 +36,24 @@ assert.strictEqual(r.historySize,1,'post-blackout ball must start a fresh contin
 assert.ok(blackout.snapshot().resets>=1,'observation blackout must be auditable as a continuity reset');
 assert.strictEqual(blackout.snapshot().lastObservedTime,1.1,'only a selected observed ball may advance the observation anchor');
 
+const missingKey=create({bufferSize:4,maxPitchJumpM:10,minConfidence:.4,maxGapSec:.5});
+r=missingKey.select([ball(10,10,.9)],0,{});
+assert.strictEqual(r.status,'UNAVAILABLE','ball continuity must fail closed when no plan/segment continuity metadata exists');
+assert.strictEqual(r.reason,'MISSING_CONTINUITY_METADATA');
+assert.strictEqual(missingKey.snapshot().history.length,0,'missing continuity metadata must never initialize a temporal prior');
+assert.strictEqual(missingKey.snapshot().selections,0,'missing continuity metadata must never count as an observed selection');
+
+const missingAfterLive=create({bufferSize:4,maxPitchJumpM:10,minConfidence:.4,maxGapSec:.5});
+assert.strictEqual(missingAfterLive.select([ball(10,10,.9)],0,{segmentId:'LIVE'}).status,'SELECTED');
+r=missingAfterLive.select([ball(11,10,.9)],.1,{});
+assert.strictEqual(r.status,'UNAVAILABLE','a missing plan key inside a live sequence must not inherit the previous plan');
+assert.strictEqual(r.reason,'MISSING_CONTINUITY_METADATA');
+assert.strictEqual(missingAfterLive.snapshot().history.length,0,'missing continuity metadata must sever the previous ball prior');
+assert.ok(missingAfterLive.snapshot().resets>=1,'missing continuity metadata reset must remain auditable');
+r=missingAfterLive.select([ball(80,50,.9)],.2,{segmentId:'LIVE'});
+assert.strictEqual(r.status,'SELECTED','explicit continuity metadata may restart tracking after an unknown-plan frame');
+assert.strictEqual(r.historySize,1,'restart after unknown-plan evidence must begin from a fresh prior');
+
 const img=create({maxImageJump:.1,minConfidence:.3});
 assert.strictEqual(img.select([{x:.5,y:.5,confidence:.8}],0,{planId:'P1'}).status,'SELECTED');
 assert.strictEqual(img.select([{x:.55,y:.5,confidence:.7},{x:.9,y:.9,confidence:.99}],.1,{planId:'P1'}).index,0);
