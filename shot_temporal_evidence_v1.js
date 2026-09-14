@@ -16,6 +16,7 @@
     return {x,y,confidence:finite(b.confidence)?clamp01(b.confidence):0};
   };
   const continuityKey=row=>row?.segment??row?.segmentId??row?.planId??row?.shotId??null;
+  const hasContinuityKey=key=>key!==null&&key!==undefined&&!(typeof key==='string'&&key.trim()==='');
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 
   function analyze(samples,options){
@@ -31,11 +32,17 @@
       cooldownSec:configured(raw.cooldownSec,.80)
     };
     const rows=(samples||[]).filter(r=>finite(r?.time)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
-    if(rows.length<3)return {quality:'INDISPONIBLE',reason:'INSUFFICIENT_TIMELINE',candidates:[],candidateCount:0};
-    let prevBall=null,prevTime=null,prevSpeed=null,prevKey=null,lastCandidateAt=-Infinity;
+    if(rows.length<3)return {quality:'INDISPONIBLE',reason:'INSUFFICIENT_TIMELINE',candidates:[],candidateCount:0,missingContinuityFrames:0};
+    let prevBall=null,prevTime=null,prevSpeed=null,prevKey=null,lastCandidateAt=-Infinity,missingContinuityFrames=0;
     const evidence=[],candidates=[];
     for(const row of rows){
       const t=Number(row.time),ball=pointOf(row),key=continuityKey(row);
+      if(!hasContinuityKey(key)){
+        missingContinuityFrames++;
+        prevBall=null;prevTime=null;prevSpeed=null;prevKey=null;
+        evidence.length=0;
+        continue;
+      }
       if(key!==prevKey){prevSpeed=null;evidence.length=0;}
       if(!ball||ball.confidence<cfg.minBallConfidence){
         prevBall=null;prevTime=null;prevSpeed=null;prevKey=key;
@@ -71,7 +78,17 @@
       if(speed!==null)prevSpeed=speed;
       prevBall=ball;prevTime=t;prevKey=key;
     }
-    return {quality:'A_VERIFIER',reason:null,candidates,candidateCount:candidates.length,publicationPolicy:'NEVER_AUTO_PUBLISH'};
+    const usableContinuityFrames=rows.length-missingContinuityFrames;
+    return {
+      quality:usableContinuityFrames>=3?'A_VERIFIER':'INDISPONIBLE',
+      reason:usableContinuityFrames>=3?null:'MISSING_CONTINUITY_METADATA',
+      candidates,
+      candidateCount:candidates.length,
+      missingContinuityFrames,
+      usableContinuityFrames,
+      continuityPolicy:'REQUIRES_EXPLICIT_SEGMENT_OR_PLAN_KEY; MISSING_KEY_BREAKS_ALL_KINEMATIC_AND_TEMPORAL_EVIDENCE',
+      publicationPolicy:'NEVER_AUTO_PUBLISH'
+    };
   }
   return {analyze};
 });
