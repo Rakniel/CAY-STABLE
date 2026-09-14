@@ -7,6 +7,22 @@
   const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const configured=(v,f)=>finite(v)?Number(v):f;
+  const configuredUnitThreshold=(v,f)=>{
+    if(!finite(v))return f;
+    const n=Number(v);
+    if(n<0)return f;
+    return Math.min(1,n);
+  };
+  const configuredNonNegative=(v,f)=>{
+    if(!finite(v))return f;
+    const n=Number(v);
+    return n>=0?n:f;
+  };
+  const configuredPositive=(v,f)=>{
+    if(!finite(v))return f;
+    const n=Number(v);
+    return n>0?n:f;
+  };
   const pointOf=row=>{
     const b=row&&row.ball;
     if(!b||b.valid===false||b.visible===false)return null;
@@ -22,14 +38,14 @@
   function analyze(samples,options){
     const raw=options||{};
     const cfg={
-      minBallConfidence:configured(raw.minBallConfidence,.65),
-      minKickEvidence:configured(raw.minKickEvidence,.70),
-      minBallSpeedMps:configured(raw.minBallSpeedMps,12),
-      minBallAccelerationMps2:configured(raw.minBallAccelerationMps2,6),
-      evidenceWindowSec:configured(raw.evidenceWindowSec,.30),
+      minBallConfidence:configuredUnitThreshold(raw.minBallConfidence,.65),
+      minKickEvidence:configuredUnitThreshold(raw.minKickEvidence,.70),
+      minBallSpeedMps:configuredNonNegative(raw.minBallSpeedMps,12),
+      minBallAccelerationMps2:configuredNonNegative(raw.minBallAccelerationMps2,6),
+      evidenceWindowSec:configuredPositive(raw.evidenceWindowSec,.30),
       minEvidenceFrames:Math.max(2,Math.round(configured(raw.minEvidenceFrames,2))),
-      maxObservationGapSec:configured(raw.maxObservationGapSec,.20),
-      cooldownSec:configured(raw.cooldownSec,.80)
+      maxObservationGapSec:configuredPositive(raw.maxObservationGapSec,.20),
+      cooldownSec:configuredNonNegative(raw.cooldownSec,.80)
     };
     const rows=(samples||[]).filter(r=>finite(r?.time)).slice().sort((a,b)=>Number(a.time)-Number(b.time));
     if(rows.length<3)return {quality:'INDISPONIBLE',reason:'INSUFFICIENT_TIMELINE',candidates:[],candidateCount:0,missingContinuityFrames:0};
