@@ -32,11 +32,11 @@
     const eligibleSeconds=sum(input,'eligibleSeconds');
     const metricCoveredSeconds=sum(input,'metricCoveredSeconds');
     const distanceM=input.reduce((acc,row)=>acc+(finite(row?.metricCoveredSeconds)&&Number(row.metricCoveredSeconds)>0&&finite(row?.distanceM)?Number(row.distanceM):0),0);
-    const sprintEligibleWindows=input.filter(row=>finite(row?.metricCoveredSeconds)&&Number(row.metricCoveredSeconds)>0);
-    const sprintEvidenceComplete=sprintEligibleWindows.length>0&&sprintEligibleWindows.every(row=>finite(row?.sprintCount)&&finite(row?.sprintQualifiedSeconds));
-    const sprintCountValues=sprintEvidenceComplete?sprintEligibleWindows.map(row=>Number(row.sprintCount)):[];
-    const sprintQualifiedValues=sprintEvidenceComplete?sprintEligibleWindows.map(row=>Number(row.sprintQualifiedSeconds)):[];
-    const maxSpeedValues=input.filter(row=>finite(row?.maxSpeedKmh)).map(row=>Number(row.maxSpeedKmh));
+    const metricCoveredWindows=input.filter(row=>finite(row?.metricCoveredSeconds)&&Number(row.metricCoveredSeconds)>0);
+    const sprintEvidenceComplete=metricCoveredWindows.length>0&&metricCoveredWindows.every(row=>finite(row?.sprintCount)&&finite(row?.sprintQualifiedSeconds));
+    const sprintCountValues=sprintEvidenceComplete?metricCoveredWindows.map(row=>Number(row.sprintCount)):[];
+    const sprintQualifiedValues=sprintEvidenceComplete?metricCoveredWindows.map(row=>Number(row.sprintQualifiedSeconds)):[];
+    const maxSpeedValues=metricCoveredWindows.filter(row=>finite(row?.maxSpeedKmh)).map(row=>Number(row.maxSpeedKmh));
     const sprintCount=sprintCountValues.length?sprintCountValues.reduce((acc,value)=>acc+value,0):null;
     const sprintQualifiedSeconds=sprintQualifiedValues.length?sprintQualifiedValues.reduce((acc,value)=>acc+value,0):null;
     const metricCoverage=eligibleSeconds>0?metricCoveredSeconds/eligibleSeconds:0;
@@ -56,8 +56,8 @@
       sprintCount:metricCoveredSeconds>0?sprintCount:null,
       sprintQualifiedSeconds:metricCoveredSeconds>0&&sprintQualifiedSeconds!==null?+sprintQualifiedSeconds.toFixed(3):null,
       sprintEvidenceComplete,
-      sprintEvidenceWindowCount:sprintEligibleWindows.length,
-      sprintEvidenceMissingWindowCount:sprintEligibleWindows.filter(row=>!finite(row?.sprintCount)||!finite(row?.sprintQualifiedSeconds)).length,
+      sprintEvidenceWindowCount:metricCoveredWindows.length,
+      sprintEvidenceMissingWindowCount:metricCoveredWindows.filter(row=>!finite(row?.sprintCount)||!finite(row?.sprintQualifiedSeconds)).length,
       quality,
       avgCalibrationConfidence:+avgCalibrationConfidence.toFixed(4),
       defendableScore:+defendableScore.toFixed(4),
@@ -66,8 +66,9 @@
       participationWindowCount:input.length,
       qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',
       speedSamplePolicy:'FENETRES_DE_PARTICIPATION_NAMESPACEES_POUR_INTERDIRE_TOUTE_CONTINUITE_ARTIFICIELLE_ENTRE_FENETRES',
+      maxSpeedEvidencePolicy:'VITESSE_MAX_PUBLIEE_UNIQUEMENT_DEPUIS_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_POSITIVE',
       sprintEvidencePolicy:'TOTAL_SPRINT_PUBLIE_UNIQUEMENT_SI_TOUTES_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_FOURNISSENT_COMPTEUR_ET_DUREE_SPRINT',
-      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN; DISTANCE_REQUIRES_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; SPRINT_TOTAL_FAILS_CLOSED_WHEN_ANY_METRIC_COVERED_WINDOW_LACKS_SPRINT_EVIDENCE'
+      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN; DISTANCE_AND_MAX_SPEED_REQUIRE_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; SPRINT_TOTAL_FAILS_CLOSED_WHEN_ANY_METRIC_COVERED_WINDOW_LACKS_SPRINT_EVIDENCE'
     };
   }
 
