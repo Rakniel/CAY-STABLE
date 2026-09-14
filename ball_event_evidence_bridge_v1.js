@@ -1,12 +1,13 @@
 (function(root,factory){
-  const api=factory(root.CAYBallEvents,root.CAYBallKickEvidence);
-  if(typeof module==='object'&&module.exports)module.exports=factory(require('./ball_event_state_v1.js'),require('./ball_kick_evidence_v1.js'));
+  const api=factory(root.CAYBallEvents,root.CAYBallKickEvidence,root.CAYShotTemporalEvidence);
+  if(typeof module==='object'&&module.exports)module.exports=factory(require('./ball_event_state_v1.js'),require('./ball_kick_evidence_v1.js'),require('./shot_temporal_evidence_v1.js'));
   else root.CAYBallEventEvidenceBridge=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(BallEvents,KickEvidence){
+})(typeof globalThis!=='undefined'?globalThis:this,function(BallEvents,KickEvidence,ShotTemporalEvidence){
   'use strict';
   const NON_LIVE_CLASSES=new Set(['REPLAY','SLOW_MOTION','SLOWMO','NON_LIVE','GRAPHICS','VAR_REPLAY']);
   const finite=v=>Number.isFinite(Number(v));
   const round4=v=>Number(Number(v).toFixed(4));
+  const NEVER_AUTO_PUBLISH='NEVER_AUTO_PUBLISH';
   function explicitNonLive(row){
     if(!row)return false;
     if(row.isReplay===true||row.replay===true||row.isLive===false||row.live===false)return true;
@@ -59,6 +60,22 @@
       possessionEvidencePolicy:'POSSESSION_PUBLIEE_SEULEMENT_SI_LE_BALLON_EST_FIABLE_ET_SI_LE_TEMPS_ATTRIBUE_A_UN_PROPRIETAIRE_STABLE_COUVRE_AU_MOINS_LE_MEME_SEUIL_QUE_LA_COUVERTURE_BALLON;_LA_POSSESSION_JOUEUR_AUTORITAIRE_RESTE_QUALIFIEE_PAR_EQUIPE;_LE_RESULTAT_BRUT_RESTE_DIAGNOSTIQUE'
     };
   }
+  function analyzeShots(samples,options){
+    const guarded=guardLivePlaySamples(samples);
+    if(!ShotTemporalEvidence||typeof ShotTemporalEvidence.analyze!=='function')return {quality:'INDISPONIBLE',reason:'SHOT_TEMPORAL_EVIDENCE_ENGINE_UNAVAILABLE',candidates:[],candidateCount:0,nonLiveExcludedFrames:guarded.excludedFrames,nonLiveRuns:guarded.nonLiveRuns,publicationPolicy:NEVER_AUTO_PUBLISH};
+    const result=ShotTemporalEvidence.analyze(guarded.samples,options?.shotEvidence||options);
+    const candidates=Array.isArray(result?.candidates)?result.candidates.map(candidate=>({...candidate,publishable:false,publicationPolicy:NEVER_AUTO_PUBLISH})):[];
+    return {
+      ...result,
+      candidates,
+      candidateCount:candidates.length,
+      nonLiveExcludedFrames:guarded.excludedFrames,
+      nonLiveRuns:guarded.nonLiveRuns,
+      publicationPolicy:NEVER_AUTO_PUBLISH,
+      livePlayPolicy:'LES_REPLAYS_RALENTIS_ET_SEGMENTS_NON_LIVE_NE_PEUVENT_PRODUIRE_DE_CANDIDAT_TIR;_LEUR_PRESENCE_CASSE_LA_CONTINUITE_TEMPORELLE',
+      evidenceChain:'BALL_EVENT_EVIDENCE_BRIDGE_V1->SHOT_TEMPORAL_EVIDENCE_V1'
+    };
+  }
   function analyze(samples,options){
     if(!BallEvents||typeof BallEvents.analyzeBallEvents!=='function')return {quality:'INDISPONIBLE',reason:'BALL_EVENT_ENGINE_UNAVAILABLE',events:[],passes:'INDISPONIBLE',fieldStatus:{passes:'INDISPONIBLE',turnovers:'INDISPONIBLE',possession:'INDISPONIBLE',playerPossession:'INDISPONIBLE'}};
     const guarded=guardLivePlaySamples(samples);
@@ -68,5 +85,5 @@
     if(!KickEvidence||typeof KickEvidence.filterPassEvents!=='function')return {...withLiveGuard,quality:'INDISPONIBLE',reason:'KICK_EVIDENCE_ENGINE_UNAVAILABLE',events:[],passes:'INDISPONIBLE',kickEvidenceQuality:'INDISPONIBLE',fieldStatus:{...(withLiveGuard.fieldStatus||{}),passes:'INDISPONIBLE'}};
     return KickEvidence.filterPassEvents(guarded.samples,withLiveGuard,options?.kickEvidence||options);
   }
-  return {explicitNonLive,guardLivePlaySamples,applyPossessionEvidencePolicy,analyze};
+  return {explicitNonLive,guardLivePlaySamples,applyPossessionEvidencePolicy,analyzeShots,analyze};
 });
