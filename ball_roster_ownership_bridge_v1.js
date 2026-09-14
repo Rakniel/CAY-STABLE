@@ -8,6 +8,7 @@
   else root.CAYBallRosterOwnership=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(BallEvents,TrackRosterBinding,BallEventEvidence){
   const clean=v=>String(v==null?'':v).trim();
+  const presentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
 
   function scopedPlayer(raw,options,time){
     if(!raw)return {player:null,reason:'INVALID_PLAYER'};
@@ -22,7 +23,7 @@
     const participationProvided=participation!==undefined&&participation!==null;
     let resolved;
     if(participationProvided){
-      if(!Number.isFinite(Number(time)))return {player:null,reason:'CLUB_PARTICIPATION_TIME_MISSING'};
+      if(!presentFinite(time))return {player:null,reason:'CLUB_PARTICIPATION_TIME_MISSING'};
       if(typeof TrackRosterBinding.resolveAtTime!=='function')return {player:null,reason:'PARTICIPATION_RUNTIME_UNAVAILABLE'};
       resolved=TrackRosterBinding.resolveAtTime(state,trackId,participation,Number(time)*1000);
     }else{
