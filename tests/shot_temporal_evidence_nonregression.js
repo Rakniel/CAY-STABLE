@@ -64,6 +64,20 @@ assert.strictEqual(analyze(confidenceOcclusionLeak,{
   maxObservationGapSec:.2,evidenceWindowSec:.3
 }).candidateCount,0,'shot evidence must reset when ball observation becomes unreliable');
 
+// Une cinématique métrique sans clé de plan/segment explicite n'est pas une preuve
+// défendable en multi-plans. Avant ce garde, quatre frames sans segment partageaient
+// implicitement la clé null et reproduisaient le candidat positif connu.
+const missingContinuity=[row(0,0),row(.1,.8),row(.2,2.4),row(.3,4.8)].map(sample=>{
+  const copy={...sample,ball:{...sample.ball}};
+  delete copy.segment;
+  return copy;
+});
+const missingContinuityResult=analyze(missingContinuity,{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2});
+assert.strictEqual(missingContinuityResult.candidateCount,0,'shot evidence must fail closed without explicit plan/segment continuity metadata');
+assert.strictEqual(missingContinuityResult.missingContinuityFrames,4);
+assert.strictEqual(missingContinuityResult.quality,'INDISPONIBLE');
+assert.strictEqual(missingContinuityResult.reason,'MISSING_CONTINUITY_METADATA');
+
 const lowBallConfidence=[row(0,0),row(.1,.8),row(.2,2.4),row(.3,4.8)];
 lowBallConfidence[2].ball.confidence=.3;
 assert.strictEqual(analyze(lowBallConfidence,{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2}).candidateCount,0);
