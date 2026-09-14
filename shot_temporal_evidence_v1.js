@@ -44,6 +44,9 @@
         if(dt>0&&dt<=cfg.maxObservationGapSec){
           speed=distance(ball,prevBall)/dt;
           if(prevSpeed!==null)accel=(speed-prevSpeed)/dt;
+        }else{
+          prevSpeed=null;
+          evidence.length=0;
         }
       }
       const kickEvidence=finite(row.kickEvidenceScore)?clamp01(row.kickEvidenceScore):(finite(row.kickScore)?clamp01(row.kickScore):0);
