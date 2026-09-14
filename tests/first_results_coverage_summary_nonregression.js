@@ -26,6 +26,16 @@ assert.deepStrictEqual(result.coverageSummary.pitchSpatial,{eligiblePlayers:0,kn
 assert.deepStrictEqual(result.coverageSummary.physicalMetric,{eligiblePlayers:0,knownPlayers:0,unknownPlayers:0,knownPlayerSharePct:null,minPct:null,avgPct:null,maxPct:null,weightedAvgPct:null,durationKnownPlayers:0,durationUnknownPlayers:0,durationKnownPlayerSharePct:null,temporalWeightingComplete:false,eligibleParticipationSeconds:null,knownParticipationSeconds:null,knownParticipationSharePct:null});
 assert.strictEqual(result.status,'TRACKING_TESTABLE');
 
+const blankCoverage=card('BLANK',{tracking:true,trajectory:true,heatmap:true,distance:true,avgSpeed:true,maxSpeed:true,sprints:true,physicalMetrics:true,physicalMetricsComplete:true},{presence:{trackingCoverage:'   '},pitchVisuals:{spatialCoverage:'',physicalMetricCoverage:'  ',participationSeconds:' ',renderedSeconds:''}});
+result=Gate.evaluate({players:[blankCoverage]});
+assert.deepStrictEqual(result.evidence[0].coverage,{trackingPct:null,pitchSpatialPct:null,physicalMetricPct:null,pitchBasis:null,participationSeconds:null,renderedSeconds:null,policy:'COUVERTURES_REPRISES_EN_LECTURE_SEULE_DEPUIS_LA_FICHE_JOUEUR; AUCUNE_PROMOTION_DE_STATUT_PAR_LA_COUVERTURE_SEULE'},'blank UI/import values must stay unavailable instead of coercing to zero evidence');
+assert.strictEqual(result.coverageSummary.tracking.knownPlayers,0,'blank tracking coverage must not become a measured 0%');
+assert.strictEqual(result.coverageSummary.tracking.unknownPlayers,1);
+assert.strictEqual(result.coverageSummary.tracking.durationKnownPlayers,0,'blank participation duration must not become a known zero-second duration');
+assert.strictEqual(result.coverageSummary.pitchSpatial.knownPlayers,0,'blank spatial coverage must remain unknown');
+assert.strictEqual(result.coverageSummary.physicalMetric.knownPlayers,0,'blank physical coverage must remain unknown');
+assert.strictEqual(result.status,'PHYSICAL_TESTABLE','coverage remains audit-only; this guard must not invent a new readiness threshold');
+
 const clampedReady=card('D',{tracking:true,trajectory:true,heatmap:true,distance:true,avgSpeed:true,maxSpeed:true,sprints:true,physicalMetrics:true},{presence:{trackingCoverage:150},pitchVisuals:{spatialCoverage:-10,physicalMetricCoverage:125}});
 result=Gate.evaluate({players:[clampedReady]});
 assert.strictEqual(result.coverageSummary.tracking.minPct,100);

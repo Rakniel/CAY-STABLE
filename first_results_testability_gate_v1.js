@@ -6,7 +6,7 @@
   'use strict';
 
   const bool=v=>v===true;
-  const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const pct=v=>finite(v)?Math.max(0,Math.min(100,Number(v))):null;
   const CORE_KEYS=['tracking','trajectory','heatmap'];
   const PHYSICAL_KEYS=['distance','avgSpeed','maxSpeed','sprints'];
