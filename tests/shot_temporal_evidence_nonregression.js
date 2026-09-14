@@ -82,4 +82,35 @@ const lowBallConfidence=[row(0,0),row(.1,.8),row(.2,2.4),row(.3,4.8)];
 lowBallConfidence[2].ball.confidence=.3;
 assert.strictEqual(analyze(lowBallConfidence,{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2}).candidateCount,0);
 
+// Les options proviennent potentiellement d'une UI, d'un profil importé ou d'un ancien
+// artefact. Des seuils négatifs ne doivent jamais transformer une séquence faible en tir.
+// Avant ce garde, les trois seuils négatifs ci-dessous rendaient deux frames faibles
+// artificiellement "strong" et produisaient un SHOT_CANDIDATE.
+const weakMotion=[
+  row(0.00,0,.05),row(0.10,.1,.05),row(0.20,.2,.05),row(0.30,.3,.05)
+];
+const corruptThresholds=analyze(weakMotion,{
+  minBallConfidence:-1,
+  minKickEvidence:-1,
+  minBallSpeedMps:-1,
+  minBallAccelerationMps2:-1,
+  minEvidenceFrames:2
+});
+assert.strictEqual(corruptThresholds.candidateCount,0,'negative/corrupt thresholds must fall back to safe defaults instead of lowering shot evidence requirements');
+
+// Les durées négatives sont également invalides : elles reviennent aux valeurs sûres
+// plutôt que de casser silencieusement la continuité d'une séquence autrement valide.
+const corruptDurations=analyze([
+  row(0.00,0),row(0.10,0.8),row(0.20,2.4),row(0.30,4.8)
+],{
+  minBallSpeedMps:7,
+  minBallAccelerationMps2:5,
+  minEvidenceFrames:2,
+  evidenceWindowSec:-1,
+  maxObservationGapSec:-1,
+  cooldownSec:-1
+});
+assert.strictEqual(corruptDurations.candidateCount,1,'invalid negative timing options must normalize to safe defaults');
+assert.strictEqual(corruptDurations.candidates[0].publishable,false);
+
 console.log('shot_temporal_evidence_nonregression: ok');
