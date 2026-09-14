@@ -1,11 +1,12 @@
 (function(root,factory){
   const api=factory(
     typeof module==='object'&&module.exports?require('./ball_event_state_v1.js'):root.CAYBallEvents,
-    typeof module==='object'&&module.exports?require('./track_roster_binding_v1.js'):root.CAYTrackRosterBinding
+    typeof module==='object'&&module.exports?require('./track_roster_binding_v1.js'):root.CAYTrackRosterBinding,
+    typeof module==='object'&&module.exports?require('./ball_event_evidence_bridge_v1.js'):root.CAYBallEventEvidenceBridge
   );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYBallRosterOwnership=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(BallEvents,TrackRosterBinding){
+})(typeof globalThis!=='undefined'?globalThis:this,function(BallEvents,TrackRosterBinding,BallEventEvidence){
   const clean=v=>String(v==null?'':v).trim();
 
   function scopedPlayer(raw,options,time){
@@ -60,8 +61,16 @@
     return {...result,rosterGuard:scoped.diagnostics};
   }
 
+  function evidenceOptions(options={}){
+    const nested=options.ballOptions&&typeof options.ballOptions==='object'?options.ballOptions:{};
+    const merged={...nested};
+    if(options.requireKickEvidence!==undefined&&merged.requireKickEvidence===undefined)merged.requireKickEvidence=options.requireKickEvidence;
+    if(options.kickEvidence!==undefined&&merged.kickEvidence===undefined)merged.kickEvidence=options.kickEvidence;
+    return Object.keys(nested).length||options.ballOptions?merged:options;
+  }
+
   function analyzeBallEvents(samples,options={}){
-    if(!BallEvents||typeof BallEvents.analyzeBallEvents!=='function')return {quality:'INDISPONIBLE',reason:'BALL_EVENT_RUNTIME_UNAVAILABLE',events:[],passes:'INDISPONIBLE',turnovers:'INDISPONIBLE'};
+    if(!BallEventEvidence||typeof BallEventEvidence.analyze!=='function')return {quality:'INDISPONIBLE',reason:'BALL_EVENT_EVIDENCE_RUNTIME_UNAVAILABLE',events:[],passes:'INDISPONIBLE',turnovers:'INDISPONIBLE',possession:'INDISPONIBLE',playerPossession:'INDISPONIBLE'};
     const rows=[];
     const totals={source:'BALL_ROSTER_OWNERSHIP_BRIDGE_V1',clubTeam:clean(options.clubTeam||'CAY'),samples:0,inputPlayers:0,outputPlayers:0,mappedClubPlayers:0,rejectedClubPlayers:0,rejectedReasons:{}};
     for(const sample of Array.isArray(samples)?samples:[]){
@@ -69,9 +78,9 @@
       rows.push(scoped.sample);totals.samples+=1;totals.inputPlayers+=d.inputPlayers;totals.outputPlayers+=d.outputPlayers;totals.mappedClubPlayers+=d.mappedClubPlayers;totals.rejectedClubPlayers+=d.rejectedClubPlayers;
       for(const [reason,count] of Object.entries(d.rejectedReasons))totals.rejectedReasons[reason]=(totals.rejectedReasons[reason]||0)+count;
     }
-    const result=BallEvents.analyzeBallEvents(rows,options.ballOptions||options);
-    return {...result,rosterGuard:totals};
+    const result=BallEventEvidence.analyze(rows,evidenceOptions(options));
+    return {...result,rosterGuard:totals,evidenceChain:'BALL_ROSTER_OWNERSHIP_BRIDGE_V1->BALL_EVENT_EVIDENCE_BRIDGE_V1'};
   }
 
-  return {scopedPlayer,scopeSample,inferOwner,analyzeBallEvents};
+  return {scopedPlayer,scopeSample,inferOwner,evidenceOptions,analyzeBallEvents};
 });

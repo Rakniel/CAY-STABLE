@@ -16,6 +16,8 @@ assert(bundle.includes("run('integrate_ball_runtime.py')"),'canonical STABLE bun
 const marker='<!-- STABLE_BALL_ROSTER_OWNERSHIP_V1 -->';
 const tags=[
   '<script src="./ball_event_state_v1.js"></script>',
+  '<script src="./ball_kick_evidence_v1.js"></script>',
+  '<script src="./ball_event_evidence_bridge_v1.js"></script>',
   '<script src="./track_roster_binding_v1.js"></script>',
   '<script src="./ball_roster_ownership_bridge_v1.js"></script>',
 ];
@@ -26,4 +28,4 @@ for(const tag of tags)assert.equal(html.split(tag).length-1,1,`shipped HTML must
 const canonicalBlock=marker+'\n'+tags.join('\n')+'\n';
 assert(html.includes(canonicalBlock),'ball runtime scripts must be emitted as one canonical dependency-ordered block');
 
-console.log('STABLE roster-guarded ball runtime non-regression: PASS');
+console.log('STABLE roster-guarded ball evidence runtime non-regression: PASS');
