@@ -17,7 +17,7 @@ const tags=[
 assert(integrator.includes(marker),'ball runtime integrator must retain canonical marker');
 assert.equal(html.split(marker).length-1,1,'ball runtime marker must appear exactly once in shipped HTML');
 for(const tag of tags)assert.equal(html.split(tag).length-1,1,`shipped HTML must contain exactly one ${tag}`);
-assert(html.indexOf(tags[0])<html.indexOf(tags[2]),'ball event core must load before roster ownership bridge');
-assert(html.indexOf(tags[1])<html.indexOf(tags[2]),'roster binding contract must load before roster ownership bridge');
+const canonicalBlock=marker+'\n'+tags.join('\n')+'\n';
+assert(html.includes(canonicalBlock),'ball runtime scripts must be emitted as one canonical dependency-ordered block');
 
 console.log('STABLE roster-guarded ball runtime non-regression: PASS');
