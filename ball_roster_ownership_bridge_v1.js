@@ -64,9 +64,11 @@
   function evidenceOptions(options={}){
     const nested=options.ballOptions&&typeof options.ballOptions==='object'?options.ballOptions:{};
     const merged={...nested};
-    if(options.requireKickEvidence!==undefined&&merged.requireKickEvidence===undefined)merged.requireKickEvidence=options.requireKickEvidence;
+    if(merged.requireKickEvidence===undefined){
+      merged.requireKickEvidence=options.requireKickEvidence!==undefined?options.requireKickEvidence:true;
+    }
     if(options.kickEvidence!==undefined&&merged.kickEvidence===undefined)merged.kickEvidence=options.kickEvidence;
-    return Object.keys(nested).length||options.ballOptions?merged:options;
+    return merged;
   }
 
   function analyzeBallEvents(samples,options={}){
