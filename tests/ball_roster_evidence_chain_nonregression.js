@@ -42,10 +42,20 @@ function sample(time,ballX,extra={}){
   assert(r.diagnosticPossession&&typeof r.diagnosticPossession==='object','raw possession diagnostics must remain auditable');
 }
 
-// Evidence options supplied at the roster bridge level must survive the nested
-// ballOptions threshold object so later kick-evidence promotion cannot be
-// silently disabled by configuration shape.
+// The canonical roster path is authoritative, so pass publication must require
+// kick-release evidence by default. Only an explicit diagnostic opt-out may
+// disable it; nested ballOptions remains authoritative when supplied.
 {
+  const defaults=Bridge.evidenceOptions({ballOptions:{minCoverage:.7}});
+  assert.equal(defaults.minCoverage,.7);
+  assert.equal(defaults.requireKickEvidence,true,'roster pass publication must fail closed on kick evidence by default');
+
+  const explicitOff=Bridge.evidenceOptions({ballOptions:{minCoverage:.7},requireKickEvidence:false});
+  assert.equal(explicitOff.requireKickEvidence,false,'top-level diagnostic opt-out must remain explicit and supported');
+
+  const nestedOff=Bridge.evidenceOptions({ballOptions:{minCoverage:.7,requireKickEvidence:false},requireKickEvidence:true});
+  assert.equal(nestedOff.requireKickEvidence,false,'nested ballOptions must remain authoritative when explicitly configured');
+
   const merged=Bridge.evidenceOptions({ballOptions:{minCoverage:.7},requireKickEvidence:true,kickEvidence:{minKickScore:.8}});
   assert.equal(merged.minCoverage,.7);
   assert.equal(merged.requireKickEvidence,true);
