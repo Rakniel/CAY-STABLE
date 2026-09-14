@@ -15,9 +15,9 @@ const postReceptionSpike=[
   row(.75,10.10,10.04),
   row(.85,10.15,10.06),
   row(.95,10.20,10.08),
-  row(1.00,20,20),
-  row(1.10,24,20),
-  row(1.20,29,20)
+  row(1.00,10.25,10.10),
+  row(1.10,14,10.12),
+  row(1.20,19,10.15)
 ];
 const post=validatePassKick(postReceptionSpike,event,{windowSec:.45,minReleaseSpeedMps:3,minSpeedGainMps:1.2,minSeparationGainM:.7,minObservations:4});
 assert.notStrictEqual(post.status,'CONFIRMED','post-reception ball acceleration must never confirm the passer kick');
