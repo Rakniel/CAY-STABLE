@@ -49,11 +49,16 @@
     }
     function select(candidates,time,context){
       const t=finite(time)?Number(time):null,key=continuityKey(context);
+      if(key===null){
+        if(state.history.length||state.lastKey!==null||state.lastObservedTime!==null)reset('missing_continuity_metadata');
+        if(t!==null)state.lastTime=t;
+        return {status:'UNAVAILABLE',reason:'MISSING_CONTINUITY_METADATA'};
+      }
       if(state.lastObservedTime!==null&&t!==null&&t-state.lastObservedTime>cfg.maxGapSec)reset('observation_gap');
-      if(state.lastKey!==null&&key!==null&&state.lastKey!==key)reset('segment');
+      if(state.lastKey!==null&&state.lastKey!==key)reset('segment');
       const valid=(candidates||[]).map((raw,index)=>({raw,index,p:pointOf(raw),confidence:confidenceOf(raw)}))
         .filter(x=>x.p&&x.confidence>=cfg.minConfidence&&x.raw.valid!==false&&x.raw.visible!==false&&x.raw.drifted!==true&&x.raw.driftStatus!=='DRIFTED');
-      if(!valid.length){if(t!==null)state.lastTime=t;if(key!==null)state.lastKey=key;return {status:'UNAVAILABLE',reason:'NO_VALID_BALL_CANDIDATE'};}
+      if(!valid.length){if(t!==null)state.lastTime=t;state.lastKey=key;return {status:'UNAVAILABLE',reason:'NO_VALID_BALL_CANDIDATE'};}
 
       let best=null;
       for(const c of valid){
@@ -69,10 +74,10 @@
         const score=normalized-c.confidence*cfg.confidenceWeight;
         if(!best||score<best.score)best={...c,distance,score,limit,centerDistance,motionDistance,anchorType:motion?'constant_velocity_prediction':(center?'recent_centroid':'none')};
       }
-      if(!best){state.rejections++;if(t!==null)state.lastTime=t;if(key!==null)state.lastKey=key;return {status:'UNAVAILABLE',reason:'ALL_CANDIDATES_BREAK_CONTINUITY',candidateCount:valid.length};}
+      if(!best){state.rejections++;if(t!==null)state.lastTime=t;state.lastKey=key;return {status:'UNAVAILABLE',reason:'ALL_CANDIDATES_BREAK_CONTINUITY',candidateCount:valid.length};}
       state.history.push({x:best.p.x,y:best.p.y,space:best.p.space,time:t});
       if(state.history.length>cfg.bufferSize)state.history.splice(0,state.history.length-cfg.bufferSize);
-      if(t!==null){state.lastTime=t;state.lastObservedTime=t;}if(key!==null)state.lastKey=key;state.selections++;
+      if(t!==null){state.lastTime=t;state.lastObservedTime=t;}state.lastKey=key;state.selections++;
       return {
         status:'SELECTED',candidate:best.raw,index:best.index,confidence:best.confidence,
         distanceToRecentCentroid:best.centerDistance===null?0:best.centerDistance,
