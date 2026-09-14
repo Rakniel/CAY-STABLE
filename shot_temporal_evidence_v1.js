@@ -4,7 +4,7 @@
   else root.CAYShotTemporalEvidence=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
-  const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const configured=(v,f)=>finite(v)?Number(v):f;
   const configuredUnitThreshold=(v,f)=>{
