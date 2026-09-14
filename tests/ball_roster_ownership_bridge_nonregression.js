@@ -76,4 +76,30 @@ function frame(time,ballX,extraPlayers=[]){
   assert.equal(r.rosterGuard.rejectedClubPlayers,1);
 }
 
+// Dès qu'une chronologie de participation est disponible, le bridge ne doit
+// jamais retomber sur le binding statique : sans temps observationnel on ne
+// peut pas savoir si le joueur est encore sur le terrain.
+{
+  const participation={
+    byPlayerId:{
+      'cay-9':[{startMs:0,endMs:1000}],
+      'cay-10':[{startMs:1000,endMs:null}]
+    },
+    boundaryPolicy:'HALF_OPEN_SUBSTITUTION_WINDOWS_[START,END)'
+  };
+  const noTime=Bridge.inferOwner({ball:{pitchX:10,pitchY:10,confidence:.95},players:[{id:'track-9',team:'CAY',pitchX:10.1,pitchY:10,confidence:.99,onField:true}]},{clubTeam:'CAY',bindingState,participation});
+  assert.equal(noTime.status,'UNAVAILABLE');
+  assert.equal(noTime.reason,'NO_VALID_ON_FIELD_PLAYER');
+  assert.equal(noTime.rosterGuard.rejectedReasons.CLUB_PARTICIPATION_TIME_MISSING,1);
+
+  const beforeSub=Bridge.inferOwner({time:.9,ball:{pitchX:10,pitchY:10,confidence:.95},players:[{id:'track-9',team:'CAY',pitchX:10.1,pitchY:10,confidence:.99,onField:true}]},{clubTeam:'CAY',bindingState,participation});
+  assert.equal(beforeSub.status,'OWNED');
+  assert.equal(beforeSub.playerId,'cay-9');
+
+  const afterSub=Bridge.inferOwner({time:1.1,ball:{pitchX:10,pitchY:10,confidence:.95},players:[{id:'track-9',team:'CAY',pitchX:10.1,pitchY:10,confidence:.99,onField:true}]},{clubTeam:'CAY',bindingState,participation});
+  assert.equal(afterSub.status,'UNAVAILABLE');
+  assert.equal(afterSub.reason,'NO_VALID_ON_FIELD_PLAYER');
+  assert.equal(afterSub.rosterGuard.rejectedReasons.CLUB_TRACK_OUTSIDE_CONFIRMED_PARTICIPATION,1);
+}
+
 console.log('ball roster ownership bridge non-regression: PASS');
