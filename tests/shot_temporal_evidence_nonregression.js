@@ -50,6 +50,20 @@ const temporalGapLeak=analyze([
 ],{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2,maxObservationGapSec:.2,evidenceWindowSec:.3});
 assert.strictEqual(temporalGapLeak.candidateCount,0,'shot evidence and previous speed must reset after an observation gap');
 
+// Une perte de visibilité/confiance du ballon coupe elle aussi la continuité de preuve.
+// Sans remise à zéro, deux accélérations fortes séparées par une frame de ballon non
+// fiable pouvaient être additionnées dans evidenceWindowSec et créer un faux tir.
+const confidenceOcclusionLeak=[
+  row(0.00,0),row(0.05,.2),row(0.10,1.0),
+  row(0.15,1.1),
+  row(0.20,1.2),row(0.25,1.4),row(0.30,2.2)
+];
+confidenceOcclusionLeak[3].ball.confidence=.3;
+assert.strictEqual(analyze(confidenceOcclusionLeak,{
+  minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2,
+  maxObservationGapSec:.2,evidenceWindowSec:.3
+}).candidateCount,0,'shot evidence must reset when ball observation becomes unreliable');
+
 const lowBallConfidence=[row(0,0),row(.1,.8),row(.2,2.4),row(.3,4.8)];
 lowBallConfidence[2].ball.confidence=.3;
 assert.strictEqual(analyze(lowBallConfidence,{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2}).candidateCount,0);

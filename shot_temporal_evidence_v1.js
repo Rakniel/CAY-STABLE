@@ -37,7 +37,11 @@
     for(const row of rows){
       const t=Number(row.time),ball=pointOf(row),key=continuityKey(row);
       if(key!==prevKey){prevSpeed=null;evidence.length=0;}
-      if(!ball||ball.confidence<cfg.minBallConfidence){prevBall=null;prevTime=null;prevSpeed=null;prevKey=key;continue;}
+      if(!ball||ball.confidence<cfg.minBallConfidence){
+        prevBall=null;prevTime=null;prevSpeed=null;prevKey=key;
+        evidence.length=0;
+        continue;
+      }
       let speed=null,accel=null;
       if(prevBall&&prevTime!==null&&key===prevKey){
         const dt=t-prevTime;
