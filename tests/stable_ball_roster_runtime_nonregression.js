@@ -1,5 +1,11 @@
 const fs=require('fs');
 const assert=require('assert');
+const childProcess=require('child_process');
+
+// Earlier integration tests intentionally exercise narrower integrators and may
+// leave the working HTML in a non-canonical intermediate state. Rebuild the
+// exact shipped bundle before asserting the ball runtime contract.
+childProcess.execFileSync('python3',['tools/integrate_stable_bundle.py'],{stdio:'pipe'});
 
 const html=fs.readFileSync('CAY_ANALYZER_STABLE.html','utf8');
 const bundle=fs.readFileSync('tools/integrate_stable_bundle.py','utf8');
