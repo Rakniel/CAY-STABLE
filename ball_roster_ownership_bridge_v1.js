@@ -18,11 +18,16 @@
     if(!trackId)return {player:null,reason:'CLUB_TRACK_ID_MISSING'};
     const state=options&&options.bindingState||{};
     const participation=options&&options.participation;
-    const useParticipation=participation&&Number.isFinite(Number(time))&&typeof TrackRosterBinding.resolveAtTime==='function';
-    const resolved=useParticipation
-      ?TrackRosterBinding.resolveAtTime(state,trackId,participation,Number(time)*1000)
-      :TrackRosterBinding.resolve(state,trackId);
-    if(!resolved||resolved.status!=='FIABLE'||!clean(resolved.playerId))return {player:null,reason:'CLUB_TRACK_NOT_RELIABLY_ROSTER_BOUND'};
+    const participationProvided=participation!==undefined&&participation!==null;
+    let resolved;
+    if(participationProvided){
+      if(!Number.isFinite(Number(time)))return {player:null,reason:'CLUB_PARTICIPATION_TIME_MISSING'};
+      if(typeof TrackRosterBinding.resolveAtTime!=='function')return {player:null,reason:'PARTICIPATION_RUNTIME_UNAVAILABLE'};
+      resolved=TrackRosterBinding.resolveAtTime(state,trackId,participation,Number(time)*1000);
+    }else{
+      resolved=TrackRosterBinding.resolve(state,trackId);
+    }
+    if(!resolved||resolved.status!=='FIABLE'||!clean(resolved.playerId))return {player:null,reason:participationProvided?'CLUB_TRACK_OUTSIDE_CONFIRMED_PARTICIPATION':'CLUB_TRACK_NOT_RELIABLY_ROSTER_BOUND'};
     return {player:{...raw,trackId,id:resolved.playerId,playerId:resolved.playerId,rosterBindingConfidence:resolved.confidence,rosterBindingSource:resolved.source},reason:null};
   }
 
