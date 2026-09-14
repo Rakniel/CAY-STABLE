@@ -41,6 +41,15 @@ const accelerationPlanLeak=analyze([
 ],{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2,maxObservationGapSec:.2});
 assert.strictEqual(accelerationPlanLeak.candidateCount,0,'acceleration evidence must restart from zero at a plan boundary');
 
+// Une coupure temporelle invalide aussi la mémoire cinématique. Avant ce garde,
+// une preuve forte juste avant la coupure et une accélération calculée avec l'ancienne
+// vitesse juste après pouvaient se combiner dans la même fenêtre et créer un faux tir.
+const temporalGapLeak=analyze([
+  row(0.00,0),row(0.10,.8),row(0.20,2.4),
+  row(0.41,2.5),row(0.42,3.0)
+],{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2,maxObservationGapSec:.2,evidenceWindowSec:.3});
+assert.strictEqual(temporalGapLeak.candidateCount,0,'shot evidence and previous speed must reset after an observation gap');
+
 const lowBallConfidence=[row(0,0),row(.1,.8),row(.2,2.4),row(.3,4.8)];
 lowBallConfidence[2].ball.confidence=.3;
 assert.strictEqual(analyze(lowBallConfidence,{minBallSpeedMps:7,minBallAccelerationMps2:5,minEvidenceFrames:2}).candidateCount,0);
