@@ -13,6 +13,7 @@
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const sum=(rows,key)=>rows.reduce((acc,row)=>acc+(finite(row?.[key])?Number(row[key]):0),0);
+  const hasPositiveMetricCoverage=row=>finite(row?.metricCoveredSeconds)&&Number(row.metricCoveredSeconds)>0;
 
   function unavailable(reason,extra={}){
     return {status:'INDISPONIBLE',reason,playerId:null,metric:null,spatial:null,windows:[],...extra,source:'ROSTER_METRIC_PIPELINE_V1'};
@@ -31,7 +32,7 @@
     const input=Array.isArray(rows)?rows:[];
     const eligibleSeconds=sum(input,'eligibleSeconds');
     const metricCoveredSeconds=sum(input,'metricCoveredSeconds');
-    const metricCoveredWindows=input.filter(row=>finite(row?.metricCoveredSeconds)&&Number(row.metricCoveredSeconds)>0);
+    const metricCoveredWindows=input.filter(hasPositiveMetricCoverage);
     const distanceEvidenceComplete=metricCoveredWindows.length>0&&metricCoveredWindows.every(row=>finite(row?.distanceM)&&Number(row.distanceM)>=0);
     const distanceValues=distanceEvidenceComplete?metricCoveredWindows.map(row=>Number(row.distanceM)):[];
     const distanceM=distanceValues.length?distanceValues.reduce((acc,value)=>acc+value,0):null;
@@ -46,7 +47,7 @@
     const confidenceWeighted=input.reduce((acc,row)=>acc+(finite(row?.avgCalibrationConfidence)&&finite(row?.metricCoveredSeconds)?Number(row.avgCalibrationConfidence)*Number(row.metricCoveredSeconds):0),0);
     const avgCalibrationConfidence=metricCoveredSeconds>0?confidenceWeighted/metricCoveredSeconds:0;
     const defendableScore=metricCoverage*avgCalibrationConfidence;
-    const speedSamples=input.flatMap((row,windowIndex)=>(Array.isArray(row?.speedSamples)?row.speedSamples:[]).map(sample=>({...sample,segment:`window:${windowIndex}:${String(sample.segment)}`})));
+    const speedSamples=input.flatMap((row,windowIndex)=>hasPositiveMetricCoverage(row)&&(Array.isArray(row?.speedSamples)?row.speedSamples.length:0)?row.speedSamples.map(sample=>({...sample,segment:`window:${windowIndex}:${String(sample.segment)}`})):[]);
     const quality=MetricQualityGuard&&typeof MetricQualityGuard.qualityFromEvidenceScore==='function'?MetricQualityGuard.qualityFromEvidenceScore(defendableScore):PlayerStats.qualityFromCoverage(metricCoverage);
     return {
       metricCoverage:+metricCoverage.toFixed(4),
@@ -70,11 +71,11 @@
       rejectedSpeedPairs:sum(input,'rejectedSpeedPairs'),
       participationWindowCount:input.length,
       qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',
-      speedSamplePolicy:'FENETRES_DE_PARTICIPATION_NAMESPACEES_POUR_INTERDIRE_TOUTE_CONTINUITE_ARTIFICIELLE_ENTRE_FENETRES',
+      speedSamplePolicy:'ECHANTILLONS_VITESSE_UNIQUEMENT_DEPUIS_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_POSITIVE_ET_NAMESPACEES_POUR_INTERDIRE_TOUTE_CONTINUITE_ARTIFICIELLE_ENTRE_FENETRES',
       distanceEvidencePolicy:'DISTANCE_TOTALE_PUBLIEE_UNIQUEMENT_SI_TOUTES_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_FOURNISSENT_UNE_DISTANCE_FINIE_ET_NON_NEGATIVE',
       maxSpeedEvidencePolicy:'VITESSE_MAX_PUBLIEE_UNIQUEMENT_DEPUIS_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_POSITIVE',
       sprintEvidencePolicy:'TOTAL_SPRINT_PUBLIE_UNIQUEMENT_SI_TOUTES_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_FOURNISSENT_COMPTEUR_ET_DUREE_SPRINT',
-      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN; DISTANCE_REQUIRES_COMPLETE_NON_NEGATIVE_EVIDENCE_ACROSS_ALL_METRIC_COVERED_WINDOWS; MAX_SPEED_REQUIRES_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; SPRINT_TOTAL_FAILS_CLOSED_WHEN_ANY_METRIC_COVERED_WINDOW_LACKS_SPRINT_EVIDENCE'
+      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN; SPEED_SAMPLES_REQUIRE_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; DISTANCE_REQUIRES_COMPLETE_NON_NEGATIVE_EVIDENCE_ACROSS_ALL_METRIC_COVERED_WINDOWS; MAX_SPEED_REQUIRES_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; SPRINT_TOTAL_FAILS_CLOSED_WHEN_ANY_METRIC_COVERED_WINDOW_LACKS_SPRINT_EVIDENCE'
     };
   }
 
