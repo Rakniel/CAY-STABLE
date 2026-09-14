@@ -39,7 +39,8 @@
     const sprintEvidenceComplete=metricCoveredWindows.length>0&&metricCoveredWindows.every(row=>finite(row?.sprintCount)&&finite(row?.sprintQualifiedSeconds));
     const sprintCountValues=sprintEvidenceComplete?metricCoveredWindows.map(row=>Number(row.sprintCount)):[];
     const sprintQualifiedValues=sprintEvidenceComplete?metricCoveredWindows.map(row=>Number(row.sprintQualifiedSeconds)):[];
-    const maxSpeedValues=metricCoveredWindows.filter(row=>finite(row?.maxSpeedKmh)).map(row=>Number(row.maxSpeedKmh));
+    const maxSpeedEvidenceComplete=metricCoveredWindows.length>0&&metricCoveredWindows.every(row=>finite(row?.maxSpeedKmh)&&Number(row.maxSpeedKmh)>=0);
+    const maxSpeedValues=maxSpeedEvidenceComplete?metricCoveredWindows.map(row=>Number(row.maxSpeedKmh)):[];
     const sprintCount=sprintCountValues.length?sprintCountValues.reduce((acc,value)=>acc+value,0):null;
     const sprintQualifiedSeconds=sprintQualifiedValues.length?sprintQualifiedValues.reduce((acc,value)=>acc+value,0):null;
     const metricCoverage=eligibleSeconds>0?metricCoveredSeconds/eligibleSeconds:0;
@@ -61,6 +62,9 @@
       distanceEvidenceComplete,
       distanceEvidenceWindowCount:metricCoveredWindows.length,
       distanceEvidenceMissingWindowCount:metricCoveredWindows.filter(row=>!finite(row?.distanceM)||Number(row.distanceM)<0).length,
+      maxSpeedEvidenceComplete,
+      maxSpeedEvidenceWindowCount:metricCoveredWindows.length,
+      maxSpeedEvidenceMissingWindowCount:metricCoveredWindows.filter(row=>!finite(row?.maxSpeedKmh)||Number(row.maxSpeedKmh)<0).length,
       sprintEvidenceComplete,
       sprintEvidenceWindowCount:metricCoveredWindows.length,
       sprintEvidenceMissingWindowCount:metricCoveredWindows.filter(row=>!finite(row?.sprintCount)||!finite(row?.sprintQualifiedSeconds)).length,
@@ -73,9 +77,9 @@
       qualityPolicy:'QUALITE = COUVERTURE_METRIQUE × CONFIANCE_CALIBRATION_MOYENNE',
       speedSamplePolicy:'ECHANTILLONS_VITESSE_UNIQUEMENT_DEPUIS_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_POSITIVE_ET_NAMESPACEES_POUR_INTERDIRE_TOUTE_CONTINUITE_ARTIFICIELLE_ENTRE_FENETRES',
       distanceEvidencePolicy:'DISTANCE_TOTALE_PUBLIEE_UNIQUEMENT_SI_TOUTES_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_FOURNISSENT_UNE_DISTANCE_FINIE_ET_NON_NEGATIVE',
-      maxSpeedEvidencePolicy:'VITESSE_MAX_PUBLIEE_UNIQUEMENT_DEPUIS_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_POSITIVE',
+      maxSpeedEvidencePolicy:'VITESSE_MAX_PUBLIEE_UNIQUEMENT_SI_TOUTES_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_POSITIVE_FOURNISSENT_UNE_VITESSE_MAX_FINIE_ET_NON_NEGATIVE',
       sprintEvidencePolicy:'TOTAL_SPRINT_PUBLIE_UNIQUEMENT_SI_TOUTES_LES_FENETRES_AVEC_COUVERTURE_METRIQUE_FOURNISSENT_COMPTEUR_ET_DUREE_SPRINT',
-      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN; SPEED_SAMPLES_REQUIRE_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; DISTANCE_REQUIRES_COMPLETE_NON_NEGATIVE_EVIDENCE_ACROSS_ALL_METRIC_COVERED_WINDOWS; MAX_SPEED_REQUIRES_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; SPRINT_TOTAL_FAILS_CLOSED_WHEN_ANY_METRIC_COVERED_WINDOW_LACKS_SPRINT_EVIDENCE'
+      policy:'AGGREGATE_ONLY_WITHIN_CONFIRMED_PARTICIPATION_WINDOWS_NO_CROSS_WINDOW_JOIN; SPEED_SAMPLES_REQUIRE_POSITIVE_METRIC_COVERED_SECONDS_IN_THE_SAME_WINDOW; DISTANCE_REQUIRES_COMPLETE_NON_NEGATIVE_EVIDENCE_ACROSS_ALL_METRIC_COVERED_WINDOWS; MAX_SPEED_FAILS_CLOSED_WHEN_ANY_METRIC_COVERED_WINDOW_LACKS_FINITE_NON_NEGATIVE_MAX_SPEED_EVIDENCE; SPRINT_TOTAL_FAILS_CLOSED_WHEN_ANY_METRIC_COVERED_WINDOW_LACKS_SPRINT_EVIDENCE'
     };
   }
 
