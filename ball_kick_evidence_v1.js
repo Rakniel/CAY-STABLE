@@ -61,8 +61,8 @@
     if(!event||event.type!=='PASS'||!finite(event.time)||!finite(event.transitionSec)||event.fromPlayerId===undefined){
       return {status:'INDISPONIBLE',reason:'PASS_EVENT_METADATA_MISSING'};
     }
-    const start=Number(event.time)-Number(event.transitionSec),rows=sampleRows(samples,cfg.minBallConfidence).filter(r=>Math.abs(Number(r.time)-start)<=cfg.windowSec);
-    if(rows.length<cfg.minObservations)return {status:'INDISPONIBLE',reason:'INSUFFICIENT_RELIABLE_BALL_OBSERVATIONS',observations:rows.length,minBallConfidence:cfg.minBallConfidence};
+    const start=Number(event.time)-Number(event.transitionSec),receptionTime=Number(event.time),windowStart=start-cfg.windowSec,windowEnd=Math.min(start+cfg.windowSec,receptionTime),rows=sampleRows(samples,cfg.minBallConfidence).filter(r=>Number(r.time)>=windowStart&&Number(r.time)<=windowEnd);
+    if(rows.length<cfg.minObservations)return {status:'INDISPONIBLE',reason:'INSUFFICIENT_RELIABLE_BALL_OBSERVATIONS',observations:rows.length,minBallConfidence:cfg.minBallConfidence,windowStart:round(windowStart),windowEnd:round(windowEnd),receptionTime:round(receptionTime)};
     let best=null,continuityRejectedPairs=0;
     for(let i=1;i<rows.length;i++){
       if(!continuousPair(rows[i-1],rows[i],cfg.maxObservationGapSec)){continuityRejectedPairs+=1;continue;}
@@ -76,13 +76,13 @@
       const row={time:Number(rows[i].time),speed,speedGain,sepPrev,sepNow,sepGain,score};
       if(!best||row.score>best.score)best=row;
     }
-    if(!best)return {status:'INDISPONIBLE',reason:continuityRejectedPairs?'NO_CONTINUOUS_KICK_EVIDENCE':'OWNER_OR_BALL_COORDINATES_MISSING',observations:rows.length,continuityRejectedPairs,maxObservationGapSec:cfg.maxObservationGapSec};
-    const valid=best.speed>=cfg.minReleaseSpeedMps&&best.speedGain>=cfg.minSpeedGainMps&&best.sepGain>=cfg.minSeparationGainM&&best.sepPrev<=cfg.maxOwnerDistanceAtReleaseM;
+    if(!best)return {status:'INDISPONIBLE',reason:continuityRejectedPairs?'NO_CONTINUOUS_KICK_EVIDENCE':'OWNER_OR_BALL_COORDINATES_MISSING',observations:rows.length,continuityRejectedPairs,maxObservationGapSec:cfg.maxObservationGapSec,windowStart:round(windowStart),windowEnd:round(windowEnd),receptionTime:round(receptionTime)};
+    const valid=best.time<=receptionTime&&best.speed>=cfg.minReleaseSpeedMps&&best.speedGain>=cfg.minSpeedGainMps&&best.sepGain>=cfg.minSeparationGainM&&best.sepPrev<=cfg.maxOwnerDistanceAtReleaseM;
     return {
       status:valid?'CONFIRMED':'REJECTED',reason:valid?null:'KICK_RELEASE_EVIDENCE_TOO_WEAK',
       releaseTime:round(best.time),releaseSpeedMps:round(best.speed),speedGainMps:round(best.speedGain),
       separationBeforeM:round(best.sepPrev),separationAfterM:round(best.sepNow),separationGainM:round(best.sepGain),
-      observations:rows.length,continuityRejectedPairs,
+      observations:rows.length,continuityRejectedPairs,windowStart:round(windowStart),windowEnd:round(windowEnd),receptionTime:round(receptionTime),
       thresholds:{...cfg},
       provenance:'CAY_CLEAN_ROOM_KICK_RELEASE_EVIDENCE_ADAPTED_FROM_ELASTIC_FEATURE_IDEA_NO_UPSTREAM_CODE_COPIED'
     };
