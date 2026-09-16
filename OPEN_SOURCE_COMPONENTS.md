@@ -109,6 +109,19 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Candidate use: modular tracker/ReID interfaces and evaluation methodology.
 - Constraint: Python/PyTorch stack is significantly heavier than the current browser-first CAY runtime; do not make it mandatory unless the measurable gain justifies it.
 
+## SoccerNet TrackEval
+- Source: https://github.com/SoccerNet/sn-trackeval
+- Audited revision: `9c25232f6f2b56c9f203f1eb55784ff1e97df683` (2025-07-22).
+- License: MIT, verified from the repository `LICENSE` file. The required copyright/permission notice must be retained if substantial source portions are redistributed.
+- Upstream role: SoccerNet-maintained fork of TrackEval with SoccerNet MOT and Game State Reconstruction adapters. It exposes HOTA (including DetA/AssA/LocA), CLEAR MOT and identity metrics (IDF1/IDP/IDR), alongside benchmark runners.
+- Status in CAY-STABLE: high-priority evaluation backend candidate; no upstream source code copied and no runtime dependency added in this audit.
+- What this can replace: bespoke CAY implementations of standard MOT scoring and ad-hoc tracker comparison spreadsheets. CAY-specific safety KPIs (false-CAY rate, bench/spectator leakage, segment/cut leakage, `INDISPONIBLE` coverage and roster identity constraints) remain additional gates rather than being replaced by generic MOT scores.
+- Planned adapter boundary: export CAY tracker predictions and hand-labelled validation fixtures to a TrackEval/SoccerNet-compatible evaluation artifact offline; consume only aggregate benchmark results back into the CAY release gate. This keeps the browser STABLE runtime dependency-free.
+- Acceptance metrics: compare tracker candidates on HOTA + AssA + IDF1 + fragmentation/ID-switch behaviour, then require no regression on CAY-specific false-identity and fail-closed guards. Never select a tracker from HOTA alone.
+- Dataset boundary: SoccerNet datasets, annotations, videos and challenge assets are separate artifacts with their own terms; the MIT code license is not treated as a license for those assets.
+- Estimated benefit: roughly 1–2 days of standard MOT metric implementation/validation avoided, plus substantially more reproducible ByteTrack/BoT-SORT/ReID comparisons.
+- Risk/dependencies: Python evaluation environment and format adapter; dataset access/terms must be audited independently. No effect on end-user STABLE runtime unless a later validated integration deliberately changes that boundary.
+
 ## SoccerNet Game State Reconstruction
 - Source: https://github.com/SoccerNet/sn-gamestate
 - License: GPL-3.0
