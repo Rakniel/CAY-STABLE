@@ -127,6 +127,20 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Estimated benefit if validated: 0.5–1.5 days of prototype/plumbing avoided; potentially fewer ambiguous ball frames and unresolved team assignments.
 - Risks: heavy SigLIP/UMAP/scikit-learn stack, two-cluster contamination by referees/goalkeepers/non-field people, simplistic centroid prior on long ball flights/camera cuts, and separately licensed third-party model weights.
 
+## Roboflow Trackers
+- Source: https://github.com/roboflow/trackers
+- Audited revision: `52610c3ce8eab6d0d2a6beb91e8a1fed9fea34de` on the upstream `develop` branch (2026-09-21).
+- License: Apache-2.0.
+- Upstream maturity at audit time: approximately 3.8k GitHub stars / 400+ forks; active repository with explicit SoccerNet and SportsMOT benchmark support.
+- Useful scope: clean modular implementations of SORT, ByteTrack, BoT-SORT/OC-SORT-family tracking plus benchmark tooling, intentionally decoupled from the detector. Upstream publishes MOT17, SportsMOT and SoccerNet HOTA comparisons and explicitly notes that appearance/ReID branches are not included where applicable.
+- Status in CAY-STABLE: **benchmark/backend candidate; no upstream source code copied in this audit**.
+- Why this is preferable to adding another bespoke tracker: CAY already has a confidence cascade, two-stage association, GMC evidence and conservative ReID contracts. A permissive external tracker backend can therefore be evaluated behind the existing detection/export boundary instead of duplicating those algorithms again in JavaScript.
+- Planned comparison: feed identical CAY detections into current STABLE and a pinned Roboflow Trackers backend, export both through the existing MOTChallenge/TrackEval bridge, then compare HOTA/IDF1/ID switches plus CAY-specific false-CAY, yellow-detail, bench/spectator, 11-on-field, cut/multi-plan and re-entry checks.
+- Acceptance rule: no backend promotion solely for a higher generic MOT score. It must not weaken CAY identity/exclusion invariants, must improve at least one predeclared tracking metric without material regression elsewhere, and its processing/dependency cost must remain acceptable for the club workflow.
+- Dependency/license boundary: Apache-2.0 covers this repository's code, not arbitrary detector models, ReID weights, datasets or transitive optional assets. Those remain separately auditable. The audited upstream lockfile currently references `supervision 0.30.4` and `inference-models 0.37.1`; neither is made mandatory by this documentation-only integration.
+- Estimated work avoided if validated: roughly 3–7 days versus implementing and maintaining another complete MOT backend and benchmark harness from scratch.
+- Expected measurable impact: objective tracker selection on SoccerNet/SportsMOT-style evidence, with a realistic path to fewer ID switches/re-entry breaks while preserving CAY's fail-closed rules.
+
 ## Rejected / reference-only examples
 - `Tony-Luna/soccer-video-analytics`: AGPL-3.0. Useful as a conceptual reference for possession/homography/heatmaps, but not copied or incorporated into the current CAY-STABLE runtime because its copyleft obligations are intentionally avoided at this stage.
 - `mikel-brostrom/boxmot`: AGPL-3.0 in its current public repository. Useful for benchmarking tracker/ReID options and hardware trade-offs, but no BoxMOT source code is incorporated into the current CAY-STABLE runtime.
