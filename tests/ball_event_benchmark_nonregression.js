@@ -76,6 +76,41 @@ const wrongReceiver=evaluateBallEvents(
 assert.strictEqual(wrongReceiver.truePositives,0);
 assert.strictEqual(wrongReceiver.identityEvidence.rejectedByReason.RECEIVER_ID_MISMATCH,1);
 
+// A cut/replay-like duplicate around one real event must remain an explicit FP;
+// it must never inflate the true-event count or possession/pass evidence.
+const cutDuplicate=evaluateBallEvents(
+ [{type:'TURNOVER',time:80,fromPlayerId:'CAY-4',fromTeam:'CAY'}],
+ [
+  {type:'TURNOVER',time:79.9,fromPlayerId:'CAY-4',fromTeam:'CAY'},
+  {type:'TURNOVER',time:80.2,fromPlayerId:'CAY-4',fromTeam:'CAY'}
+ ],
+ {timeToleranceSec:.5}
+);
+assert.strictEqual(cutDuplicate.truePositives,1);
+assert.strictEqual(cutDuplicate.falsePositives,1);
+assert.strictEqual(cutDuplicate.falseNegatives,0);
+
+// Promotion must expose timing quality, not only event count. This prevents a
+// candidate from claiming a win when it finds the same events less precisely.
+const timingComparison=compareBallEvents(
+ [
+  {type:'PASS',time:90,fromPlayerId:'CAY-8',toPlayerId:'CAY-10',fromTeam:'CAY',toTeam:'CAY'},
+  {type:'TURNOVER',time:95,fromPlayerId:'CAY-6',fromTeam:'CAY'}
+ ],
+ [
+  {type:'PASS',time:90.30,fromPlayerId:'CAY-8',toPlayerId:'CAY-10',fromTeam:'CAY',toTeam:'CAY'},
+  {type:'TURNOVER',time:95.30,fromPlayerId:'CAY-6',fromTeam:'CAY'}
+ ],
+ [
+  {type:'PASS',time:90.05,fromPlayerId:'CAY-8',toPlayerId:'CAY-10',fromTeam:'CAY',toTeam:'CAY'},
+  {type:'TURNOVER',time:95.05,fromPlayerId:'CAY-6',fromTeam:'CAY'}
+ ],
+ {timeToleranceSec:.5}
+);
+assert.strictEqual(timingComparison.before.f1,1);
+assert.strictEqual(timingComparison.after.f1,1);
+assert.ok(timingComparison.delta.meanTimingErrorSec<0);
+
 // Explicit compatibility escape hatch remains available for old timing-only studies.
 const timingOnly=evaluateBallEvents(attributedTruth,wrongAttribution,{identityMode:'off'});
 assert.strictEqual(timingOnly.truePositives,2);
