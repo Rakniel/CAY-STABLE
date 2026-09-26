@@ -1,0 +1,18 @@
+const assert=require('assert');
+const auth=require('../auth_contract_v1');
+const backendMissing=auth.createAuthState({});
+assert.equal(backendMissing.status,'BACKEND_REQUIRED');
+assert.equal(auth.requireAuthenticated(backendMissing).allowed,false);
+const signedOut=auth.createAuthState({backendConfigured:true,provider:'oidc'});
+assert.equal(signedOut.status,'SIGNED_OUT');
+const educator=auth.createAuthState({backendConfigured:true,authenticated:true,userId:'u1',role:'EDUCATOR',provider:'oidc'});
+assert.equal(educator.status,'AUTHENTICATED');
+assert.equal(auth.requireRole(educator,['EDUCATOR','ADMIN']).allowed,true);
+assert.equal(auth.requireRole(educator,['ADMIN']).reason,'ROLE_FORBIDDEN');
+assert.throws(()=>auth.createAuthState({role:'SUPERUSER'}),/AUTH_ROLE_INVALID/);
+assert.throws(()=>auth.createAuthState({backendConfigured:true,password:'clair'}),/AUTH_SECRET_FORBIDDEN/);
+assert.throws(()=>auth.createAuthState({backendConfigured:true,nested:{refresh_token:'x'}}),/AUTH_SECRET_FORBIDDEN/);
+const forged=auth.createAuthState({authenticated:true,userId:'u1',role:'ADMIN'});
+assert.equal(forged.status,'BACKEND_REQUIRED');
+assert.equal(forged.userId,null);
+console.log('auth_contract_nonregression: OK');
