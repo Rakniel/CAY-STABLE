@@ -25,17 +25,35 @@ assert.strictEqual(a.crossSegmentAttempts,1);
 assert.strictEqual(a.crossSegmentRecoveryRate,1);
 assert.strictEqual(a.longGapAttempts,1);
 assert.strictEqual(a.longGapRecoveryRate,1);
+// Same ID over a segment boundary is not evidence of safe continuity unless
+// the boundary itself carries an explicit validated-continuity signal.
+assert.strictEqual(a.unsafeCrossSegmentSameId,1);
+assert.strictEqual(a.validatedCrossSegmentSameId,0);
+assert.strictEqual(a.crossSegmentUnsafeCarryoverRate,1);
+assert.strictEqual(a.episodes[a.episodes.length-1].unsafeCrossSegmentCarryover,true);
+
+const validated=evaluateIdentityEpisodes([
+ {frame:0,segmentId:'A',truth:[box('P1',0)],predictions:[box('T1',0)]},
+ {frame:9,segmentId:'B',segmentContinuityValidated:true,truth:[box('P1',2)],predictions:[box('T1',2)]}
+],{minLongGapFrames:8});
+assert.strictEqual(validated.unsafeCrossSegmentSameId,0);
+assert.strictEqual(validated.validatedCrossSegmentSameId,1);
+assert.strictEqual(validated.crossSegmentUnsafeCarryoverRate,0);
+assert.strictEqual(validated.episodes[0].boundaryContinuityValidated,true);
 
 const b=evaluateIdentityEpisodes(broken,{minLongGapFrames:8});
 assert.strictEqual(b.reidAttempts,2);
 assert.strictEqual(b.reidRecoveredSameId,0);
 assert.strictEqual(b.failedReidentifications,2);
 assert.strictEqual(b.crossSegmentRecoveryRate,0);
+assert.strictEqual(b.unsafeCrossSegmentSameId,0);
 const cmp=compareIdentityEpisodes(broken,perfect,{minLongGapFrames:8});
 assert.ok(cmp.delta.reidRecoveryRate>0);
 assert.ok(cmp.delta.longGapRecoveryRate>0);
 assert.ok(cmp.delta.crossSegmentRecoveryRate>0);
 assert.strictEqual(cmp.delta.failedReidentifications,-2);
+assert.strictEqual(cmp.delta.unsafeCrossSegmentSameId,1);
+assert.strictEqual(cmp.delta.crossSegmentUnsafeCarryoverRate,1);
 
 const noOpportunity=evaluateIdentityEpisodes([
  {frame:0,truth:[box('P1',0)],predictions:[box('T1',0)]},
@@ -43,4 +61,5 @@ const noOpportunity=evaluateIdentityEpisodes([
 ]);
 assert.strictEqual(noOpportunity.quality,'INDISPONIBLE');
 assert.strictEqual(noOpportunity.reason,'no_reidentification_opportunity');
+assert.strictEqual(noOpportunity.crossSegmentSafetyQuality,'INDISPONIBLE');
 console.log('tracking_identity_episode_eval_nonregression: PASS');
