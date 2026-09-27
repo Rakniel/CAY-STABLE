@@ -19,7 +19,7 @@ const weakFrames=[
 
 const baseline=IdentityEval.evaluateIdentityEpisodes(baselineFrames,{minLongGapFrames:1});
 const weak=IdentityEval.evaluateIdentityEpisodes(weakFrames,{minLongGapFrames:1});
-assert.equal(baseline.version,'CAY_TRACKING_IDENTITY_EPISODE_EVAL_V1_2');
+assert.equal(baseline.version,'CAY_TRACKING_IDENTITY_EPISODE_EVAL_V1_3');
 assert.equal(baseline.groundTruthReentryAttempts,1);
 assert.equal(weak.groundTruthReentryAttempts,1);
 assert.equal(baseline.groundTruthLongGapAttempts,1);
