@@ -10,7 +10,8 @@
   const unavailable=reason=>({status:'INDISPONIBLE',reason,distanceM:null,avgSpeedKmh:null,maxSpeedKmh:null,sprintDistanceM:null,sprintCount:null,metricCoverage:0,quality:'INDISPONIBLE'});
 
   function build(trajectory,options){
-    const opts={minMetricCoverage:.35,minCalibrationConfidence:.5,maxGapSec:1,maxRawSpeedKmh:Number(Motion?.RAW_SPIKE_THRESHOLD_KMH)||55,sprintThresholdKmh:25,minSprintDurationSec:1,...(options||{})};
+    const defaults={minMetricCoverage:.35,minCalibrationConfidence:.5,maxGapSec:1,maxRawSpeedKmh:Number(Motion&&Motion.RAW_SPIKE_THRESHOLD_KMH)||55,sprintThresholdKmh:25,minSprintDurationSec:1};
+    const opts=Object.assign({},defaults,options||{});
     if(!trajectory||trajectory.status!=='DISPONIBLE'||!Array.isArray(trajectory.runs))return unavailable('trajectoire terrain métrique indisponible');
     const metricCoverage=finite(trajectory.metricCoverage)?clamp(Number(trajectory.metricCoverage),0,1):0;
     const avgCalibrationConfidence=finite(trajectory.avgCalibrationConfidence)?clamp(Number(trajectory.avgCalibrationConfidence),0,1):null;
@@ -23,7 +24,7 @@
       const points=Array.isArray(run)?run:[];
       for(let i=1;i<points.length;i++){
         const a=points[i-1],b=points[i];
-        if(!finite(a?.time)||!finite(b?.time))continue;
+        if(!finite(a&&a.time)||!finite(b&&b.time))continue;
         const dt=Number(b.time)-Number(a.time);
         if(!(dt>0)||(Number(opts.maxGapSec)>0&&dt>Number(opts.maxGapSec))continue;
         const evidence=Motion&&typeof Motion.transitionEvidence==='function'?Motion.transitionEvidence(a,b,opts.maxRawSpeedKmh):{plausible:false,speedKmh:null};
