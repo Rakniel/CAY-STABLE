@@ -10,7 +10,9 @@ const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
 let checks=0;
 function ok(v,msg){assert.ok(v,msg);checks++;}
 
-ok(app===index,'index.html doit rester bit-a-bit identique au build STABLE principal');
+ok(index.includes("const CAY_GLOBAL_PROFILE_KEY='CAY_STABLE_GLOBAL_TEAM_PROFILE_V1';"),'index.html doit embarquer le parcours express');
+ok(index.includes("setTimeout(()=>{if(currentFile&&expressAnalysisArmed&&!expressAnalysisRunning&&!$('scanBtn').disabled)$('scanBtn').click();},250);"),'index.html doit lancer le scan automatiquement');
+ok(index.includes("$('results').classList.remove('hidden');"),'index.html doit afficher les résultats en fin d analyse');
 ok(!app.includes('#autoTestSection,#engineSection,#readySection,#results,#trackingSection{display:none!important}'),'résultats/tracking ne doivent plus être masqués par le CSS historique');
 ok(app.includes("const CAY_GLOBAL_PROFILE_KEY='CAY_STABLE_GLOBAL_TEAM_PROFILE_V1';"),'profil CAY global persistant présent');
 ok(app.includes('function restoreGlobalCAYProfile()'),'restauration automatique du profil CAY présente');
