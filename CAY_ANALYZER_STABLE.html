@@ -137,7 +137,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:15px;ma
 .v55verdict.wait{border-color:#5c5638;color:#ecd98a;background:#17150c}
 .v55rules{font-size:11px;line-height:1.55;color:#9aa7b8;margin-top:10px}
 .v55phase{font-size:11px;color:#90a3b8;margin-top:7px}
-#autoTestSection,#engineSection,#readySection,#results,#trackingSection{display:none!important}
+#autoTestSection,#engineSection,#readySection{display:none!important}
 #autoReviewPlansBtn,#verifyAllBtn{display:none!important}
 @media(max-width:800px){.v55actions,.v55stats{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.v55actions,.v55stats{grid-template-columns:1fr}}
@@ -685,11 +685,26 @@ document.addEventListener('keydown',e=>{
  if(e.key==='Escape')document.querySelectorAll('.infohelp.open').forEach(x=>x.classList.remove('open'));
 });
 
-const video=$('video'),input=$('fileInput'),drop=$('drop');let currentFile=null,objUrl=null,scenes=[],currentScene=-1,points=[],baseCanvas=null,polygonClosed=false,model=null,calibModel=null,footballSession=null,footballProvider='—',footballModelLoadPromise=null,footballLocalBuffer=null,guidedCalibrationRefs=[],guidedCalibrationPos=-1,guidedStadiumModels=[],guidedCandidatePool=[],cumulativeLearningHistory=[],restoredSession=null,calibWalkMode='needs',calibReviewQueue=[],dragPoint=-1,hoverPoint=-1,pointerMoved=false,calibDetections=[],manualPlayerMode=false,manualPlayerLying=false,calibTimeOverride=null,calibCurrentTime=null,correctionFromResult=false,lastResultsScrollY=0,lastResultTimes=[],jerseyPickMode=null,jerseyRefs={team:[],goalkeeper:[],ignored:[]},manualClassOverrides={},showDiagnosticBoxes=false,selectedPoints=[],groupDragStart=null,boxSelectMode=false,boxSelectStart=null,boxSelectCurrent=null,jerseyRefHistory=[],calibZoom=1,lastDiagnosticImages=[];
+const video=$('video'),input=$('fileInput'),drop=$('drop');let currentFile=null,objUrl=null,scenes=[],currentScene=-1,points=[],baseCanvas=null,polygonClosed=false,model=null,calibModel=null,footballSession=null,footballProvider='—',footballModelLoadPromise=null,footballLocalBuffer=null,guidedCalibrationRefs=[],guidedCalibrationPos=-1,guidedStadiumModels=[],guidedCandidatePool=[],cumulativeLearningHistory=[],restoredSession=null,calibWalkMode='needs',calibReviewQueue=[],dragPoint=-1,hoverPoint=-1,pointerMoved=false,calibDetections=[],manualPlayerMode=false,manualPlayerLying=false,calibTimeOverride=null,calibCurrentTime=null,correctionFromResult=false,lastResultsScrollY=0,lastResultTimes=[],jerseyPickMode=null,jerseyRefs={team:[],goalkeeper:[],ignored:[]},manualClassOverrides={},showDiagnosticBoxes=false,selectedPoints=[],groupDragStart=null,boxSelectMode=false,boxSelectStart=null,boxSelectCurrent=null,jerseyRefHistory=[],calibZoom=1,lastDiagnosticImages=[],expressAnalysisArmed=false,expressAnalysisRunning=false;
+const CAY_GLOBAL_PROFILE_KEY='CAY_STABLE_GLOBAL_TEAM_PROFILE_V1';
 function sf(b){if(b<1048576)return(b/1024).toFixed(1)+' Ko';if(b<1073741824)return(b/1048576).toFixed(1)+' Mo';return(b/1073741824).toFixed(2)+' Go'}
 function tf(t){t=Math.max(0,Math.round(t));let h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${m}:${String(s).padStart(2,'0')}`}
 function status(el,s,c=''){el.className='status '+c;el.textContent=s}
 
+function saveGlobalCAYProfile(){
+ try{
+   const p=teamProfileObject();
+   if((p.refs?.team||[]).length>=3)localStorage.setItem(CAY_GLOBAL_PROFILE_KEY,JSON.stringify(p));
+ }catch(err){console.warn('Sauvegarde profil CAY global impossible',err);}
+}
+function restoreGlobalCAYProfile(){
+ try{
+   const raw=localStorage.getItem(CAY_GLOBAL_PROFILE_KEY);if(!raw)return false;
+   const p=JSON.parse(raw);
+   if(!p?.refs||!Array.isArray(p.refs.team)||p.refs.team.length<3)return false;
+   return applyTeamProfile(p)===true;
+ }catch(err){console.warn('Restauration profil CAY global impossible',err);return false;}
+}
 function calibrationStorageKey(){
  if(!currentFile)return null;
  return 'CAY_STABLE_CAL_'+[
@@ -796,9 +811,11 @@ function setFile(f){
    $('reviewSection').classList.add('hidden');
    $('readySection').classList.add('hidden');
    manualClassOverrides={};
-   if(restoreCalibrationSession()){
-     status($('scanStatus'),'Calibrage précédent de cette vidéo retrouvé automatiquement. Lance le scan caméra.','success');
-   }
+   const restoredVideo=restoreCalibrationSession();
+   const restoredGlobal=refsFor('team').length>=3?false:restoreGlobalCAYProfile();
+   expressAnalysisArmed=true;
+   status($('scanStatus'),restoredVideo||restoredGlobal?'Profil CAY prêt • analyse automatique en cours…':'Première utilisation • pré-analyse automatique puis apprentissage CAY minimal une seule fois.',restoredVideo||restoredGlobal?'success':'');
+   setTimeout(()=>{if(currentFile&&expressAnalysisArmed&&!expressAnalysisRunning&&!$('scanBtn').disabled)$('scanBtn').click();},250);
  }
 }
 input.onchange=()=>setFile(input.files[0]);['dragenter','dragover'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>setFile(e.dataTransfer.files[0]));
@@ -1542,9 +1559,10 @@ async function finishGuidedCalibration(){
  $('reviewSection').classList.add('hidden');
  $('validation55Section').classList.remove('hidden');
  $('guidedNextAction').innerHTML='<strong>Calibrage terminé :</strong> tu n’as plus qu’un seul bouton à utiliser : « ANALYSER / VALIDER LE MATCH ».';
- status($('guidedStatus'),'3/3 terminé ✓ • calibrage sauvegardé.','success');
+ saveGlobalCAYProfile();
+ status($('guidedStatus'),'Profil CAY mémorisé ✓ • l’analyse complète démarre automatiquement.','success');
  $('v55Refs').textContent=`${Math.min(3,guidedCalibrationRefs.filter(r=>r.poly&&r.poly.length>=3).length)}/3`;
- $('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});
+ setTimeout(()=>runFullValidation55(),100);
 }
 if($('prepareGuidedCalib')){$('prepareGuidedCalib').disabled=true;$('prepareGuidedCalib').onclick=null;}
 if($('exportTrainingData'))$('exportTrainingData').onclick=()=>{
@@ -1599,6 +1617,14 @@ $('scanBtn').onclick=async()=>{
     );
   }
   $('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});
+  if(refsFor('team').length>=3){
+    status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s) • profil CAY reconnu • analyse complète automatique…`,'success');
+    setTimeout(()=>{if(!expressAnalysisRunning)runFullValidation55();},100);
+  }else{
+    $('guidedCalibSection').classList.remove('hidden');
+    status($('guidedStatus'),'Première utilisation : sélectionne quelques joueurs CAY une seule fois. Le profil sera mémorisé pour tous les prochains matchs.','warning');
+    setTimeout(()=>chooseThreeReferenceImages(),100);
+  }
  }catch(e){status($('scanStatus'),'Erreur : '+e.message,'warning')}finally{$('scanBtn').disabled=false}
 };
 
@@ -3003,6 +3029,7 @@ function addJerseyReference(cat,f){
    $('jerseyState').textContent=`Référence gardien ajoutée : ${jerseyRefs.goalkeeper.length}/${REF_LIMITS.goalkeeper}.`;
  }
  autoSaveCalibrationSession();
+ saveGlobalCAYProfile();
  return true;
 }
 function teamProfileObject(){
@@ -3026,6 +3053,7 @@ function applyTeamProfile(p){
  sanitizeJerseyReferences58(true);
  updateJerseyUI();
  if(baseCanvas)drawPoly();
+ saveGlobalCAYProfile();
  return true;
 }
 
@@ -5646,8 +5674,10 @@ function updateValidation55UI(r){
 }
 
 async function runFullValidation55(){
+ if(expressAnalysisRunning)return lastValidation55;
+ expressAnalysisRunning=true;
  if(!currentFile){
-   status($('v55Status'),'Charge une vidéo avant de lancer l’analyse.','warning');return;
+   status($('v55Status'),'Charge une vidéo avant de lancer l’analyse.','warning');expressAnalysisRunning=false;return;
  }
 
  sanitizeJerseyReferences58(true);
@@ -5657,7 +5687,7 @@ async function runFullValidation55(){
  // mais ne jamais bloquer l'analyse. Les métriques terrain restent INDISPONIBLE si
  // l'auto-calibrage / la projection ne fournissent pas une preuve suffisante.
  if(refsFor('team').length<3){
-   status($('v55Status'),`Seulement ${refsFor('team').length} référence(s) CAY. Il en faut au moins 3.`,'warning');return;
+   status($('v55Status'),`Profil CAY incomplet (${refsFor('team').length}/3). Termine l’apprentissage initial une seule fois.`,'warning');expressAnalysisRunning=false;return;
  }
 
  const btn=$('runFullValidation55');
@@ -5777,14 +5807,21 @@ async function runFullValidation55(){
  $('v55Bar').style.width='100%';
  $('v55Pill').textContent=verdict;
  $('v55Phase').textContent='Analyse terminée.';
+ $('results').classList.remove('hidden');
+ $('trackingSection').style.display='';
+ $('results').style.display='';
  status(
    $('v55Status'),
    errors.length
-     ? `Analyse terminée avec ${errors.length} erreur(s) conservée(s) dans le rapport. Le pack peut être créé.`
-     : (verdict==='VALIDÉ'?'Analyse complète terminée ✓':'Analyse terminée • critères à corriger.'),
+     ? `Analyse terminée avec ${errors.length} erreur(s). Les résultats disponibles sont affichés ; les valeurs non défendables restent INDISPONIBLE.`
+     : (verdict==='VALIDÉ'?'Analyse complète terminée ✓ • résultats disponibles.':'Analyse terminée • résultats disponibles avec garde-fous STABLE.'),
    errors.length||verdict!=='VALIDÉ'?'warning':'success'
  );
  btn.disabled=false;
+ expressAnalysisArmed=false;expressAnalysisRunning=false;
+ const resultTarget=$('stablePlayerStatsV2')||$('results')||$('trackingSection');
+ if(resultTarget)resultTarget.scrollIntoView({behavior:'smooth',block:'start'});
+ return lastValidation55;
 }
 
 async function captureLearningFrame56(t,label,reason,width=960){
@@ -5976,7 +6013,7 @@ async function exportTrainingPack56(){
  }
 }
 
-if($('runFullValidation55'))$('runFullValidation55').onclick=runFullValidation55;
+if($('runFullValidation55'))$('runFullValidation55').onclick=async()=>{try{return await runFullValidation55();}finally{expressAnalysisRunning=false;}};
 if($('exportTrainingPack56'))$('exportTrainingPack56').onclick=exportTrainingPack56;
 
 $('runTracking').onclick=runTrackingTest;
