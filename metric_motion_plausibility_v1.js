@@ -7,10 +7,10 @@
   const RAW_SPIKE_THRESHOLD_KMH=55;
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const present=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='');
-  const distanceM=(a,b)=>Math.hypot(Number(b?.x)-Number(a?.x),Number(b?.y)-Number(a?.y));
-  const sameSegmentOrUnspecified=(a,b)=>!present(a?.segment)||!present(b?.segment)||String(a.segment)===String(b.segment);
+  const distanceM=(a,b)=>Math.hypot(Number(b&&b.x)-Number(a&&a.x),Number(b&&b.y)-Number(a&&a.y));
+  const sameSegmentOrUnspecified=(a,b)=>!present(a&&a.segment)||!present(b&&b.segment)||String(a.segment)===String(b.segment);
   function transitionSpeedKmh(a,b){
-    if(!finite(a?.time)||!finite(b?.time)||!finite(a?.x)||!finite(a?.y)||!finite(b?.x)||!finite(b?.y))return null;
+    if(!finite(a&&a.time)||!finite(b&&b.time)||!finite(a&&a.x)||!finite(a&&a.y)||!finite(b&&b.x)||!finite(b&&b.y))return null;
     const dt=Number(b.time)-Number(a.time);
     if(!(dt>0))return null;
     const d=distanceM(a,b);
@@ -34,7 +34,7 @@
         current=[p];rejectedPairs++;
         const reason=evidence.reason||'transition métrique rejetée';
         rejectedByReason[reason]=(rejectedByReason[reason]||0)+1;
-        if(finite(prev?.time)&&finite(p?.time)){
+        if(finite(prev&&prev.time)&&finite(p&&p.time)){
           const dt=Number(p.time)-Number(prev.time);
           if(dt>0){
             rejectedTimedIntervals++;
