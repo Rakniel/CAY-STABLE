@@ -1616,6 +1616,7 @@ $('scanBtn').onclick=async()=>{
         : 'Scan terminé. Démarre le calibrage intelligent : la première image servira à apprendre CAY.'
     );
   }
+  $('validation55Section').scrollIntoView({behavior:'smooth',block:'start'});
   if(refsFor('team').length>=3){
     status($('scanStatus'),`${scenes.length} type(s) de plan détecté(s) • profil CAY reconnu • analyse complète automatique…`,'success');
     setTimeout(()=>{if(!expressAnalysisRunning)runFullValidation55();},100);
