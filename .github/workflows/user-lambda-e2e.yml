@@ -1,0 +1,16 @@
+name: CAY user lambda browser E2E
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  browser-user-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test real browser user journey
+        run: node e2e/user_lambda_browser.js
