@@ -26,7 +26,7 @@
         const a=points[i-1],b=points[i];
         if(!finite(a&&a.time)||!finite(b&&b.time))continue;
         const dt=Number(b.time)-Number(a.time);
-        if(!(dt>0)||(Number(opts.maxGapSec)>0&&dt>Number(opts.maxGapSec))continue;
+        if(!(dt>0)||(Number(opts.maxGapSec)>0&&dt>Number(opts.maxGapSec)))continue;
         const evidence=Motion&&typeof Motion.transitionEvidence==='function'?Motion.transitionEvidence(a,b,opts.maxRawSpeedKmh):{plausible:false,speedKmh:null};
         if(!evidence.plausible||!finite(evidence.speedKmh)){rejectedPairs++;continue;}
         const d=Math.hypot(Number(b.x)-Number(a.x),Number(b.y)-Number(a.y));
