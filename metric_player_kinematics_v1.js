@@ -20,7 +20,8 @@
 
     let distanceM=0,validSeconds=0,maxSpeedKmh=0,rejectedPairs=0;
     const intervals=[];
-    for(const run of trajectory.runs){
+    for(let runIndex=0;runIndex<trajectory.runs.length;runIndex++){
+      const run=trajectory.runs[runIndex];
       const points=Array.isArray(run)?run:[];
       for(let i=1;i<points.length;i++){
         const a=points[i-1],b=points[i];
@@ -33,7 +34,7 @@
         if(!finite(d))continue;
         const speedKmh=Number(evidence.speedKmh);
         distanceM+=d;validSeconds+=dt;maxSpeedKmh=Math.max(maxSpeedKmh,speedKmh);
-        intervals.push({start:Number(a.time),end:Number(b.time),dt,distanceM:d,speedKmh});
+        intervals.push({runIndex,start:Number(a.time),end:Number(b.time),dt,distanceM:d,speedKmh});
       }
     }
     if(!(validSeconds>0)||!intervals.length)return unavailable('aucun intervalle métrique temporel physiquement plausible');
@@ -43,7 +44,7 @@
     const flush=()=>{if(current&&current.seconds>=minDuration){sprintCount++;sprintDistanceM+=current.distance;sprintSeconds+=current.seconds;}current=null;};
     for(const item of intervals){
       if(item.speedKmh<threshold){flush();continue;}
-      if(!current||Math.abs(item.start-current.end)>1e-6){flush();current={end:item.end,seconds:item.dt,distance:item.distanceM};}
+      if(!current||item.runIndex!==current.runIndex||Math.abs(item.start-current.end)>1e-6){flush();current={runIndex:item.runIndex,end:item.end,seconds:item.dt,distance:item.distanceM};}
       else{current.end=item.end;current.seconds+=item.dt;current.distance+=item.distanceM;}
     }
     flush();
