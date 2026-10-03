@@ -45,4 +45,17 @@ const trajectory=(runs,coverage=.9,confidence=.9)=>({status:'DISPONIBLE',runs,me
   const out=K.build(trajectory([[point(0,0,0),point(3,3,0)]]),{maxGapSec:1});
   assert.equal(out.status,'INDISPONIBLE');
 }
+{
+  // Regression guard: adjacent trajectory runs are separate evidence windows and
+  // must never be stitched into one sprint merely because their timestamps touch.
+  const out=K.build(trajectory([
+    [point(0,0,0),point(.6,5,0)],
+    [point(.6,5,0),point(1.2,10,0)]
+  ]),{sprintThresholdKmh:25,minSprintDurationSec:1});
+  assert.equal(out.status,'DISPONIBLE');
+  assert.equal(out.distanceM,10);
+  assert.equal(out.sprintCount,0);
+  assert.equal(out.sprintDistanceM,0);
+  assert.equal(out.sprintSeconds,0);
+}
 console.log('metric_player_kinematics_nonregression: PASS');
