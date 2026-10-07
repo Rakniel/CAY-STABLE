@@ -1,11 +1,12 @@
 (function(root,factory){
   const api=factory(
     typeof module==='object'&&module.exports ? require('./tracking_core_v1.js') : root.CAYTrackingCore,
-    typeof module==='object'&&module.exports ? require('./player_stats_v1.js') : root.CAYPlayerStats
+    typeof module==='object'&&module.exports ? require('./player_stats_v1.js') : root.CAYPlayerStats,
+    typeof module==='object'&&module.exports ? require('./team_opponent_evidence_veto_v1.js') : root.CAYTeamOpponentEvidenceVeto
   );
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYStableTrackingBridge=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(Core,Stats){
+})(typeof globalThis!=='undefined'?globalThis:this,function(Core,Stats,TeamEvidenceGuard){
   'use strict';
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   const finite=v=>Number.isFinite(Number(v))?Number(v):null;
@@ -37,6 +38,12 @@
     if(d.isBench===true||zone==='bench'||zone==='dugout'||role==='bench')return {accepted:false,reason:'bench'};
     if(d.isSpectator===true||zone==='spectator'||zone==='stands'||role==='spectator')return {accepted:false,reason:'spectator'};
     if(d.yellowDetailOnly===true||d.falseCAYYellowDetail===true)return {accepted:false,reason:'yellow_detail_only'};
+    if(TeamEvidenceGuard&&typeof TeamEvidenceGuard.apply==='function'){
+      const reviewed=TeamEvidenceGuard.apply(d);
+      if(reviewed.teamEvidenceConflict===true)return {accepted:false,reason:'conflicting_team_evidence'};
+      if(reviewed.cayEligible===false||reviewed.teamEvidenceValid===false)
+        return {accepted:false,reason:reviewed.rejectionReason||'team_evidence_rejected'};
+    }
     if(d.teamEvidenceValid===false||d.cayEligible===false)return {accepted:false,reason:'team_evidence_rejected'};
     return {accepted:true,reason:null};
   }

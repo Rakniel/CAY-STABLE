@@ -38,6 +38,7 @@ canonical_tags = [
     '<script src="./metric_anchor_evidence_guard_v1.js"></script>',
     '<script src="./metric_publication_guard_v1.js"></script>',
     '<script src="./tracker_state_v1.js"></script>',
+    '<script src="./team_opponent_evidence_veto_v1.js"></script>',
     '<script src="./stable_tracking_bridge_v1.js"></script>',
     '<script src="./observed_image_visuals_v1.js"></script>',
     '<script src="./stable_metric_visuals_runtime_v1.js"></script>',

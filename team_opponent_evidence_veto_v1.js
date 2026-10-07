@@ -77,6 +77,11 @@
       };
     }
     const decision=evaluate(d,options);
+    if(decision.reason==='conflicting_team_evidence')return {
+      ...d,cayEligible:false,teamEvidenceValid:false,teamEvidenceConflict:true,
+      teamReviewStatus:'A_VERIFIER',cayEvidenceDecision:cayDecision,
+      opponentVetoDecision:decision,rejectionReason:'conflicting_team_evidence'
+    };
     if(!decision.veto)return {...d,cayEvidenceDecision:cayDecision,opponentVetoDecision:decision};
     return {
       ...d,
@@ -92,11 +97,11 @@
     const accepted=[],rejected=[];
     for(const raw of (detections||[])){
       const decorated=apply(raw,options);
-      if((decorated.cayEvidenceDecision&&decorated.cayEvidenceDecision.reject)||(decorated.opponentVetoDecision&&decorated.opponentVetoDecision.veto))rejected.push(decorated);
+      if(decorated.teamEvidenceConflict===true||(decorated.cayEvidenceDecision&&decorated.cayEvidenceDecision.reject)||(decorated.opponentVetoDecision&&decorated.opponentVetoDecision.veto))rejected.push(decorated);
       else accepted.push(decorated);
     }
     return {accepted,rejected};
   }
 
-  return {evaluateCayEvidence,evaluate,apply,filter,version:'1.1.0'};
+  return {evaluateCayEvidence,evaluate,apply,filter,version:'1.2.0'};
 });
