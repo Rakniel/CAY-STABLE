@@ -104,11 +104,20 @@
     for(const stage of changedStages){
       for(const invalid of invalidatedStages(stage))changed.add(invalid);
     }
-    const reusable=[],recompute=[];
+    // A stale or missing upstream artifact invalidates every dependent stage,
+    // even when a downstream fingerprint still matches its old descriptor.
+    // STAGES is ordered upstream-to-downstream, so this also handles chains.
     for(const stage of STAGES){
+      if(changed.has(stage))continue;
       const descriptor=artifacts&&artifacts[stage];
       const expected=expectedByStage&&expectedByStage[stage];
-      if(changed.has(stage)||!isReusable(descriptor,{stage,...(expected||{})}))recompute.push(stage);
+      if(!isReusable(descriptor,{stage,...(expected||{})})){
+        for(const invalid of invalidatedStages(stage))changed.add(invalid);
+      }
+    }
+    const reusable=[],recompute=[];
+    for(const stage of STAGES){
+      if(changed.has(stage))recompute.push(stage);
       else reusable.push(stage);
     }
     return {reusable,recompute,changed:[...changed]};
