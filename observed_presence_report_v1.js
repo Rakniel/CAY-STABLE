@@ -31,11 +31,12 @@
     const unique=[...new Set(raw)];
     const duplicateCount=Math.max(0,raw.length-unique.length);
     const overflowCount=Math.max(0,unique.length-11);
-    const valid=invalidIdCount===0&&duplicateCount===0&&overflowCount===0;
+    const upstreamInvalid=frame?.frameEvidenceValid===false;
+    const valid=!upstreamInvalid&&invalidIdCount===0&&duplicateCount===0&&overflowCount===0;
     return {
       valid,rawCount:source.length,uniqueCount:unique.length,duplicateCount,overflowCount,invalidIdCount,
       ids:valid?unique:[],
-      reason:invalidIdCount>0?'INVALID_TRACK_ID':(duplicateCount>0?'DUPLICATE_ID_SAME_FRAME':(overflowCount>0?'MORE_THAN_11_CAY_IDS':'OK'))
+      reason:upstreamInvalid?String(frame.frameEvidenceReason||'TRACKING_FRAME_UNAVAILABLE'):(invalidIdCount>0?'INVALID_TRACK_ID':(duplicateCount>0?'DUPLICATE_ID_SAME_FRAME':(overflowCount>0?'MORE_THAN_11_CAY_IDS':'OK')))
     };
   }
   function buildPresenceReport(presenceState,playerCards,projectors){
@@ -43,10 +44,10 @@
     const summary=ObservedPresence.summarize(presenceState);
     const cards=new Map((playerCards||[]).map(p=>[Number(p.id),p]));
     let observedSlots=0,reliableIdentitySlots=0,metricProjectionSlots=0,confidenceSum=0,confidenceSlots=0;
-    let invalidFrames=0,duplicateFrameIds=0,overflowFrameIds=0,invalidTrackIds=0;
+    let invalidFrames=0,duplicateFrameIds=0,overflowFrameIds=0,invalidTrackIds=0,trackingUnavailableFrames=0;
     const frames=(presenceState.frames||[]).map(frame=>{
       const audit=frameIdentityAudit(frame);
-      if(!audit.valid){ invalidFrames++; duplicateFrameIds+=audit.duplicateCount; overflowFrameIds+=audit.overflowCount; invalidTrackIds+=audit.invalidIdCount; }
+      if(!audit.valid){ invalidFrames++; duplicateFrameIds+=audit.duplicateCount; overflowFrameIds+=audit.overflowCount; invalidTrackIds+=audit.invalidIdCount; if(frame.frameEvidenceValid===false)trackingUnavailableFrames++; }
       const ids=audit.ids;
       const presentCount=ids.length;
       observedSlots+=presentCount;
@@ -64,7 +65,7 @@
       const identityCoverage=presentCount?reliableIdentityCount/presentCount:0;
       return {
         time:frame.time,segment:frame.segment,presentIds:ids,presentCount,
-        frameEvidenceValid:audit.valid,frameEvidenceReason:audit.reason,
+        frameEvidenceValid:audit.valid,frameEvidenceReason:audit.reason,frameEvidenceSource:frame.frameEvidenceSource||null,
         rejectedDuplicateIds:audit.duplicateCount,rejectedOverflowIds:audit.overflowCount,rejectedInvalidTrackIds:audit.invalidIdCount,
         presenceCoverage:+clamp01(presentCount/11).toFixed(4),presenceQuality:audit.valid?(presentCount===11?'FIABLE':(presentCount?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE',
         observationConfidence:audit.valid&&frameConfidence!==null?clamp01(frameConfidence):null,
@@ -80,6 +81,7 @@
     });
     const frameCount=frames.length;
     const validFrameCount=frameCount-invalidFrames;
+    const observationCoverage=frameCount?validFrameCount/frameCount:0;
     const possibleSlots=validFrameCount*11;
     const presenceCoverage=possibleSlots?observedSlots/possibleSlots:0;
     const identityCoverage=observedSlots?reliableIdentitySlots/observedSlots:0;
@@ -89,13 +91,14 @@
       rosterSize:summary.rosterSize,maxObservedSimultaneously:summary.maxObservedSimultaneously,
       frames,observedInstants:frameCount,validObservedInstants:validFrameCount,invalidObservedInstants:invalidFrames,
       observedPlayerSlots:observedSlots,possiblePlayerSlots:possibleSlots,
-      presenceCoverage:+presenceCoverage.toFixed(4),presenceQuality:presenceQuality(presenceCoverage),
+      observationCoverage:+observationCoverage.toFixed(4),observationQuality:quality(observationCoverage),
+      presenceCoverage:+presenceCoverage.toFixed(4),presenceQuality:invalidFrames>0&&presenceCoverage>=.999999?'PARTIEL':presenceQuality(presenceCoverage),
       identityCoverage:+identityCoverage.toFixed(4),identityQuality:quality(identityCoverage),
       metricProjectionCoverage:+metricProjectionCoverage.toFixed(4),metricProjectionQuality:quality(metricProjectionCoverage),
       observationConfidence:observationConfidence===null?null:+observationConfidence.toFixed(4),
       rejectedDuplicateIds:(summary.rejectedDuplicateIds||0)+duplicateFrameIds,
       rejectedOverflow:(summary.rejectedOverflow||0)+overflowFrameIds,
-      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,invalidTrackIds,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
+      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,invalidTrackIds,trackingUnavailableFrames,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
       players:summary.players,
       policy:{
         source:'OBSERVED_PRESENCE_LEDGER',maxSimultaneousCAY:11,
@@ -112,7 +115,7 @@
       ...report,
       team:{
         ...(report.team||{}),observedInstants:presence.observedInstants,validObservedInstants:presence.validObservedInstants,
-        invalidObservedInstants:presence.invalidObservedInstants,observedPlayerSlots:presence.observedPlayerSlots,
+        invalidObservedInstants:presence.invalidObservedInstants,observationCoverage:presence.observationCoverage,observationQuality:presence.observationQuality,observedPlayerSlots:presence.observedPlayerSlots,
         instantaneousPresenceCoverage:presence.presenceCoverage,instantaneousIdentityCoverage:presence.identityCoverage,
         observedPresenceConfidence:presence.observationConfidence,
         presenceCalculation:'PAR_INSTANT_REGISTRE_OBSERVE_UNIQUEMENT'
@@ -122,7 +125,7 @@
         ...(report.teamCoverage||{}),presence:presence.presenceCoverage,presenceQuality:presence.presenceQuality,
         identity:presence.identityCoverage,identityQuality:presence.identityQuality,
         metricProjection:presence.metricProjectionCoverage,metricProjectionQuality:presence.metricProjectionQuality,
-        invalidObservedInstants:presence.invalidObservedInstants,
+        invalidObservedInstants:presence.invalidObservedInstants,observationCoverage:presence.observationCoverage,observationQuality:presence.observationQuality,
         calculation:'PAR_INSTANT_REGISTRE_OBSERVE_UNIQUEMENT'
       },
       presenceEvidence:presence

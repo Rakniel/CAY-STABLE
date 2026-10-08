@@ -33,7 +33,24 @@
       };
       bridge.report=function(projectors){
         const supplied=projectors||{};
-        return PresenceReport.applyToReport(baseReport(supplied),presenceState,supplied);
+        const base=baseReport(supplied);
+        const timeline=base?.bridge?.timeline;
+        if(Array.isArray(timeline)){
+          const events=timeline.filter(event=>event?.type==='FRAME');
+          const aligned=events.length===presenceState.frames.length;
+          for(let index=0;index<presenceState.frames.length;index++){
+            const frame=presenceState.frames[index],event=events[index];
+            const sameFrame=aligned&&event&&Number(event.time)===frame.time&&Number(event.segment)===frame.segment;
+            const reason=!sameFrame?'TRACKING_PRESENCE_TIMELINE_MISMATCH':
+              (event.dataQuality==='INDISPONIBLE'||event.invalidReason?String(event.invalidReason||'TRACKING_FRAME_UNAVAILABLE'):null);
+            if(reason){
+              frame.frameEvidenceValid=false;
+              frame.frameEvidenceReason=reason;
+              frame.frameEvidenceSource='STRICT_TRACKING_FRAME_GUARD';
+            }
+          }
+        }
+        return PresenceReport.applyToReport(base,presenceState,supplied);
       };
       bridge.presenceState=presenceState;
       bridge.presenceSummary=function(){return ObservedPresence.summarize(presenceState);};
