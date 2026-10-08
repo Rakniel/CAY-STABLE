@@ -31,22 +31,37 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
+    if(!Object.prototype.hasOwnProperty.call(bridge,'attemptedObservationFrames')){
+      return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    }
+    const count=value=>typeof value==='number'&&Number.isSafeInteger(value)&&value>=0?value:null;
+    const attempted=count(bridge.attemptedObservationFrames);
+    const usable=count(bridge.usableObservationFrames);
+    const unavailable=count(bridge.unavailableObservationFrames);
+    const declaredCoverage=typeof bridge.observationCoverage==='number'
+      &&Number.isFinite(bridge.observationCoverage)&&bridge.observationCoverage>=0
+      &&bridge.observationCoverage<=1?bridge.observationCoverage:null;
+    const issues=[];
+    if(attempted===null||attempted===0)issues.push('OBSERVATION_ATTEMPTED_COUNT_INVALID');
+    if(usable===null||unavailable===null)issues.push('OBSERVATION_FRAME_COUNTS_INVALID');
+    if(attempted!==null&&usable!==null&&unavailable!==null&&usable+unavailable!==attempted){
+      issues.push('OBSERVATION_FRAME_COUNTS_INCONSISTENT');
+    }
+    if(declaredCoverage===null)issues.push('OBSERVATION_COVERAGE_INVALID');
+    const coverage=attempted>0&&usable!==null?usable/attempted:null;
+    if(coverage!==null&&declaredCoverage!==null&&Math.abs(coverage-declaredCoverage)>0.000100001){
+      issues.push('OBSERVATION_COVERAGE_INCONSISTENT');
+    }
     const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
+    const computed=coverage>=.8?'FIABLE':coverage>0?'PARTIEL':'INDISPONIBLE';
+    const rank={INDISPONIBLE:0,PARTIEL:1,FIABLE:2};
+    const quality=issues.length?'INDISPONIBLE'
+      :(['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)&&rank[declared]<rank[computed]?declared:computed);
     return {
-      available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
+      available:true,quality,coverage,attempted,usable,unavailable,
+      reasons:bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'
+        &&!Array.isArray(bridge.unavailableReasons)?{...bridge.unavailableReasons}:{},
+      evidenceIssues:issues
     };
   }
 
