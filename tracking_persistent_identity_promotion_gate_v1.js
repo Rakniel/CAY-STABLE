@@ -42,6 +42,21 @@
     if(!c.quality)missing.push('candidate.groundTruthReentryQuality');
     if(missing.length)return {version:VERSION,status:'INSUFFICIENT_EVIDENCE',pass:false,reason:'MISSING_PERSISTENT_IDENTITY_FIELDS',missing};
     if(b.quality!=='EVALUABLE'||c.quality!=='EVALUABLE')return {version:VERSION,status:'INSUFFICIENT_EVIDENCE',pass:false,reason:'PERSISTENT_IDENTITY_BENCHMARK_UNAVAILABLE',baselineQuality:b.quality,candidateQuality:c.quality};
+    // Impossible benchmark values must never authorize tracker promotion.
+    const invalid=[];
+    for(const [label,row] of [['baseline',b],['candidate',c]]){
+      for(const key of ['attempts','longGapAttempts','crossSegmentAttempts','failed']){
+        if(!Number.isSafeInteger(row[key])||row[key]<0)invalid.push(label+'.'+key);
+      }
+      for(const key of ['recoveryRate','longGapRecoveryRate','crossSegmentRecoveryRate']){
+        const required=key==='recoveryRate'||(key==='longGapRecoveryRate'&&row.longGapAttempts>0)||(key==='crossSegmentRecoveryRate'&&row.crossSegmentAttempts>0);
+        if((required||row[key]!==null)&&(!Number.isFinite(row[key])||row[key]<0||row[key]>1))invalid.push(label+'.'+key);
+      }
+      if(row.longGapAttempts>row.attempts)invalid.push(label+'.longGapAttempts>attempts');
+      if(row.crossSegmentAttempts>row.attempts)invalid.push(label+'.crossSegmentAttempts>attempts');
+      if(row.failed>row.attempts)invalid.push(label+'.failed>attempts');
+    }
+    if(invalid.length)return {version:VERSION,status:'INSUFFICIENT_EVIDENCE',pass:false,reason:'INVALID_PERSISTENT_IDENTITY_METRICS',invalid};
     if(cfg.requireSameOpportunityCounts&&(b.attempts!==c.attempts||b.longGapAttempts!==c.longGapAttempts||b.crossSegmentAttempts!==c.crossSegmentAttempts)){
       return {version:VERSION,status:'INSUFFICIENT_EVIDENCE',pass:false,reason:'GROUND_TRUTH_REENTRY_OPPORTUNITY_MISMATCH',baseline:{attempts:b.attempts,longGapAttempts:b.longGapAttempts,crossSegmentAttempts:b.crossSegmentAttempts},candidate:{attempts:c.attempts,longGapAttempts:c.longGapAttempts,crossSegmentAttempts:c.crossSegmentAttempts}};
     }

@@ -67,7 +67,7 @@ const identityBaseline={
 }
 
 {
-  const tooSmall={...identityBaseline,groundTruthReentryAttempts:2};
+  const tooSmall={...identityBaseline,groundTruthReentryAttempts:2,groundTruthLongGapAttempts:2};
   const r=Gate.evaluateIdentityEvidence(tooSmall,{...tooSmall});
   assert.equal(r.status,'INSUFFICIENT_EVIDENCE');
   assert.equal(r.reason,'NOT_ENOUGH_GROUND_TRUTH_REENTRY_OPPORTUNITIES');
@@ -94,6 +94,34 @@ const trajectoryCandidate={...trajectoryBaseline,comparablePoints:930,rmseM:1.0,
   assert.equal(r.status,'REJECT');
   assert.equal(r.promote,false);
   assert.equal(r.reason,'PERSISTENT_IDENTITY_PROMOTION_GATE_BLOCKED');
+}
+
+
+// Invalid benchmark evidence must fail closed for both baseline and candidate.
+{
+  const invalidCases=[
+    ['groundTruthReentryRecoveryRate',1.1],
+    ['groundTruthReentryRecoveryRate',-.1],
+    ['groundTruthLongGapRecoveryRate',1.2],
+    ['groundTruthCrossSegmentRecoveryRate',-.1],
+    ['groundTruthFailedReidentifications',-1],
+    ['groundTruthFailedReidentifications',6],
+    ['groundTruthReentryAttempts',2.5],
+    ['groundTruthLongGapAttempts',6],
+    ['groundTruthCrossSegmentAttempts',6],
+    ['groundTruthLongGapRecoveryRate',null]
+  ];
+  for(const [key,value] of invalidCases){
+    for(const side of ['baseline','candidate']){
+      const changed={...identityBaseline,[key]:value};
+      const result=side==='baseline'
+        ?Gate.evaluateIdentityEvidence(changed,identityBaseline)
+        :Gate.evaluateIdentityEvidence(identityBaseline,changed);
+      assert.strictEqual(result.pass,false,key+' '+side);
+      assert.strictEqual(result.status,'INSUFFICIENT_EVIDENCE',key+' '+side);
+      assert.strictEqual(result.reason,'INVALID_PERSISTENT_IDENTITY_METRICS',key+' '+side);
+    }
+  }
 }
 
 console.log('tracking_persistent_identity_promotion_gate_nonregression: PASS');
