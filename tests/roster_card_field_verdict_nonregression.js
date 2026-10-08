@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('assert');
+const Card=require('../player_card_roster_binding_v1.js');
+const good={quality:'FIABLE',publication:{fieldStatus:{distanceM:{status:'FIABLE'}}}};
+assert.equal(Card.fieldQuality(good,'distanceM'),'FIABLE');
+assert.equal(Card.fieldQuality({quality:'FIABLE',publication:{fieldStatus:{distanceM:{status:'PARTIEL'}}}},'distanceM'),'INDISPONIBLE');
+assert.equal(Card.fieldQuality({quality:'FIABLE'},'distanceM'),'INDISPONIBLE');
+assert.equal(Card.fieldQuality({quality:'FIABLE',publication:{fieldStatus:{}}},'distanceM'),'INDISPONIBLE');
+assert.equal(Card.fieldQuality({quality:'FIABLE',publication:{fieldStatus:{distanceM:{status:'INDISPONIBLE'}}}},'distanceM'),'INDISPONIBLE');
+console.log('roster card field verdict: PASS');
