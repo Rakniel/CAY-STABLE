@@ -19,5 +19,5 @@ const source=fs.readFileSync(require.resolve('../club_roster_identity_ui_v1.js')
 assert(source.includes('activeAnalysisScope=scope'),'each tracking bridge instance must get its own analysis scope');
 assert(!source.includes('store.bindings()'),'UI must not read unscoped persisted track IDs');
 assert(!source.includes('store.saveBindings(lastSession.exportBindings());'),'manual confirmation must be scoped');
-assert.strictEqual((source.match(/store.saveBindings\\(lastSession.exportBindings\\(\\),activeAnalysisScope\\)/g)||[]).length,2,'confirm and unbind must save within active analysis');
+assert.strictEqual(source.split('store.saveBindings(lastSession.exportBindings(),activeAnalysisScope)').length-1,2,'confirm and unbind must save within active analysis');
 console.log('analysis-scoped roster bindings non-regression: PASS');
