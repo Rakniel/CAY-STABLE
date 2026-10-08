@@ -59,10 +59,8 @@ function unavailableMetric(reason){
   return {metricCoverage:0,metricCoveredSeconds:0,eligibleSeconds:0,distanceM:null,rawDistanceM:null,avgSpeedKmh:null,maxSpeedKmh:null,sprintCount:null,quality:'INDISPONIBLE',reason:reason||'association roster et participation requises',rosterBound:true,source:'ROSTER_METRIC_PIPELINE_V1'};
 }
 function fieldQuality(metric,key){
-  const scoped=metric?.publication?.fieldStatus?.[key]?.status;
-  if(scoped==='FIABLE')return 'FIABLE';
-  if(scoped==='INDISPONIBLE')return 'INDISPONIBLE';
-  return metric?.quality||'INDISPONIBLE';
+  // Publication is field-scoped: parent FIABLE never overrides a missing/partial field verdict.
+  return metric?.publication?.fieldStatus?.[key]?.status==='FIABLE'?'FIABLE':'INDISPONIBLE';
 }
 function attachRosterMetrics(report,state,projectors,rosterContext){
   if(!report||!Array.isArray(report.players)||!rosterContext)return report;
