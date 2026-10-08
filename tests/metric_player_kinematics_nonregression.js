@@ -1,48 +1,15 @@
 'use strict';
 const assert=require('assert');
 const K=require('../metric_player_kinematics_v1.js');
-
-const point=(time,x,y)=>({time,x,y,segment:1,calibrationConfidence:.9});
-const trajectory=(runs,coverage=.9,confidence=.9)=>({status:'DISPONIBLE',runs,metricCoverage:coverage,avgCalibrationConfidence:confidence});
-
-{
-  const out=K.build(null);
-  assert.equal(out.status,'INDISPONIBLE');
-  assert.equal(out.distanceM,null);
-}
-{
-  const out=K.build(trajectory([[point(0,0,0),point(1,3,4)]],.2,.9));
-  assert.equal(out.status,'INDISPONIBLE');
-  assert.match(out.reason,/couverture/);
-}
-{
-  const out=K.build(trajectory([[point(0,0,0),point(1,3,4)]],.9,.2));
-  assert.equal(out.status,'INDISPONIBLE');
-  assert.match(out.reason,/confiance/);
-}
-{
-  const out=K.build(trajectory([[point(0,0,0),point(1,3,4),point(2,6,8)]]));
-  assert.equal(out.status,'DISPONIBLE');
-  assert.equal(out.distanceM,10);
-  assert.equal(out.avgSpeedKmh,18);
-  assert.equal(out.maxSpeedKmh,18);
-  assert.equal(out.sprintCount,0);
-}
-{
-  const out=K.build(trajectory([[point(0,0,0),point(1,8,0),point(2,16,0),point(3,16,0)]]),{sprintThresholdKmh:25,minSprintDurationSec:2});
-  assert.equal(out.status,'DISPONIBLE');
-  assert.equal(out.sprintCount,1);
-  assert.equal(out.sprintDistanceM,16);
-  assert.equal(out.sprintSeconds,2);
-}
-{
-  const out=K.build(trajectory([[point(0,0,0),point(1,20,0),point(2,21,0)]]));
-  assert.equal(out.status,'DISPONIBLE');
-  assert.equal(out.distanceM,1);
-  assert.equal(out.rejectedPairs,1);
-}
-{
-  const out=K.build(trajectory([[point(0,0,0),point(3,3,0)]]),{maxGapSec:1});
-  assert.equal(out.status,'INDISPONIBLE');
-}
-console.log('metric_player_kinematics_nonregression: PASS');
+const traj=(runs,extra)=>Object.assign({status:'DISPONIBLE',runs,metricCoverage:1,avgCalibrationConfidence:1},extra||{});
+const p=(time,x,y,segmentId)=>({time,x,y,segmentId:segmentId||'A'});
+let r=K.build(null);
+assert.strictEqual(r.status,'INDISPONIBLE');assert.strictEqual(r.distanceM,null);
+r=K.build(traj([[p(0,0,0),p(1,5,0)]],{metricCoverage:.2}));assert.strictEqual(r.status,'INDISPONIBLE');assert.match(r.reason,/couverture/);
+r=K.build(traj([[p(0,0,0),p(1,5,0)]],{avgCalibrationConfidence:.2}));assert.strictEqual(r.status,'INDISPONIBLE');assert.match(r.reason,/calibration/);
+r=K.build(traj([[p(0,0,0),p(1,5,0),p(2,10,0)]]));assert.strictEqual(r.status,'DISPONIBLE');assert.strictEqual(r.distanceM,10);assert.strictEqual(r.validSeconds,2);assert.strictEqual(r.avgSpeedKmh,18);assert.strictEqual(r.maxSpeedKmh,18);assert.strictEqual(r.sprintCount,0);assert.strictEqual(r.interpolation,'NONE');
+r=K.build(traj([[p(0,0,0),p(2,10,0)]]),{maxGapSec:1});assert.strictEqual(r.status,'INDISPONIBLE');assert.strictEqual(r.distanceM,null);
+r=K.build(traj([[p(0,0,0),p(1,20,0)]]));assert.strictEqual(r.status,'INDISPONIBLE');assert.strictEqual(r.distanceM,null);
+r=K.build(traj([[p(0,0,0),p(.5,4,0),p(1,8,0),p(1.5,12,0)]]),{sprintThresholdKmh:25,minSprintDurationSec:1});assert.strictEqual(r.status,'DISPONIBLE');assert.strictEqual(r.sprintCount,1);assert.strictEqual(r.sprintDistanceM,12);assert.strictEqual(r.sprintSeconds,1.5);
+r=K.build(traj([[p(0,0,0),p(.5,4,0)],[p(1,8,0),p(1.5,12,0)]]),{sprintThresholdKmh:25,minSprintDurationSec:1});assert.strictEqual(r.status,'DISPONIBLE');assert.strictEqual(r.sprintCount,0,'separate runs must never be stitched into a sprint');
+console.log('metric player kinematics non-regression: PASS');
