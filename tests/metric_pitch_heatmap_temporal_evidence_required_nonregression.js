@@ -51,4 +51,31 @@ assert.equal(timed.status,'DISPONIBLE');
 assert.equal(timed.quality,'FIABLE');
 assert.equal(timed.heatmapBasis,'TIME_SECONDS');
 
+
+// A zero ratio threshold does not make an unobserved pitch-time interval valid.
+const cutsWithZeroThreshold=Heat.build({fullPath:[
+  {time:0,segment:1,x:.10,y:.10},
+  {time:.5,segment:2,x:.20,y:.20}
+]},{1:projector,2:projector},{minTemporalCoverage:0});
+assert.equal(cutsWithZeroThreshold.temporalCoverage,0);
+assert.equal(cutsWithZeroThreshold.projectedIntervalSeconds,0);
+assert.equal(cutsWithZeroThreshold.status,'INDISPONIBLE');
+assert.equal(cutsWithZeroThreshold.quality,'INDISPONIBLE');
+assert.equal(cutsWithZeroThreshold.projectedPoints.length,0);
+assert.equal(cutsWithZeroThreshold.trajectory.status,'INDISPONIBLE');
+
+const gapWithZeroThreshold=Heat.build({fullPath:[
+  {time:0,segment:1,x:.10,y:.10},
+  {time:5,segment:1,x:.11,y:.11}
+]},{1:projector},{minTemporalCoverage:0,maxDwellGapSec:1});
+assert.equal(gapWithZeroThreshold.projectedIntervalSeconds,0);
+assert.equal(gapWithZeroThreshold.status,'INDISPONIBLE');
+
+const validWithZeroThreshold=Heat.build({fullPath:[
+  {time:0,segment:1,x:.10,y:.10},
+  {time:.5,segment:1,x:.101,y:.101}
+]},{1:projector},{minTemporalCoverage:0});
+assert.equal(validWithZeroThreshold.projectedIntervalSeconds,.5);
+assert.equal(validWithZeroThreshold.status,'DISPONIBLE');
+
 console.log('metric_pitch_heatmap_temporal_evidence_required_nonregression: OK');

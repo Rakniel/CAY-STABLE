@@ -173,7 +173,7 @@
     const observationDefendableScore=confidenceComplete?coverage*avgCalibrationConfidence:null;
     const defendableScore=observationDefendableScore===null?null:observationDefendableScore*(temporalCoverage!==null?temporalCoverage:0);
     const coverageOk=coverage>=minMetricCoverage;
-    const temporalCoverageOk=hasTemporalEvidence&&temporalCoverage!==null&&temporalCoverage>=minTemporalCoverage;
+    const temporalCoverageOk=hasTemporalEvidence&&projectedIntervalSeconds>0&&temporalCoverage!==null&&temporalCoverage>=minTemporalCoverage;
     const confidenceOk=confidenceComplete&&avgCalibrationConfidence>=minCalibrationConfidence;
     const available=projected>0&&coverageOk&&temporalCoverageOk&&confidenceOk;
     const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0);

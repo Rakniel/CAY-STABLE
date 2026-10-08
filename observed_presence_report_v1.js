@@ -19,15 +19,23 @@
     if(!PlayerStats||typeof PlayerStats.projectorInfo!=='function')throw new Error('CAYPlayerStats.projectorInfo requis');
   }
   function frameIdentityAudit(frame){
-    const raw=(frame&&Array.isArray(frame.observedIds)?frame.observedIds:[]).map(Number).filter(Number.isInteger);
+    const source=frame&&Array.isArray(frame.observedIds)?frame.observedIds:[];
+    const raw=[];
+    let invalidIdCount=0;
+    for(const value of source){
+      const numeric=typeof value==='number'&&Number.isSafeInteger(value)?value:
+        (typeof value==='string'&&/^\d+$/.test(value.trim())?Number(value.trim()):null);
+      if(!Number.isSafeInteger(numeric)||numeric<=0){invalidIdCount++;continue;}
+      raw.push(numeric);
+    }
     const unique=[...new Set(raw)];
     const duplicateCount=Math.max(0,raw.length-unique.length);
     const overflowCount=Math.max(0,unique.length-11);
-    const valid=duplicateCount===0&&overflowCount===0;
+    const valid=invalidIdCount===0&&duplicateCount===0&&overflowCount===0;
     return {
-      valid,rawCount:raw.length,uniqueCount:unique.length,duplicateCount,overflowCount,
+      valid,rawCount:source.length,uniqueCount:unique.length,duplicateCount,overflowCount,invalidIdCount,
       ids:valid?unique:[],
-      reason:duplicateCount>0?'DUPLICATE_ID_SAME_FRAME':(overflowCount>0?'MORE_THAN_11_CAY_IDS':'OK')
+      reason:invalidIdCount>0?'INVALID_TRACK_ID':(duplicateCount>0?'DUPLICATE_ID_SAME_FRAME':(overflowCount>0?'MORE_THAN_11_CAY_IDS':'OK'))
     };
   }
   function buildPresenceReport(presenceState,playerCards,projectors){
@@ -35,10 +43,10 @@
     const summary=ObservedPresence.summarize(presenceState);
     const cards=new Map((playerCards||[]).map(p=>[Number(p.id),p]));
     let observedSlots=0,reliableIdentitySlots=0,metricProjectionSlots=0,confidenceSum=0,confidenceSlots=0;
-    let invalidFrames=0,duplicateFrameIds=0,overflowFrameIds=0;
+    let invalidFrames=0,duplicateFrameIds=0,overflowFrameIds=0,invalidTrackIds=0;
     const frames=(presenceState.frames||[]).map(frame=>{
       const audit=frameIdentityAudit(frame);
-      if(!audit.valid){ invalidFrames++; duplicateFrameIds+=audit.duplicateCount; overflowFrameIds+=audit.overflowCount; }
+      if(!audit.valid){ invalidFrames++; duplicateFrameIds+=audit.duplicateCount; overflowFrameIds+=audit.overflowCount; invalidTrackIds+=audit.invalidIdCount; }
       const ids=audit.ids;
       const presentCount=ids.length;
       observedSlots+=presentCount;
@@ -57,7 +65,7 @@
       return {
         time:frame.time,segment:frame.segment,presentIds:ids,presentCount,
         frameEvidenceValid:audit.valid,frameEvidenceReason:audit.reason,
-        rejectedDuplicateIds:audit.duplicateCount,rejectedOverflowIds:audit.overflowCount,
+        rejectedDuplicateIds:audit.duplicateCount,rejectedOverflowIds:audit.overflowCount,rejectedInvalidTrackIds:audit.invalidIdCount,
         presenceCoverage:+clamp01(presentCount/11).toFixed(4),presenceQuality:audit.valid?(presentCount===11?'FIABLE':(presentCount?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE',
         observationConfidence:audit.valid&&frameConfidence!==null?clamp01(frameConfidence):null,
         reliableIdentityCount,uncertainIdentityCount:presentCount-reliableIdentityCount,
@@ -87,7 +95,7 @@
       observationConfidence:observationConfidence===null?null:+observationConfidence.toFixed(4),
       rejectedDuplicateIds:(summary.rejectedDuplicateIds||0)+duplicateFrameIds,
       rejectedOverflow:(summary.rejectedOverflow||0)+overflowFrameIds,
-      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
+      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,invalidTrackIds,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
       players:summary.players,
       policy:{
         source:'OBSERVED_PRESENCE_LEDGER',maxSimultaneousCAY:11,
