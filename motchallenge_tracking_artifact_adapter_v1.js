@@ -142,10 +142,26 @@
 
   function detectionsAt(artifact,timeSec,options={}){
     if(!artifact||artifact.version!==VERSION||!Array.isArray(artifact.frames))return {status:'INDISPONIBLE',reason:'TRACKING_ARTIFACT_INVALID',detections:[]};
-    const t=Number(timeSec);if(!Number.isFinite(t))return {status:'INDISPONIBLE',reason:'TRACKING_TIME_INVALID',detections:[]};
+    if((typeof timeSec!=='number'&&typeof timeSec!=='string')||!finite(timeSec))return {status:'INDISPONIBLE',reason:'TRACKING_TIME_INVALID',detections:[]};
+    const t=Number(timeSec);
     const maxAgeSec=finite(options.maxAgeSec)?Math.max(0,Number(options.maxAgeSec)):Math.max(.04,1/Number(artifact.frameGeometry?.fps||25)*.75);
+    // createArtifact emits strictly ascending frame timestamps. Find the insertion
+    // point in O(log n), then compare only the two adjacent observations.
+    const frames=artifact.frames;
+    let lo=0,hi=frames.length;
+    while(lo<hi){
+      const mid=lo+Math.floor((hi-lo)/2);
+      if(Number(frames[mid].timeSec)<t)lo=mid+1;
+      else hi=mid;
+    }
     let best=null,age=Infinity;
-    for(const f of artifact.frames){const d=Math.abs(Number(f.timeSec)-t);if(d<age){age=d;best=f;}}
+    // Earlier frame wins exact ties, matching the previous linear scan.
+    for(const index of [lo-1,lo]){
+      if(index<0||index>=frames.length)continue;
+      const candidate=frames[index];
+      const d=Math.abs(Number(candidate.timeSec)-t);
+      if(Number.isFinite(d)&&d<age){age=d;best=candidate;}
+    }
     if(!best||age>maxAgeSec)return {status:'INDISPONIBLE',reason:'TRACKING_SAMPLE_STALE',ageSec:best?+age.toFixed(4):null,detections:[]};
     if(best.cayEligible!==true)return {status:'INDISPONIBLE',reason:'CAY_ACTIVE_CAP_EXCEEDED',frame:best.frame,ageSec:+age.toFixed(4),detections:[]};
     const detections=best.tracks.filter(t=>t.cat==='team'||t.cat==='goalkeeper').map(t=>({...t.detection,sourceTrackId:t.sourceTrackId,bboxPx:{...t.bboxPx}}));
