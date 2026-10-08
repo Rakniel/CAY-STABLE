@@ -31,22 +31,47 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
-    const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
+    const keys=['attemptedObservationFrames','usableObservationFrames','unavailableObservationFrames','observationCoverage','observationQuality'];
+    const hasEvidence=keys.some(key=>Object.prototype.hasOwnProperty.call(bridge,key));
+    if(!hasEvidence)return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+
+    // StrictTrackingFrameGuard emits integer counts and coverage rounded to 4 decimals.
+    // Missing/contradictory evidence must never become zero through Number(null).
+    const attempted=bridge.attemptedObservationFrames;
+    const usable=bridge.usableObservationFrames;
+    const unavailable=bridge.unavailableObservationFrames;
+    const coverage=bridge.observationCoverage;
+    const count=v=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0;
+    const issues=[];
+    if(!count(attempted)||attempted===0)issues.push('ATTEMPTED_FRAMES_INVALID');
+    if(!count(usable)||!count(unavailable))issues.push('FRAME_COUNTS_INVALID');
+    if(typeof coverage!=='number'||!Number.isFinite(coverage)||coverage<0||coverage>1)issues.push('OBSERVATION_COVERAGE_INVALID');
+    if(count(attempted)&&attempted>0&&count(usable)&&count(unavailable)){
+      if(usable+unavailable!==attempted)issues.push('FRAME_COUNTS_INCONSISTENT');
+      else if(typeof coverage==='number'&&Number.isFinite(coverage)&&Math.abs(coverage-usable/attempted)>0.00005001)
+        issues.push('OBSERVATION_COVERAGE_INCONSISTENT');
+    }
+
+    const levels=['INDISPONIBLE','PARTIEL','FIABLE'];
+    const declared=String(bridge.observationQuality??'').trim().toUpperCase();
+    if(declared&&!levels.includes(declared))issues.push('OBSERVATION_QUALITY_INVALID');
+    const defensible=issues.length===0;
+    const ratio=defensible?usable/attempted:null;
+    const derived=ratio===null?'INDISPONIBLE':(ratio>=.8?'FIABLE':(ratio>0?'PARTIEL':'INDISPONIBLE'));
+    // A declared status may restrict publication but cannot improve measured quality.
+    const quality=declared&&levels.includes(declared)
+      ?levels[Math.min(levels.indexOf(derived),levels.indexOf(declared))]
+      :derived;
     return {
       available:true,
       quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
+      coverage:defensible?+ratio.toFixed(4):null,
+      attempted:count(attempted)?attempted:0,
+      usable:count(usable)?usable:null,
+      unavailable:count(unavailable)?unavailable:null,
+      reasons:bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'&&!Array.isArray(bridge.unavailableReasons)?{...bridge.unavailableReasons}:{},
+      integrityIssues:issues,
+      declaredQuality:declared||null
     };
   }
 
