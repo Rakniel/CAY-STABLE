@@ -24,9 +24,9 @@
     return 'OBTENIR_TRACKING_DEFENDABLE';
   }
 
-  function rosterEligibility(card){
+  function rosterEligibility(card,rosterRequired=false){
     const rosterScoped=!!card&&Object.prototype.hasOwnProperty.call(card,'roster');
-    if(!rosterScoped)return {clubEligible:true,rosterScoped:false,reason:null};
+    if(!rosterScoped&&!rosterRequired)return {clubEligible:true,rosterScoped:false,reason:null};
     const clubEligible=card?.roster?.status==='LIÉ';
     return {clubEligible,rosterScoped:true,reason:clubEligible?null:'ROSTER_NON_LIE'};
   }
@@ -103,9 +103,9 @@
     };
   }
 
-  function cardEvidence(card){
+  function cardEvidence(card,rosterRequired=false){
     const readiness=card?.firstResults||{};
-    const eligibility=rosterEligibility(card);
+    const eligibility=rosterEligibility(card,rosterRequired);
     const tracking=bool(readiness.tracking);
     const trajectory=bool(readiness.trajectory);
     const heatmap=bool(readiness.heatmap);
@@ -214,7 +214,8 @@
 
   function evaluate(playerCards,options={}){
     const cards=Array.isArray(playerCards?.players)?playerCards.players:[];
-    const evidence=cards.map(cardEvidence);
+    const rosterRequired=cards.some(card=>card&&Object.prototype.hasOwnProperty.call(card,'roster'));
+    const evidence=cards.map(card=>cardEvidence(card,rosterRequired));
     const eligibleEvidence=evidence.filter(item=>item?.clubEligible!==false);
     const count=key=>eligibleEvidence.filter(item=>item[key]===true).length;
     const players=evidence.length;
@@ -256,7 +257,8 @@
 
   function alignPlayerCards(playerCards,testability){
     if(!playerCards||!Array.isArray(playerCards.players))return playerCards;
-    const evidence=Array.isArray(testability?.evidence)?testability.evidence:playerCards.players.map(cardEvidence);
+    const rosterRequired=playerCards.players.some(card=>card&&Object.prototype.hasOwnProperty.call(card,'roster'));
+    const evidence=Array.isArray(testability?.evidence)?testability.evidence:playerCards.players.map(card=>cardEvidence(card,rosterRequired));
     const players=playerCards.players.map((card,index)=>({...card,firstResults:canonicalCardReadiness(card,evidence[index])}));
     const eligibleEvidence=evidence.filter(item=>item?.clubEligible!==false);
     const coreReadyPlayers=eligibleEvidence.filter(item=>item?.pitchVisualCore===true).length;
