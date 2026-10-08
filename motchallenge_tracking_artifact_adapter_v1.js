@@ -82,15 +82,17 @@
   }
 
   function metricAnchorForBox(left,top,bw,bh,cat,width,height){
-    const x=clamp01((left+bw/2)/width);
+    const x=(left+bw/2)/width;
     const isBall=cat==='ball';
-    const y=clamp01((isBall?(top+bh/2):(top+bh))/height);
+    const y=(isBall?(top+bh/2):(top+bh))/height;
+    // Never clamp an off-image anchor into a synthetic CAY player at the border.
+    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1||y<0||y>1)return null;
     return {x,y,kind:isBall?'bbox_center':'bbox_bottom_center'};
   }
 
   function createArtifact(input,options={}){
     const width=Number(options.width),height=Number(options.height),fps=Number(options.fps);
-    if(!(width>0&&height>0&&fps>0))throw new Error('TRACKING_FRAME_GEOMETRY_REQUIRED');
+    if(![width,height,fps].every(Number.isFinite)||!(width>0&&height>0&&fps>0))throw new Error('TRACKING_FRAME_GEOMETRY_REQUIRED');
     const provenance=normalizeProvenance(options.provenance,{requireWeightProvenance:options.requireWeightProvenance!==false});
     const frameBase=Number.isInteger(options.frameBase)?options.frameBase:1;
     const maxCayActive=Math.max(1,Math.min(11,Number(options.maxCayActive)||11));
@@ -119,6 +121,7 @@
       const left=Number(b[0]),top=Number(b[1]),bw=Number(b[2]),bh=Number(b[3]);
       const cat=categoryFor(row,classMap);
       const anchor=metricAnchorForBox(left,top,bw,bh,cat,width,height);
+      if(!anchor){rejectedGeometry++;continue;}
       const {x,y,kind:anchorKind}=anchor;
       const track={sourceTrackId:row.track_id,personId:row.person_id??null,videoId:row.video_id??null,cat,score,bboxPx:{left,top,width:bw,height:bh},anchor:{x,y,kind:anchorKind},detection:{x,y,anchorKind,score,cat,feature}};
       if(!byFrame.has(row.frame))byFrame.set(row.frame,[]);byFrame.get(row.frame).push(track);accepted++;
