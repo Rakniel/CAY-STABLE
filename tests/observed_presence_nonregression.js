@@ -14,11 +14,14 @@ check('IDs are unique on a frame',()=>assert.equal(new Set(f.observedIds).size,1
 // Overflow uses a different newcomer so player 12 can be introduced later and
 // its first-observation timestamp remains an independent regression check.
 f=Presence.observeFrame(s,[...base,{trackId:13,score:.99},{trackId:5,score:.999}],1,{segment:1});
-check('simultaneous CAY count never exceeds eleven',()=>assert.equal(f.observedCount,11));
+check('overflow instant is rejected rather than silently capped to eleven',()=>assert.equal(f.observedCount,0));
+check('overflow instant is explicitly unavailable',()=>assert.equal(f.quality,'INDISPONIBLE'));
+check('overflow source evidence is rejected',()=>assert.equal(f.evidenceValid,false));
+check('overflow count is recorded on the frame',()=>assert.equal(f.rejectedOverflowCount,1));
 check('duplicate ID is rejected before team presence',()=>assert.equal(new Set(f.observedIds).size,f.observedIds.length));
 check('duplicate rejection is diagnosed',()=>assert.equal(s.rejectedDuplicateIds,1));
 check('overflow rejection is diagnosed',()=>assert.equal(s.rejectedOverflow,1));
-check('overflow candidate can enter roster only if actually retained',()=>assert.equal(Presence.summarize(s).players.some(p=>p.id===13),true));
+check('overflow candidates cannot pollute the confirmed roster',()=>assert.equal(Presence.summarize(s).players.some(p=>p.id===13),false));
 
 f=Presence.observeFrame(s,base.slice(0,8),2,{segment:1});
 check('missing players are not silently counted present',()=>assert.equal(f.observedCount,8));

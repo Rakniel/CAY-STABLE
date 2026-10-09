@@ -31,23 +31,34 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
+    const missing={available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    if(!Object.prototype.hasOwnProperty.call(bridge,'attemptedObservationFrames'))return missing;
+    const attempted=bridge.attemptedObservationFrames;
+    const usable=bridge.usableObservationFrames;
+    const unavailable=bridge.unavailableObservationFrames;
+    const coverage=bridge.observationCoverage;
+    const validCount=value=>typeof value==='number'&&Number.isInteger(value)&&value>=0;
     const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
-    return {
-      available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
-    };
+    const countsValid=validCount(attempted)&&attempted>0&&validCount(usable)&&validCount(unavailable)&&usable+unavailable===attempted;
+    const ratio=countsValid?usable/attempted:null;
+    const expectedQuality=ratio===null?'INDISPONIBLE':ratio>=.8?'FIABLE':ratio>0?'PARTIEL':'INDISPONIBLE';
+    // The strict frame guard rounds coverage to four decimals. A mismatched
+    // or missing denominator must never promote stale physical results.
+    const coverageValid=typeof coverage==='number'&&Number.isFinite(coverage)&&coverage>=0&&coverage<=1
+      &&ratio!==null&&Math.abs(coverage-ratio)<=.000051;
+    const qualityValid=!declared||declared===expectedQuality;
+    const reasons=bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'&&!Array.isArray(bridge.unavailableReasons)
+      ?{...bridge.unavailableReasons}:{};
+    if(!countsValid||!coverageValid||!qualityValid){
+      return {
+        available:true,quality:'INDISPONIBLE',coverage:null,
+        attempted:validCount(attempted)?attempted:0,
+        usable:validCount(usable)?usable:null,
+        unavailable:validCount(unavailable)?unavailable:null,
+        reasons:{...reasons,OBSERVATION_EVIDENCE_INCONSISTENT:1}
+      };
+    }
+    return {available:true,quality:expectedQuality,coverage,attempted,usable,unavailable,reasons};
   }
 
   function blockedReadiness(readiness,reasons,action=BLOCKED_ACTION){
