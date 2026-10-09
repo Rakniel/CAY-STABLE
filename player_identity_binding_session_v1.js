@@ -26,7 +26,13 @@ function playerSummary(p){
 function createSession(input={}){
   const team=Domain.createTeam(input.team||{}),trackIds=normalizeTrackIds(input.tracks||[]);
   let bindings=[];
-  const seed=Binding.buildIndex(team,input.bindings||[]);
+  // A saved binding is valid only if its track exists in this analysis.
+  const currentTrackKeys=new Set(trackIds.map(id=>typeof id+':'+String(id)));
+  const currentBindings=(Array.isArray(input.bindings)?input.bindings:[]).filter(raw=>{
+    const id=Binding.normalizeTrackId(raw&&raw.trackId);
+    return id!==null&&currentTrackKeys.has(typeof id+':'+String(id));
+  });
+  const seed=Binding.buildIndex(team,currentBindings);
   bindings=seed.accepted.map(x=>({trackId:x.trackId,playerId:x.playerId,validated:true,confidence:x.confidence,source:x.source||'manual_validation'}));
   function index(){return Binding.buildIndex(team,bindings);}
   function sameTrack(a,b){return typeof a===typeof b&&String(a)===String(b);}
