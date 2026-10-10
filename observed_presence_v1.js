@@ -3,13 +3,14 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYObservedPresence=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   function createState(){
     return {frames:[],players:new Map(),maxObserved:0,rejectedDuplicateIds:0,rejectedOverflow:0};
   }
   function normalizeId(x){
-    const id=Number(x&&x.trackId);
-    return Number.isInteger(id)&&id>0?id:null;
+    const raw=x&&x.trackId;
+    if(typeof raw!=='number'&&(typeof raw!=='string'||!/^\d+$/.test(raw.trim())))return null;
+    const id=Number(raw);
+    return Number.isSafeInteger(id)&&id>0?id:null;
   }
   function observeFrame(state,assignments,time,meta){
     if(!state||!Array.isArray(state.frames)||!(state.players instanceof Map))throw new Error('presence state invalide');
@@ -20,7 +21,7 @@
     const byId=new Map();
     for(const a of assignments||[]){
       const id=normalizeId(a); if(id===null)continue;
-      const score=Number.isFinite(a.score)?clamp01(a.score):null;
+      const score=Number.isFinite(a.score)&&a.score>=0&&a.score<=1?a.score:null;
       const prev=byId.get(id);
       if(prev){ state.rejectedDuplicateIds++; if((score??-1)>(prev.score??-1))byId.set(id,{id,score,cat:a.cat||null}); }
       else byId.set(id,{id,score,cat:a.cat||null});
