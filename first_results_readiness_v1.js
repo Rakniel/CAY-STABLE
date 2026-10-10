@@ -7,8 +7,8 @@
 
   const VERSION='CAY_FIRST_RESULTS_READINESS_V1';
   const REQUIRED=Object.freeze(['playerCards','tracking','coverage','trajectories','heatmaps']);
-  const present=v=>v!==null&&v!==undefined;
-  const finite01=v=>Number.isFinite(Number(v))&&Number(v)>=0&&Number(v)<=1;
+  const present=v=>typeof v==='string'&&v.trim().length>0;
+  const finite01=v=>(typeof v==='number'||(typeof v==='string'&&v.trim().length>0))&&Number.isFinite(Number(v))&&Number(v)>=0&&Number(v)<=1;
 
   function evaluateArtifact(name,artifact){
     if(!artifact||typeof artifact!=='object')return {name,ready:false,reason:'MISSING'};
@@ -21,7 +21,13 @@
   function evaluateFirstResults(artifacts,{minCoverage=0}={}){
     if(!finite01(minCoverage))throw new Error('minCoverage must be between 0 and 1');
     const checks=REQUIRED.map(name=>evaluateArtifact(name,artifacts&&artifacts[name]));
+    const reference=checks.find(check=>check.ready);
+    const referenceAnalysisId=reference?String(artifacts[reference.name].analysisId).trim():null;
     for(const check of checks){
+      if(check.ready&&String(artifacts[check.name].analysisId).trim()!==referenceAnalysisId){
+        check.ready=false;
+        check.reason='ANALYSIS_ID_MISMATCH';
+      }
       if(check.ready&&check.coverage<Number(minCoverage)){
         check.ready=false;
         check.reason='COVERAGE_BELOW_THRESHOLD';
