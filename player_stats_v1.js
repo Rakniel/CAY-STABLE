@@ -22,7 +22,7 @@
     const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
     const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
     const pitchLengthM=positivePitchDimension(entry.pitch?.lengthM,DEFAULT_PITCH_LENGTH_M),pitchWidthM=positivePitchDimension(entry.pitch?.widthM,DEFAULT_PITCH_WIDTH_M);
-    return {validated,project:validated?entry.project:null,source:entry.source||entry.method||null,confidence:Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null,pitchLengthM,pitchWidthM,reason:validated?null:(entry.reason||'projection terrain non validée')};
+    return {validated,project:validated?entry.project:null,source:entry.source||entry.method||null,confidence:Number.isFinite(numericConfidence)&&numericConfidence>=0&&numericConfidence<=1?numericConfidence:null,pitchLengthM,pitchWidthM,reason:validated?null:(entry.reason||'projection terrain non validée')};
   }
   function metricProjectorInfo(entry){
     const info=projectorInfo(entry);

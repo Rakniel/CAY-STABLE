@@ -3,13 +3,14 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYObservedPresence=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   function createState(){
     return {frames:[],players:new Map(),maxObserved:0,rejectedDuplicateIds:0,rejectedOverflow:0};
   }
   function normalizeId(x){
-    const id=Number(x&&x.trackId);
-    return Number.isInteger(id)&&id>0?id:null;
+    const raw=x&&x.trackId;
+    if(typeof raw!=='number'&&(typeof raw!=='string'||!/^\d+$/.test(raw.trim())))return null;
+    const id=Number(raw);
+    return Number.isSafeInteger(id)&&id>0?id:null;
   }
   function observeFrame(state,assignments,time,meta){
     if(!state||!Array.isArray(state.frames)||!(state.players instanceof Map))throw new Error('presence state invalide');
@@ -20,17 +21,20 @@
     const byId=new Map();
     for(const a of assignments||[]){
       const id=normalizeId(a); if(id===null)continue;
-      const score=Number.isFinite(a.score)?clamp01(a.score):null;
+      const score=Number.isFinite(a.score)&&a.score>=0&&a.score<=1?a.score:null;
       const prev=byId.get(id);
       if(prev){ state.rejectedDuplicateIds++; if((score??-1)>(prev.score??-1))byId.set(id,{id,score,cat:a.cat||null}); }
       else byId.set(id,{id,score,cat:a.cat||null});
     }
-    const observed=[...byId.values()].sort((a,b)=>(b.score??-1)-(a.score??-1)||a.id-b.id);
-    if(observed.length>11){ state.rejectedOverflow+=observed.length-11; observed.length=11; }
+    const candidates=[...byId.values()].sort((a,b)=>(b.score??-1)-(a.score??-1)||a.id-b.id);
+    const rejectedOverflowCount=Math.max(0,candidates.length-11);
+    if(rejectedOverflowCount)state.rejectedOverflow+=rejectedOverflowCount;
+    // Reject ambiguous instants instead of inventing eleven confirmed CAY players.
+    const observed=rejectedOverflowCount?[]:candidates;
     const ids=observed.map(x=>x.id);
     const confidenceValues=observed.map(x=>x.score).filter(Number.isFinite);
     const frameConfidence=confidenceValues.length?confidenceValues.reduce((a,b)=>a+b,0)/confidenceValues.length:null;
-    const frame={time:t,segment,observedIds:ids,observedCount:ids.length,coverage:ids.length/11,confidence:frameConfidence===null?null:+frameConfidence.toFixed(4),quality:ids.length===11?'FIABLE':(ids.length?'PARTIEL':'INDISPONIBLE')};
+    const frame={time:t,segment,observedIds:ids,observedCount:ids.length,coverage:ids.length/11,confidence:frameConfidence===null?null:+frameConfidence.toFixed(4),quality:ids.length===11?'FIABLE':(ids.length?'PARTIEL':'INDISPONIBLE'),candidateCount:candidates.length,rejectedOverflowCount,evidenceValid:rejectedOverflowCount===0,evidenceReason:rejectedOverflowCount?'MORE_THAN_11_CAY_IDS':'OK'};
     state.frames.push(frame); state.maxObserved=Math.max(state.maxObserved,ids.length);
     for(const o of observed){
       let p=state.players.get(o.id);

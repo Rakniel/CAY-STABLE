@@ -17,7 +17,8 @@ const numericString=Stats.projectorInfo({validated:true,source:'test',confidence
 assert.equal(numericString.confidence,.72,'a non-blank numeric confidence string remains accepted for backward compatibility');
 
 const boundedHigh=Stats.projectorInfo({validated:true,source:'test',confidence:2,project});
-assert.equal(boundedHigh.confidence,1,'confidence remains clamped to the published 0..1 contract');
+assert.equal(boundedHigh.confidence,null,'out-of-range calibration confidence must remain unavailable, never clamped into metric eligibility');
+assert.equal(Stats.metricProjectorInfo({validated:true,source:'test',confidence:2,project}).metricEligible,false,'out-of-range confidence must not authorize metric publication');
 
 const invalid=Stats.projectorInfo({validated:true,source:'test',confidence:'not-a-number',project});
 assert.equal(invalid.confidence,null,'non-numeric confidence must remain unavailable');

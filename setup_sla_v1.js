@@ -5,11 +5,11 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const REQUIRED=['team','roster','video','analysis','launch','firstResults'];
-  const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const finite=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
   function stage(input,key){
     const raw=input&&input[key]||{};
     const complete=raw.complete===true;
-    const seconds=finite(raw.seconds)?Math.max(0,Number(raw.seconds)):null;
+    const seconds=finite(raw.seconds)&&Number(raw.seconds)>=0?Number(raw.seconds):null;
     return {key,complete,seconds,blocker:complete?null:`ETAPE_${key.replace(/([A-Z])/g,'_$1').toUpperCase()}_INCOMPLETE`};
   }
   function evaluate(input={},options={}){

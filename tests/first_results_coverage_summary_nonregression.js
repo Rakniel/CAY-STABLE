@@ -36,17 +36,13 @@ assert.strictEqual(result.coverageSummary.pitchSpatial.knownPlayers,0,'blank spa
 assert.strictEqual(result.coverageSummary.physicalMetric.knownPlayers,0,'blank physical coverage must remain unknown');
 assert.strictEqual(result.status,'PHYSICAL_TESTABLE','coverage remains audit-only; this guard must not invent a new readiness threshold');
 
-const clampedReady=card('D',{tracking:true,trajectory:true,heatmap:true,distance:true,avgSpeed:true,maxSpeed:true,sprints:true,physicalMetrics:true},{presence:{trackingCoverage:150},pitchVisuals:{spatialCoverage:-10,physicalMetricCoverage:125}});
-result=Gate.evaluate({players:[clampedReady]});
-assert.strictEqual(result.coverageSummary.tracking.minPct,100);
-assert.strictEqual(result.coverageSummary.tracking.avgPct,100);
-assert.strictEqual(result.coverageSummary.tracking.maxPct,100);
-assert.strictEqual(result.coverageSummary.tracking.weightedAvgPct,null,'no participation duration means no temporal weighting is fabricated');
-assert.strictEqual(result.coverageSummary.tracking.durationKnownPlayers,0);
-assert.strictEqual(result.coverageSummary.tracking.durationUnknownPlayers,1);
-assert.strictEqual(result.coverageSummary.tracking.temporalWeightingComplete,false);
-assert.strictEqual(result.coverageSummary.tracking.knownParticipationSharePct,null);
-assert.strictEqual(result.coverageSummary.pitchSpatial.avgPct,0);
-assert.strictEqual(result.coverageSummary.physicalMetric.avgPct,100);
+const invalidReady=card('D',{tracking:true,trajectory:true,heatmap:true,distance:true,avgSpeed:true,maxSpeed:true,sprints:true,physicalMetrics:true},{presence:{trackingCoverage:150},pitchVisuals:{spatialCoverage:-10,physicalMetricCoverage:125}});
+result=Gate.evaluate({players:[invalidReady]});
+assert.strictEqual(result.coverageSummary.tracking.knownPlayers,0);
+assert.strictEqual(result.coverageSummary.tracking.unknownPlayers,1);
+assert.strictEqual(result.coverageSummary.tracking.avgPct,null);
+assert.strictEqual(result.coverageSummary.pitchSpatial.avgPct,null);
+assert.strictEqual(result.coverageSummary.physicalMetric.avgPct,null);
+assert.strictEqual(result.status,'PHYSICAL_TESTABLE','audit-only coverage must not invent a readiness threshold');
 
 console.log('first results coverage summary non-regression: PASS');

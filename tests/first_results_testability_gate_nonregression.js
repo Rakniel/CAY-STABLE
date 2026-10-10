@@ -72,10 +72,10 @@ assert.deepStrictEqual(result.evidence[0].coverage,{trackingPct:87,pitchSpatialP
 assert.strictEqual(result.evidence[0].nextAction,'PREMIERS_RESULTATS_PRETS');
 assert.strictEqual(result.nextAction,'PREMIERS_RESULTATS_PRETS');
 
-const clamped=Gate.coverageEvidence({presence:{trackingCoverage:120},pitchVisuals:{spatialCoverage:-5,physicalMetricCoverage:'50'}});
-assert.strictEqual(clamped.trackingPct,100);
-assert.strictEqual(clamped.pitchSpatialPct,0);
-assert.strictEqual(clamped.physicalMetricPct,50);
+const invalid=Gate.coverageEvidence({presence:{trackingCoverage:120},pitchVisuals:{spatialCoverage:-5,physicalMetricCoverage:'50'}});
+assert.strictEqual(invalid.trackingPct,null);
+assert.strictEqual(invalid.pitchSpatialPct,null);
+assert.strictEqual(invalid.physicalMetricPct,50);
 
 result=Gate.evaluate({players:[visualReady,fullPhysical]},{minCorePlayers:2,minMetricPlayers:2});
 assert.strictEqual(result.coreTestable,true,'explicit core threshold must count only complete tracking+trajectory+heatmap players');
