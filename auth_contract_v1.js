@@ -6,6 +6,7 @@
   'use strict';
   const ROLES=new Set(['EDUCATOR','MANAGER','ADMIN']);
   const clean=v=>String(v==null?'':v).trim();
+  const identityClaim=v=>typeof v==='string'?v.trim():'';
   function assertNoSecrets(value,path='root',seen=new Set()){
     if(!value||typeof value!=='object')return;
     if(seen.has(value))return;seen.add(value);
@@ -18,11 +19,14 @@
   }
   function createAuthState(raw={}){
     assertNoSecrets(raw);
-    const role=clean(raw.role).toUpperCase();
+    const role=identityClaim(raw.role).toUpperCase();
     if(role&&!ROLES.has(role))throw new Error('AUTH_ROLE_INVALID');
     const backendConfigured=raw.backendConfigured===true;
-    const authenticated=backendConfigured&&raw.authenticated===true;
-    return {version:'CAY_AUTH_CONTRACT_V1',backendConfigured,authenticated,userId:authenticated?clean(raw.userId)||null:null,role:authenticated?(role||null):null,provider:backendConfigured?(clean(raw.provider)||null):null,status:!backendConfigured?'BACKEND_REQUIRED':authenticated?'AUTHENTICATED':'SIGNED_OUT',policy:'NO_FAKE_AUTH_NO_PLAINTEXT_SECRET_FRONTEND'};
+    const userId=identityClaim(raw.userId);
+    const provider=identityClaim(raw.provider);
+    // UI contract only; a real backend must verify sessions.
+    const authenticated=backendConfigured&&raw.authenticated===true&&!!userId&&!!role&&!!provider;
+    return {version:'CAY_AUTH_CONTRACT_V1',backendConfigured,authenticated,userId:authenticated?userId:null,role:authenticated?role:null,provider:backendConfigured?(provider||null):null,status:!backendConfigured?'BACKEND_REQUIRED':authenticated?'AUTHENTICATED':'SIGNED_OUT',policy:'NO_FAKE_AUTH_NO_PLAINTEXT_SECRET_FRONTEND; CONTRACT_ONLY_BACKEND_SESSION_VERIFICATION_REQUIRED'};
   }
   function requireAuthenticated(state){
     const auth=createAuthState(state||{});

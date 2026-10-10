@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict');
+const E=require('../tracking_trackeval_export_v1.js');
+const box={left:1,top:2,width:20,height:40};
+const row=(frame,trackId=7)=>({frame,assignments:[{trackId,cat:'team',bboxPx:box}]});
+for(const assignments of [undefined,null,{},'',false,7])assert.equal(E.frameRows({frame:1,assignments}).reason,'TRACKING_ASSIGNMENTS_REQUIRED');
+for(const frames of [[row(1),row(1)],[row(1),row('1')],[row(3),row(2),row(3)]])assert.equal(E.exportMOT(frames).reason,'MOT_DUPLICATE_FRAME');
+assert.equal(E.frameRows(row(1,'bad')).reason,'TRACKING_ID_INVALID');
+assert.equal(E.frameRows({frame:1,assignments:[{trackId:7,cat:'team',bboxPx:box},{trackId:7,cat:'team',bboxPx:box}]}).reason,'TRACKING_DUPLICATE_ID');
+assert.equal(E.exportMOT([row(2),row(1)]).status,'DISPONIBLE');
+console.log('tracking_trackeval_frame_integrity_nonregression: PASS');

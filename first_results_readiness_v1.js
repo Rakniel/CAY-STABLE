@@ -15,6 +15,8 @@
     if(artifact.available!==true)return {name,ready:false,reason:artifact.reason||'UNAVAILABLE'};
     if(!finite01(artifact.coverage))return {name,ready:false,reason:'COVERAGE_NOT_DEFENDABLE'};
     if(!present(artifact.analysisId)||!present(artifact.inputFingerprint))return {name,ready:false,reason:'PROVENANCE_INCOMPLETE'};
+    // No observed evidence exists at zero coverage, even if minCoverage=0.
+    if(Number(artifact.coverage)===0)return {name,ready:false,reason:'NO_USABLE_COVERAGE'};
     return {name,ready:true,reason:'READY',coverage:Number(artifact.coverage)};
   }
 
