@@ -41,5 +41,22 @@ f=Presence.frameAtOrBefore(s,4);
 check('empty frame remains unavailable rather than estimated',()=>assert.equal(f.quality,'INDISPONIBLE'));
 check('empty frame has zero observed players',()=>assert.equal(f.observedCount,0));
 check('segment provenance is retained',()=>assert.equal(f.segment,2));
+
+const invalidInputs=Presence.createState();
+const sanitized=Presence.observeFrame(invalidInputs,[
+  {trackId:true,score:.99},
+  {trackId:[4],score:.99},
+  {trackId:'1',score:2},
+  {trackId:2,score:-.25},
+  {trackId:3,score:.8}
+],5,{segment:1});
+check('boolean and array track IDs cannot fabricate players',()=>assert.deepStrictEqual([...sanitized.observedIds].sort((a,b)=>a-b),[1,2,3]));
+check('out-of-range scores cannot fabricate observation confidence',()=>assert.strictEqual(sanitized.confidence,.8));
+const sanitizedPlayers=Presence.summarize(invalidInputs).players;
+check('confidence above one remains unknown',()=>assert.strictEqual(sanitizedPlayers.find(p=>p.id===1).identityObservationConfidence,null));
+check('negative confidence remains unknown',()=>assert.strictEqual(sanitizedPlayers.find(p=>p.id===2).identityObservationConfidence,null));
+const duplicateInput=Presence.createState();
+const chosen=Presence.observeFrame(duplicateInput,[{trackId:1,score:2},{trackId:1,score:.7}],0);
+check('valid duplicate confidence outranks invalid score',()=>assert.strictEqual(chosen.confidence,.7));
 console.log(`observed presence: ${pass} PASS / ${fail} FAIL`);
 if(fail)process.exit(1);
