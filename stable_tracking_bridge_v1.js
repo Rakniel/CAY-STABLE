@@ -19,7 +19,7 @@
     return (w/h)>1.05?{x:x+w*.5,y:y+h*.64}:{x:x+w*.5,y:y+h*.96};
   }
   function normalizeDetection(d,width,height){
-    if(!d)return null;
+    if(!d||!['team','goalkeeper'].includes(d.cat))return null;
     let x=Number(d.x),y=Number(d.y);
     if(!(Number.isFinite(x)&&Number.isFinite(y))){
       const a=boxAnchor(d.b||d.box);
@@ -31,6 +31,7 @@
   }
   function detectionEligibility(d){
     if(!d)return {accepted:false,reason:'invalid_detection'};
+    if(d.cat!=='team'&&d.cat!=='goalkeeper')return {accepted:false,reason:'non_cay_category'};
     const zone=String(d.sourceZone||d.zone||'').toLowerCase();
     const role=String(d.sceneRole||d.role||'').toLowerCase();
     if(d.onField===false||d.insidePlayableArea===false||d.fieldEligible===false)return {accepted:false,reason:'outside_playable_field'};
