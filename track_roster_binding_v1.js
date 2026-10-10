@@ -8,7 +8,7 @@
   const MIN_RELIABLE_CONFIDENCE=.8;
   const ALLOWED_SOURCES=new Set(['MANUAL','JERSEY_NUMBER','REID_FUSED','MANUAL_PLUS_REID']);
   const clean=v=>String(v==null?'':v).trim();
-  const finite01=v=>Number.isFinite(Number(v))?Math.max(0,Math.min(1,Number(v))):null;
+  const finite01=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&v.trim()!==''))return null;const n=Number(v);return Number.isFinite(n)&&n>=0&&n<=1?n:null;};
 
   function createState(raw={}){
     const bindings=Array.isArray(raw.bindings)?raw.bindings.map(normalizeBinding):[];
@@ -20,7 +20,7 @@
     const trackId=clean(raw.trackId),playerId=clean(raw.playerId),source=clean(raw.source).toUpperCase();
     const confidence=finite01(raw.confidence);
     const confirmed=raw.confirmed===true;
-    const atMs=Number.isFinite(Number(raw.atMs))?Number(raw.atMs):null;
+    const atMs=(typeof raw.atMs==='number'||(typeof raw.atMs==='string'&&raw.atMs.trim()!==''))&&Number.isFinite(Number(raw.atMs))?Number(raw.atMs):null;
     const evidence=Array.isArray(raw.evidence)?raw.evidence.map(clean).filter(Boolean):[];
     if(!trackId)throw new Error('TRACK_BINDING_TRACK_REQUIRED');
     if(!playerId)throw new Error('TRACK_BINDING_PLAYER_REQUIRED');
@@ -69,7 +69,7 @@
   function resolveAtTime(state,trackId,participation,atMs){
     const resolved=resolve(state,trackId);
     if(resolved.status!=='FIABLE')return resolved;
-    const time=Number(atMs);
+    const time=(typeof atMs==='number'||(typeof atMs==='string'&&atMs.trim()!==''))?Number(atMs):NaN;
     if(!Number.isFinite(time))return {...resolved,status:'INDISPONIBLE',playerId:null,reason:'temps observation invalide'};
     const intervals=participation?.byPlayerId?.[String(resolved.playerId)];
     if(!Array.isArray(intervals))return {...resolved,status:'INDISPONIBLE',playerId:null,reason:'fenêtres de participation indisponibles'};
