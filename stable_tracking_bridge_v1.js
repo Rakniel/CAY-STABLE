@@ -13,14 +13,17 @@
     if(!Core||typeof Core.createState!=='function'||typeof Core.assignFrame!=='function')throw new Error('CAYTrackingCore indisponible');
     if(!Stats||typeof Stats.buildReport!=='function')throw new Error('CAYPlayerStats indisponible');
   }
+  const validNumeric=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
   function boxAnchor(b){
     if(!b)return null;
-    const w=Math.max(1,Number(b.w)||0),h=Math.max(1,Number(b.h)||0),x=Number(b.x)||0,y=Number(b.y)||0;
+    if(![b.x,b.y,b.w,b.h].every(validNumeric))return null;
+    const w=Number(b.w),h=Number(b.h),x=Number(b.x),y=Number(b.y);
+    if(w<=0||h<=0)return null;
     return (w/h)>1.05?{x:x+w*.5,y:y+h*.64}:{x:x+w*.5,y:y+h*.96};
   }
   function normalizeDetection(d,width,height){
     if(!d||!['team','goalkeeper'].includes(d.cat))return null;
-    let x=Number(d.x),y=Number(d.y);
+    let x=validNumeric(d.x)?Number(d.x):NaN,y=validNumeric(d.y)?Number(d.y):NaN;
     if(!(Number.isFinite(x)&&Number.isFinite(y))){
       const a=boxAnchor(d.b||d.box);
       if(!a||!(width>0&&height>0))return null;
