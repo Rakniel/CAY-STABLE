@@ -5,10 +5,11 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const RAW_SPIKE_THRESHOLD_KMH=55;
-  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const finite=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
   const present=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='');
   const distanceM=(a,b)=>Math.hypot(Number(b&&b.x)-Number(a&&a.x),Number(b&&b.y)-Number(a&&a.y));
-  const sameSegmentOrUnspecified=(a,b)=>!present(a&&a.segment)||!present(b&&b.segment)||String(a.segment)===String(b.segment);
+  const segmentValid=v=>!present(v)||(typeof v==='number'&&Number.isFinite(v))||(typeof v==='string'&&v.trim()!=='');
+  const sameSegmentOrUnspecified=(a,b)=>{const sa=a&&a.segment,sb=b&&b.segment;return segmentValid(sa)&&segmentValid(sb)&&(!present(sa)||!present(sb)||String(sa)===String(sb));};
   function transitionSpeedKmh(a,b){
     if(!finite(a&&a.time)||!finite(b&&b.time)||!finite(a&&a.x)||!finite(a&&a.y)||!finite(b&&b.x)||!finite(b&&b.y))return null;
     const dt=Number(b.time)-Number(a.time);
