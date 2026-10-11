@@ -3,7 +3,7 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYSoccerNetGSRExport=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const finite=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
   const VALID_ROLES=new Set(['player','goalkeeper','referee','other']);
   const round=(v,n=4)=>Number(Number(v).toFixed(n));
 
@@ -12,7 +12,7 @@
     return VALID_ROLES.has(role)?role:null;
   }
   function normalizeJersey(value){
-    if(value===null||value===undefined||value==='')return null;
+    if(!finite(value))return null;
     const n=Number(value);
     return Number.isInteger(n)&&n>=0&&n<=99?n:null;
   }
@@ -32,10 +32,10 @@
 
   function exportGSR(observations,options){
     const cfg={
-      fps:finite(options&&options.fps)?Number(options.fps):25,
+      fps:finite(options&&options.fps)&&Number(options.fps)>0?Number(options.fps):25,
       requireReliableIdentity:options&&options.requireReliableIdentity===false?false:true,
       requireMetricValidation:options&&options.requireMetricValidation===false?false:true,
-      maxCAYSimultaneous:finite(options&&options.maxCAYSimultaneous)?Number(options.maxCAYSimultaneous):11
+      maxCAYSimultaneous:finite(options&&options.maxCAYSimultaneous)&&Number.isInteger(Number(options.maxCAYSimultaneous))&&Number(options.maxCAYSimultaneous)>=1?Math.min(11,Number(options.maxCAYSimultaneous)):11
     };
     const rows=[];
     const rejectedReasons={};
