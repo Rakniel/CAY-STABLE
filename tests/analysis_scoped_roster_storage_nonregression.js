@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('assert');
+const UI=require('../club_roster_identity_ui_v1.js');
+const map=new Map(),storage={getItem:k=>map.has(k)?map.get(k):null,setItem:(k,v)=>map.set(k,String(v))};
+const first={trackId:7,playerId:'p1',validated:true,confidence:1,source:'coach_click'};
+storage.setItem(UI.BINDING_KEY,JSON.stringify([first]));
+const store=UI.createStore(storage);
+assert.deepStrictEqual(store.bindings(),[],'legacy unscoped key is ignored');
+assert.deepStrictEqual(store.bindings('video-A'),[]);
+assert.deepStrictEqual(store.saveBindings([first]),[],'unscoped writes rejected');
+store.saveBindings([first],'video-A');
+assert.strictEqual(store.bindings('video-A')[0].playerId,'p1');
+assert.deepStrictEqual(store.bindings('video-B'),[],'different analysis starts unlinked');
+store.saveBindings([{...first,playerId:'p5'}],'video-B');
+assert.strictEqual(store.bindings('video-B')[0].playerId,'p5');
+assert.strictEqual(store.bindings('video-A')[0].playerId,'p1');
+assert.deepStrictEqual(store.bindings(''),[]);
+console.log('analysis-scoped storage non-regression: PASS');
