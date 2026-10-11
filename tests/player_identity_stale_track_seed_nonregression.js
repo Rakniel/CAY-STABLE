@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('assert');
+const Session=require('../player_identity_binding_session_v1.js');
+const team={id:'cay',name:'C.A. Yenne',roster:[{id:'p1',displayName:'Gardien',number:1,primaryPosition:'GK'},{id:'p5',displayName:'Milieu',number:5,primaryPosition:'CM'}]};
+const stale={trackId:777,playerId:'p1',validated:true,confidence:1,source:'old_video'};
+const current={trackId:'7',playerId:'p1',validated:true,confidence:1,source:'coach_click'};
+const s=Session.createSession({team,tracks:[7],bindings:[stale,current]});
+assert.strictEqual(s.summary().linked,1);
+assert.strictEqual(s.exportBindings()[0].trackId,7,'current track must win');
+assert.strictEqual(s.summary().complete,true);
+const onlyStale=Session.createSession({team,tracks:[7],bindings:[stale]});
+assert.strictEqual(onlyStale.summary().linked,0);
+assert.strictEqual(onlyStale.summary().complete,false);
+assert(onlyStale.candidates(7).some(p=>p.id==='p1'));
+assert.deepStrictEqual(Session.createSession({team,tracks:[],bindings:[current]}).exportBindings(),[]);
+console.log('stale track seed guard: PASS');
