@@ -8,6 +8,14 @@
   const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   const finiteOptionOr=(value,fallback)=>isPresentFinite(value)?Number(value):fallback;
   const nonNegativeOptionOr=(value,fallback)=>isPresentFinite(value)&&Number(value)>=0?Number(value):fallback;
+  // Limit UI grid allocation; metric evidence, calibration and pitch dimensions are unchanged.
+  const MAX_HEATMAP_GRID_DIMENSION=128;
+  const gridDimension=(value,fallback)=>{
+    if(typeof value!=='number'&&typeof value!=='string')return fallback;
+    if(typeof value==='string'&&!value.trim())return fallback;
+    const n=Number(value);
+    return Number.isFinite(n)&&n!==0?Math.max(1,Math.min(MAX_HEATMAP_GRID_DIMENSION,Math.floor(n))):fallback;
+  };
   const RAW_SPIKE_THRESHOLD_KMH=Number.isFinite(Number(Motion?.RAW_SPIKE_THRESHOLD_KMH))?Number(Motion.RAW_SPIKE_THRESHOLD_KMH):55;
   const qualityFromEvidenceScore=score=>isPresentFinite(score)?(Number(score)>=.8?'FIABLE':Number(score)>0?'PARTIEL':'INDISPONIBLE'):'INDISPONIBLE';
   function projectorInfo(entry){
@@ -116,8 +124,8 @@
   function build(track,projectors,options){
     const opts={pitchLengthM:105,pitchWidthM:68,cols:6,rows:4,minMetricCoverage:.35,minTemporalCoverage:null,minCalibrationConfidence:.5,maxDwellGapSec:1,maxRawSpeedKmh:RAW_SPIKE_THRESHOLD_KMH,...(options||{})};
     const path=Array.isArray(track?.fullPath)?track.fullPath:[];
-    const cols=Math.max(1,Math.floor(Number(opts.cols)||6));
-    const rows=Math.max(1,Math.floor(Number(opts.rows)||4));
+    const cols=gridDimension(opts.cols,6);
+    const rows=gridDimension(opts.rows,4);
     const pitchLengthM=Math.max(1,Number(opts.pitchLengthM)||105);
     const pitchWidthM=Math.max(1,Number(opts.pitchWidthM)||68);
     const minMetricCoverage=clamp(nonNegativeOptionOr(opts.minMetricCoverage,.35),0,1);
