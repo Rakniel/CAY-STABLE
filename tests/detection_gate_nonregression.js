@@ -1,12 +1,14 @@
 const assert=require('assert');
 const Bridge=require('../stable_tracking_bridge_v1.js');
 
-assert.deepStrictEqual(Bridge.detectionEligibility({onField:false}),{accepted:false,reason:'outside_playable_field'});
-assert.deepStrictEqual(Bridge.detectionEligibility({isBench:true}),{accepted:false,reason:'bench'});
-assert.deepStrictEqual(Bridge.detectionEligibility({sourceZone:'stands'}),{accepted:false,reason:'spectator'});
-assert.deepStrictEqual(Bridge.detectionEligibility({yellowDetailOnly:true}),{accepted:false,reason:'yellow_detail_only'});
-assert.deepStrictEqual(Bridge.detectionEligibility({teamEvidenceValid:false}),{accepted:false,reason:'team_evidence_rejected'});
+assert.deepStrictEqual(Bridge.detectionEligibility({cat:'team',onField:false}),{accepted:false,reason:'outside_playable_field'});
+assert.deepStrictEqual(Bridge.detectionEligibility({cat:'team',isBench:true}),{accepted:false,reason:'bench'});
+assert.deepStrictEqual(Bridge.detectionEligibility({cat:'team',sourceZone:'stands'}),{accepted:false,reason:'spectator'});
+assert.deepStrictEqual(Bridge.detectionEligibility({cat:'team',yellowDetailOnly:true}),{accepted:false,reason:'yellow_detail_only'});
+assert.deepStrictEqual(Bridge.detectionEligibility({cat:'team',teamEvidenceValid:false}),{accepted:false,reason:'team_evidence_rejected'});
 assert.strictEqual(Bridge.detectionEligibility({cat:'team'}).accepted,true);
+assert.deepStrictEqual(Bridge.detectionEligibility({onField:false}),{accepted:false,reason:'non_cay_category'},'missing category excluded');
+assert.deepStrictEqual(Bridge.detectionEligibility({cat:'opponent',onField:false}),{accepted:false,reason:'non_cay_category'},'opponent excluded');
 
 assert.strictEqual(Bridge.normalizeDetection({cat:'team',x:-.01,y:.5},1920,1080),null,'coordonnée x négative rejetée au lieu d être clampée');
 assert.strictEqual(Bridge.normalizeDetection({cat:'team',x:1.01,y:.5},1920,1080),null,'coordonnée x > 1 rejetée au lieu d être clampée');
