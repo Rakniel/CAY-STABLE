@@ -26,7 +26,7 @@
   });
 
   const present=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='');
-  const finitePresent=v=>present(v)&&Number.isFinite(Number(v));
+  const finitePresent=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
   const validStage=stage=>STAGES.includes(stage);
 
   function normalizeSpatialReference(value){
@@ -34,6 +34,7 @@
     if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('spatialReference object required');
     if(!present(value.coordinateSystem))throw new Error('spatialReference.coordinateSystem required');
     const hasLength=finitePresent(value.pitchLengthM),hasWidth=finitePresent(value.pitchWidthM);
+    if((present(value.pitchLengthM)&&!hasLength)||(present(value.pitchWidthM)&&!hasWidth))throw new Error('spatialReference pitch dimensions must be finite numbers');
     if(hasLength!==hasWidth)throw new Error('spatialReference pitch dimensions must be provided together');
     const pitchLengthM=hasLength?Number(value.pitchLengthM):null;
     const pitchWidthM=hasWidth?Number(value.pitchWidthM):null;
