@@ -53,12 +53,12 @@
     const knownPlayers=knownRows.length;
     const unknownPlayers=Math.max(0,eligiblePlayers-knownPlayers);
     const knownPlayerSharePct=eligiblePlayers?+(knownPlayers/eligiblePlayers*100).toFixed(2):null;
-    const durationRows=rows.filter(item=>finite(item?.coverage?.participationSeconds)&&Number(item.coverage.participationSeconds)>0);
+    const durationRows=rows.filter(item=>duration(item?.coverage?.participationSeconds)!==null&&Number(item.coverage.participationSeconds)>0);
     const durationKnownPlayers=durationRows.length;
     const durationUnknownPlayers=Math.max(0,eligiblePlayers-durationKnownPlayers);
     const durationKnownPlayerSharePct=eligiblePlayers?+(durationKnownPlayers/eligiblePlayers*100).toFixed(2):null;
     const temporalWeightingComplete=eligiblePlayers>0&&durationKnownPlayers===eligiblePlayers;
-    const weightedRows=knownRows.filter(item=>finite(item?.coverage?.participationSeconds)&&Number(item.coverage.participationSeconds)>0);
+    const weightedRows=knownRows.filter(item=>duration(item?.coverage?.participationSeconds)!==null&&Number(item.coverage.participationSeconds)>0);
     const knownParticipationSeconds=weightedRows.reduce((sum,item)=>sum+Number(item.coverage.participationSeconds),0);
     const eligibleParticipationSeconds=durationRows.reduce((sum,item)=>sum+Number(item.coverage.participationSeconds),0);
     const weightedAvgPct=knownParticipationSeconds
