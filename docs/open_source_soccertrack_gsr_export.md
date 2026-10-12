@@ -35,3 +35,13 @@ A bespoke one-off conversion script for every future GSR/MOT benchmark. CAY-STAB
 
 ## Status
 Integrated on feature branch with dedicated non-regression tests. Promotion to `main` requires the full CAY-STABLE CI to pass.
+## 2026-10-12 — GSR per-frame identity integrity
+
+- Upstream design reference: SoccerTrack v2, https://github.com/AtomScott/SoccerTrack-v2 ; code MIT, data CC BY 4.0. Audited existing CAY flat GSR contract, not upstream source code.
+- Existing implementation extended: `soccernet_gsr_export_v1.js` (no second exporter, no new dependency, no external source/weights/data copied).
+- Change: only finite numeric or nonblank string track IDs are accepted. After all existing identity, metric and role checks, a repeated normalized track ID in one observation frame rejects that entire frame; earlier rows from that frame are not emitted. Numeric/string aliases (7 and "7") count as the same ID. IDs can reappear across different frames, as tracking requires.
+- Provenance: CAY-owned clean-room change against the existing SoccerTrack-compatible export. No external package/version is imported; the upstream version is a design reference only.
+- Baseline: 6/6 malformed/duplicate identity cases incorrectly published rows. After: 0/6. New test has 29 assertions; all 3 focused GSR test suites passed 5 local repetitions, including syntax checks. Full GitHub CI and real-video benchmarks still required.
+- Expected impact: prevents duplicated per-frame identity rows from polluting downstream MOT/GSR evaluation and coverage. Time saved is not measured; no accuracy uplift is claimed.
+- Risk: if a detector produces two otherwise-valid detections with the same track ID, the full observation frame is now unavailable, intentionally fail-closed. This is stricter than silently dropping a duplicate.
+- Status: validated locally, integration branch only until CI is confirmed.

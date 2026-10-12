@@ -26,7 +26,13 @@ function playerSummary(p){
 function createSession(input={}){
   const team=Domain.createTeam(input.team||{}),trackIds=normalizeTrackIds(input.tracks||[]);
   let bindings=[];
-  const seed=Binding.buildIndex(team,input.bindings||[]);
+  // Obsolete tracks cannot reserve roster players or count as current links.
+  const currentKeys=new Set(trackIds.map(id=>typeof id+':'+String(id)));
+  const activeBindings=(Array.isArray(input.bindings)?input.bindings:[]).filter(raw=>{
+    const id=Binding.normalizeTrackId(raw&&raw.trackId);
+    return id!==null&&currentKeys.has(typeof id+':'+String(id));
+  });
+  const seed=Binding.buildIndex(team,activeBindings);
   bindings=seed.accepted.map(x=>({trackId:x.trackId,playerId:x.playerId,validated:true,confidence:x.confidence,source:x.source||'manual_validation'}));
   function index(){return Binding.buildIndex(team,bindings);}
   function sameTrack(a,b){return typeof a===typeof b&&String(a)===String(b);}

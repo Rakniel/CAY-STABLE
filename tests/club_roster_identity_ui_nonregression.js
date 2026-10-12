@@ -26,8 +26,10 @@ assert.deepStrictEqual(store.team().defaultLineup,['p8','p9'],'selected on-field
 assert.deepStrictEqual(store.team().bench,['p12'],'bench selection must survive storage round-trip');
 assert.strictEqual(Domain.validateLineup(store.team()).valid,true,'persisted roster state must remain launch-valid');
 
-store.saveBindings([{trackId:3,playerId:'p8',validated:true,confidence:1,source:'coach_click'}]);
-assert.deepStrictEqual(store.bindings(),[{trackId:3,playerId:'p8',validated:true,confidence:1,source:'coach_click'}]);
+store.saveBindings([{trackId:3,playerId:'p8',validated:true,confidence:1,source:'coach_click'}],'analysis-1');
+assert.deepStrictEqual(store.bindings('analysis-1'),[{trackId:3,playerId:'p8',validated:true,confidence:1,source:'coach_click'}]);
+assert.deepStrictEqual(store.bindings('analysis-2'),[],'other analyses cannot inherit track IDs');
+assert.deepStrictEqual(store.bindings(),[],'legacy global bindings are not trusted');
 assert(!UI.TEAM_KEY.toLowerCase().includes('password'));
 assert(!UI.BINDING_KEY.toLowerCase().includes('password'));
 

@@ -23,11 +23,12 @@
     const unique=[...new Set(raw)];
     const duplicateCount=Math.max(0,raw.length-unique.length);
     const overflowCount=Math.max(0,unique.length-11);
-    const valid=duplicateCount===0&&overflowCount===0;
+    const sourceOverflowCount=Number.isSafeInteger(frame?.rejectedOverflowCount)&&frame.rejectedOverflowCount>0?frame.rejectedOverflowCount:0;
+    const valid=duplicateCount===0&&overflowCount===0&&sourceOverflowCount===0&&frame?.evidenceValid!==false;
     return {
-      valid,rawCount:raw.length,uniqueCount:unique.length,duplicateCount,overflowCount,
+      valid,rawCount:raw.length,uniqueCount:unique.length,duplicateCount,overflowCount,sourceOverflowCount,
       ids:valid?unique:[],
-      reason:duplicateCount>0?'DUPLICATE_ID_SAME_FRAME':(overflowCount>0?'MORE_THAN_11_CAY_IDS':'OK')
+      reason:sourceOverflowCount>0||overflowCount>0?'MORE_THAN_11_CAY_IDS':(duplicateCount>0?'DUPLICATE_ID_SAME_FRAME':(frame?.evidenceValid===false?'FRAME_EVIDENCE_INVALID':'OK'))
     };
   }
   function buildPresenceReport(presenceState,playerCards,projectors){
@@ -35,10 +36,10 @@
     const summary=ObservedPresence.summarize(presenceState);
     const cards=new Map((playerCards||[]).map(p=>[Number(p.id),p]));
     let observedSlots=0,reliableIdentitySlots=0,metricProjectionSlots=0,confidenceSum=0,confidenceSlots=0;
-    let invalidFrames=0,duplicateFrameIds=0,overflowFrameIds=0;
+    let invalidFrames=0,duplicateFrameIds=0,overflowFrameIds=0,sourceOverflowFrameIds=0;
     const frames=(presenceState.frames||[]).map(frame=>{
       const audit=frameIdentityAudit(frame);
-      if(!audit.valid){ invalidFrames++; duplicateFrameIds+=audit.duplicateCount; overflowFrameIds+=audit.overflowCount; }
+      if(!audit.valid){ invalidFrames++; duplicateFrameIds+=audit.duplicateCount; overflowFrameIds+=audit.overflowCount; sourceOverflowFrameIds+=audit.sourceOverflowCount; }
       const ids=audit.ids;
       const presentCount=ids.length;
       observedSlots+=presentCount;
@@ -57,7 +58,7 @@
       return {
         time:frame.time,segment:frame.segment,presentIds:ids,presentCount,
         frameEvidenceValid:audit.valid,frameEvidenceReason:audit.reason,
-        rejectedDuplicateIds:audit.duplicateCount,rejectedOverflowIds:audit.overflowCount,
+        rejectedDuplicateIds:audit.duplicateCount,rejectedOverflowIds:audit.overflowCount+audit.sourceOverflowCount,
         presenceCoverage:+clamp01(presentCount/11).toFixed(4),presenceQuality:audit.valid?(presentCount===11?'FIABLE':(presentCount?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE',
         observationConfidence:audit.valid&&frameConfidence!==null?clamp01(frameConfidence):null,
         reliableIdentityCount,uncertainIdentityCount:presentCount-reliableIdentityCount,
@@ -87,7 +88,7 @@
       observationConfidence:observationConfidence===null?null:+observationConfidence.toFixed(4),
       rejectedDuplicateIds:(summary.rejectedDuplicateIds||0)+duplicateFrameIds,
       rejectedOverflow:(summary.rejectedOverflow||0)+overflowFrameIds,
-      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
+      invalidFrameEvidence:{count:invalidFrames,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds+sourceOverflowFrameIds,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
       players:summary.players,
       policy:{
         source:'OBSERVED_PRESENCE_LEDGER',maxSimultaneousCAY:11,

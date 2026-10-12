@@ -45,11 +45,10 @@
     const pitch=projectorPitch(entry);
     if(Stats&&typeof Stats.projectorInfo==='function'){
       const info=Stats.projectorInfo(entry);
-      const explicitConfidence=finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):null;
-      return {...info,confidence:explicitConfidence,...pitch};
+      return {...info,...pitch};
     }
     const validated=!!entry&&entry.validated===true&&typeof entry.project==='function';
-    return {validated,project:validated?entry.project:null,confidence:finite(entry?.confidence)?clamp(Number(entry.confidence),0,1):null,...pitch};
+    return {validated,project:validated?entry.project:null,confidence:finite(entry?.confidence)&&Number(entry.confidence)>=0&&Number(entry.confidence)<=1?Number(entry.confidence):null,...pitch};
   }
   function robustMetricForTrack(track,projectors){
     const path=track?.fullPath||[];

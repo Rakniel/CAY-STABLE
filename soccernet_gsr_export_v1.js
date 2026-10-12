@@ -3,7 +3,7 @@
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYSoccerNetGSRExport=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
-  const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const finite=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
   const VALID_ROLES=new Set(['player','goalkeeper','referee','other']);
   const round=(v,n=4)=>Number(Number(v).toFixed(n));
 
@@ -12,7 +12,7 @@
     return VALID_ROLES.has(role)?role:null;
   }
   function normalizeJersey(value){
-    if(value===null||value===undefined||value==='')return null;
+    if(!finite(value))return null;
     const n=Number(value);
     return Number.isInteger(n)&&n>=0&&n<=99?n:null;
   }
@@ -29,13 +29,14 @@
     return x===null||y===null?null:{x,y};
   }
   function rejectCounter(map,reason){map[reason]=(map[reason]||0)+1;}
+  const validTrackId=v=>(typeof v==='string'&&v.trim().length>0)||(typeof v==='number'&&Number.isFinite(v));
 
   function exportGSR(observations,options){
     const cfg={
-      fps:finite(options&&options.fps)?Number(options.fps):25,
+      fps:finite(options&&options.fps)&&Number(options.fps)>0?Number(options.fps):25,
       requireReliableIdentity:options&&options.requireReliableIdentity===false?false:true,
       requireMetricValidation:options&&options.requireMetricValidation===false?false:true,
-      maxCAYSimultaneous:finite(options&&options.maxCAYSimultaneous)?Number(options.maxCAYSimultaneous):11
+      maxCAYSimultaneous:finite(options&&options.maxCAYSimultaneous)&&Number.isInteger(Number(options.maxCAYSimultaneous))&&Number(options.maxCAYSimultaneous)>=1?Math.min(11,Number(options.maxCAYSimultaneous)):11
     };
     const rows=[];
     const rejectedReasons={};
@@ -52,11 +53,13 @@
         continue;
       }
       const frame=finite(obs.frame)?Math.round(Number(obs.frame)):Math.round(Number(obs.time)*cfg.fps);
-      let acceptedThisFrame=0;
+      const frameRows=[];
+      const seenTrackIds=new Set();
+      let duplicateTrack=false;
       for(const player of players){
         if(!player||player.onField===false||player.valid===false){rejectCounter(rejectedReasons,'PLAYER_NOT_VALID_ON_FIELD');continue;}
         const trackId=player.trackId??player.globalId??player.id??player.playerId??null;
-        if(trackId===null||trackId===undefined||trackId===''){rejectCounter(rejectedReasons,'TRACK_ID_MISSING');continue;}
+        if(!validTrackId(trackId)){rejectCounter(rejectedReasons,'TRACK_ID_MISSING');continue;}
         const role=normalizeRole(player.role??player.positionRole??'player');
         if(!role){rejectCounter(rejectedReasons,'ROLE_INVALID');continue;}
         if(cfg.requireReliableIdentity&&role!=='referee'&&role!=='other'){
@@ -68,9 +71,13 @@
         }
         const p=metricPoint(player);
         if(!p){rejectCounter(rejectedReasons,'PITCH_COORDINATES_MISSING');continue;}
+        // Track IDs must be unique within a frame; otherwise MOT identity evidence is ambiguous.
+        const trackKey=String(trackId).trim();
+        if(seenTrackIds.has(trackKey)){duplicateTrack=true;break;}
+        seenTrackIds.add(trackKey);
         const teamSide=normalizeTeamSide(player,role);
         const jersey=normalizeJersey(player.jerseyNumber??player.jersey_number??player.jersey??null);
-        rows.push({
+        frameRows.push({
           frame,
           time:finite(obs.time)?round(Number(obs.time),4):round(frame/cfg.fps,4),
           segment:obs.segment??obs.segmentId??obs.planId??null,
@@ -83,9 +90,13 @@
           y:round(p.y,4),
           source:'CAY_STABLE_STRICT_GSR_EXPORT_V1'
         });
-        acceptedThisFrame++;
       }
-      if(acceptedThisFrame>0)acceptedFrames++; else rejectedFrames++;
+      if(duplicateTrack){
+        rejectedFrames++;
+        rejectCounter(rejectedReasons,'DUPLICATE_TRACK_ID_IN_FRAME');
+        continue;
+      }
+      if(frameRows.length>0){rows.push(...frameRows);acceptedFrames++;} else rejectedFrames++;
     }
     const playerCoverage=sourcePlayers?rows.length/sourcePlayers:0;
     const frameCoverage=sourceFrames?acceptedFrames/sourceFrames:0;
@@ -95,7 +106,7 @@
       rows,
       sourceFrames,acceptedFrames,rejectedFrames,sourcePlayers,exportedPlayers:rows.length,
       frameCoverage:round(frameCoverage,4),playerCoverage:round(playerCoverage,4),rejectedReasons,
-      policy:'EXPORT_BENCHMARK_UNIQUEMENT_COORDONNEES_METRIQUES_VALIDEES_IDENTITES_FIABLES_PAR_DEFAUT_AUCUNE_INFERENCE_DE_NUMERO_OU_EQUIPE_ET_REJET_D_UNE_FRAME_SI_PLUS_DE_11_CAY_SUR_TERRAIN',
+      policy:'EXPORT_BENCHMARK_UNIQUEMENT_COORDONNEES_METRIQUES_VALIDEES_IDENTITES_FIABLES_PAR_DEFAUT_AUCUNE_INFERENCE_DE_NUMERO_OU_EQUIPE_ET_REJET_D_UNE_FRAME_SI_PLUS_DE_11_CAY_SUR_TERRAIN_OU_IDENTITES_DE_PISTE_DUPLIQUEES',
       upstreamCompatibility:'SOCCERTRACK_V2_GSR_FLAT_CONTRACT_COMPATIBLE_CLEAN_ROOM_NOT_SOCCERNET_GPL_CODE'
     };
   }

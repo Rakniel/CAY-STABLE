@@ -5,17 +5,25 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Motion){
   'use strict';
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const isPresentFinite=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
   const finiteOptionOr=(value,fallback)=>isPresentFinite(value)?Number(value):fallback;
   const nonNegativeOptionOr=(value,fallback)=>isPresentFinite(value)&&Number(value)>=0?Number(value):fallback;
+  // Limit UI grid allocation; metric evidence, calibration and pitch dimensions are unchanged.
+  const MAX_HEATMAP_GRID_DIMENSION=128;
+  const gridDimension=(value,fallback)=>{
+    if(typeof value!=='number'&&typeof value!=='string')return fallback;
+    if(typeof value==='string'&&!value.trim())return fallback;
+    const n=Number(value);
+    return Number.isFinite(n)&&n!==0?Math.max(1,Math.min(MAX_HEATMAP_GRID_DIMENSION,Math.floor(n))):fallback;
+  };
   const RAW_SPIKE_THRESHOLD_KMH=Number.isFinite(Number(Motion?.RAW_SPIKE_THRESHOLD_KMH))?Number(Motion.RAW_SPIKE_THRESHOLD_KMH):55;
   const qualityFromEvidenceScore=score=>isPresentFinite(score)?(Number(score)>=.8?'FIABLE':Number(score)>0?'PARTIEL':'INDISPONIBLE'):'INDISPONIBLE';
   function projectorInfo(entry){
     if(!entry||entry.validated!==true||typeof entry.project!=='function')return {validated:false,project:null,confidence:null};
     const rawConfidence=entry.confidence;
-    const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
+    const hasConfidence=isPresentFinite(rawConfidence);
     const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
-    const confidence=Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null;
+    const confidence=Number.isFinite(numericConfidence)&&numericConfidence>=0&&numericConfidence<=1?numericConfidence:null;
     return {validated:true,project:entry.project,confidence};
   }
   function createGrid(cols,rows){ return Array.from({length:rows},()=>Array(cols).fill(0)); }
@@ -116,8 +124,8 @@
   function build(track,projectors,options){
     const opts={pitchLengthM:105,pitchWidthM:68,cols:6,rows:4,minMetricCoverage:.35,minTemporalCoverage:null,minCalibrationConfidence:.5,maxDwellGapSec:1,maxRawSpeedKmh:RAW_SPIKE_THRESHOLD_KMH,...(options||{})};
     const path=Array.isArray(track?.fullPath)?track.fullPath:[];
-    const cols=Math.max(1,Math.floor(Number(opts.cols)||6));
-    const rows=Math.max(1,Math.floor(Number(opts.rows)||4));
+    const cols=gridDimension(opts.cols,6);
+    const rows=gridDimension(opts.rows,4);
     const pitchLengthM=Math.max(1,Number(opts.pitchLengthM)||105);
     const pitchWidthM=Math.max(1,Number(opts.pitchWidthM)||68);
     const minMetricCoverage=clamp(nonNegativeOptionOr(opts.minMetricCoverage,.35),0,1);

@@ -50,4 +50,20 @@ ok(guardSnapshot.rejectedByReason.spectator===1,'spectator detections remain exc
 ok(guardSnapshot.rejectedByReason.yellow_detail_only===1,'yellow-only false CAY evidence remains excluded');
 ok(guardSnapshot.rejectedByReason.outside_playable_field===1,'off-field detections remain excluded');
 
-console.log(`bridge nonregression: ${pass}/22 PASS`);
+
+const mixed=Bridge.create();
+const mixedAssigned=mixed.processFrame([
+  {cat:'team',x:.1,y:.3,score:.95},
+  {cat:'goalkeeper',x:.2,y:.3,score:.95},
+  {cat:'opponent',x:.3,y:.3,score:.99},
+  {cat:'review',x:.4,y:.3,score:.99},
+  {cat:'ball',x:.5,y:.3,score:.99},
+  {x:.6,y:.3,score:.99}
+],0,{});
+ok(mixedAssigned.length===2,'opponent, review, ball and missing category never become CAY tracks');
+ok(mixed.snapshot().rosterTotal===2,'non-CAY categories never create persistent roster IDs');
+ok(mixed.snapshot().rejectedByReason.non_cay_category===4,'non-CAY category rejections remain auditable');
+ok(['opponent','review','ball',undefined].every(cat=>Bridge.normalizeDetection({cat,x:.5,y:.5,score:.9},100,100)===null),'normalizer fails closed on unsupported categories');
+ok(['team','goalkeeper'].every(cat=>Bridge.detectionEligibility({cat,x:.5,y:.5,score:.9}).accepted===true),'valid CAY and goalkeeper categories remain eligible');
+
+console.log(`bridge nonregression: ${pass} PASS`);
