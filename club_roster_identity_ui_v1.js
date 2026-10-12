@@ -38,8 +38,17 @@ function createStore(storage){
   const write=(key,value)=>{if(s&&typeof s.setItem==='function')s.setItem(key,JSON.stringify(value));};
   function team(){return normalizeStoredTeam(read(TEAM_KEY,{}));}
   function saveTeam(value){const t=normalizeStoredTeam(value);write(TEAM_KEY,t);return t;}
-  function bindings(){const v=read(BINDING_KEY,[]);return Array.isArray(v)?v:[];}
-  function saveBindings(v){const list=Array.isArray(v)?v:[];write(BINDING_KEY,list);return list;}
+  // Track IDs are local to an analysis; a previous video's confirmation is not proof.
+  function bindings(scopeId){
+    const v=read(BINDING_KEY,[]);
+    if(scopeId)return v&&!Array.isArray(v)&&v.scopeId===scopeId&&Array.isArray(v.bindings)?v.bindings:[];
+    return Array.isArray(v)?v:[];
+  }
+  function saveBindings(v,scopeId){
+    const list=Array.isArray(v)?v:[];
+    write(BINDING_KEY,scopeId?{scopeId,bindings:list}:list);
+    return list;
+  }
   return {team,saveTeam,bindings,saveBindings};
 }
 const store=createStore(typeof localStorage!=='undefined'?localStorage:null);
@@ -62,7 +71,7 @@ function removePlayer(playerId){
   const before=team.roster.length,nextRoster=team.roster.filter(p=>p.id!==id);
   if(nextRoster.length===before)return {removed:false,reason:'UNKNOWN_ROSTER_PLAYER'};
   const next=store.saveTeam({...team,roster:nextRoster,defaultLineup:(team.defaultLineup||[]).filter(x=>String(x)!==id),bench:(team.bench||[]).filter(x=>String(x)!==id)});
-  const kept=store.bindings().filter(b=>clean(b.playerId)!==id);store.saveBindings(kept);
+  const kept=store.bindings(activeAnalysisScope).filter(b=>clean(b.playerId)!==id);store.saveBindings(kept,activeAnalysisScope);
   return {removed:true,team:next};
 }
 function ensureRosterPanel(){
@@ -87,34 +96,34 @@ function renderRoster(){
   list.innerHTML=team.roster.length?team.roster.map(p=>'<span data-player="'+esc(p.id)+'" style="display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:#111;border:1px solid rgba(255,255,255,.09);font-size:12px"><b>'+(p.number==null?'—':'#'+esc(p.number))+'</b> '+esc(p.displayName)+' <small style="opacity:.6">'+esc(p.primaryPosition||'')+'</small><button type="button" data-remove="'+esc(p.id)+'" title="Retirer" style="border:0;background:transparent;color:#ff8e96;cursor:pointer">×</button></span>').join(''):'<span style="opacity:.6;font-size:12px">Ajoute les joueurs avant l’identification des tracks.</span>';
   list.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{removePlayer(btn.getAttribute('data-remove'));renderRoster();renderIdentityPanel();});return true;
 }
-let lastReport=null,lastSession=null;
+let lastReport=null,lastSession=null,activeAnalysisScope=null;
 function ensureIdentityPanel(){
   if(typeof document==='undefined')return null;let panel=document.getElementById('cayIdentityBindingPanelV1');if(panel)return panel;
   const stats=document.getElementById('stablePlayerStatsV2')||document.getElementById('trackingGallery');if(!stats)return null;
-  panel=document.createElement('section');panel.id='cayIdentityBindingPanelV1';panel.style.cssText='margin-top:12px;padding:14px;border:1px solid rgba(205,31,45,.4);border-radius:14px;background:#0d0d0f;color:#fff';panel.innerHTML='<div><strong>IDENTIFIER LES JOUEURS</strong><div style="font-size:11px;opacity:.68">Aucune identité automatique : sélectionne un joueur du roster puis confirme.</div></div><div id="cayIdentitySummaryV1" style="margin-top:8px;font-size:12px;opacity:.78"></div><div id="cayIdentityRowsV1" style="display:grid;gap:8px;margin-top:10px"></div>';
+  panel=document.createElement('section');panel.id='cayIdentityBindingPanelV1';panel.style.cssText='margin-top:12px;padding:14px;border:1px solid rgba(205,31,45,.4);border-radius:14px;background:#0d0d0f;color:#fff';panel.innerHTML='<div><strong>IDENTIFIER LES JOUEURS</strong><div style="font-size:11px;opacity:.68">Aucune identité automatique : confirme chaque joueur. Liens valables pour cette analyse uniquement.</div></div><div id="cayIdentitySummaryV1" style="margin-top:8px;font-size:12px;opacity:.78"></div><div id="cayIdentityRowsV1" style="display:grid;gap:8px;margin-top:10px"></div>';
   stats.insertAdjacentElement('afterend',panel);return panel;
 }
 function refreshPlayerCards(){
-  if(!lastReport||!ViewModel?.build)return false;const model=ViewModel.build(lastReport,{team:currentTeam(),bindings:lastSession?lastSession.exportBindings():store.bindings()});
+  if(!lastReport||!ViewModel?.build)return false;const model=ViewModel.build(lastReport,{team:currentTeam(),bindings:lastSession?lastSession.exportBindings():store.bindings(activeAnalysisScope)});
   if(root.CAYPlayerCardRenderer?.render)return root.CAYPlayerCardRenderer.render(model,'stableStatsCardsV2');
   return false;
 }
 function renderIdentityPanel(){
   if(!lastReport)return false;const panel=ensureIdentityPanel();if(!panel)return false;
-  const team=currentTeam(),tracks=(lastReport.players||[]).map(p=>({id:p.id}));lastSession=BindingSession.createSession({team,tracks,bindings:store.bindings()});
+  const team=currentTeam(),tracks=(lastReport.players||[]).map(p=>({id:p.id}));lastSession=BindingSession.createSession({team,tracks,bindings:store.bindings(activeAnalysisScope)});
   const summary=lastSession.summary(),rows=panel.querySelector('#cayIdentityRowsV1');panel.querySelector('#cayIdentitySummaryV1').innerHTML='<b>'+summary.linked+'/'+summary.tracks+' liés</b> • '+summary.unlinked+' à identifier';
   rows.innerHTML='';
   for(const trackId of lastSession.trackIds){
     const existing=lastSession.exportBindings().find(b=>String(b.trackId)===String(trackId)),candidatePlayers=lastSession.candidates(trackId),row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:110px minmax(160px,1fr) auto auto;gap:8px;align-items:center;padding:8px;border-radius:10px;background:rgba(255,255,255,.04)';
     const label=document.createElement('strong');label.textContent='Track #'+trackId;const select=document.createElement('select');select.setAttribute('aria-label','joueur pour track '+trackId);const empty=document.createElement('option');empty.value='';empty.textContent=existing?'Modifier l’identité…':'Choisir le joueur…';select.appendChild(empty);for(const p of candidatePlayers){const o=document.createElement('option');o.value=p.id;o.textContent=(p.number==null?'':'#'+p.number+' ')+(p.displayName||'Joueur')+(p.primaryPosition?' • '+p.primaryPosition:'');select.appendChild(o);}
-    const confirm=document.createElement('button');confirm.type='button';confirm.textContent='CONFIRMER';confirm.disabled=!candidatePlayers.length;confirm.onclick=()=>{if(!select.value)return;const r=lastSession.assign(trackId,select.value,{confirmed:true,source:'coach_click'});if(r.accepted){store.saveBindings(lastSession.exportBindings());renderIdentityPanel();refreshPlayerCards();}};
-    const linked=document.createElement('span');linked.style.cssText='font-size:11px;opacity:.72';linked.textContent=existing?'LIÉ ✓':'NON LIÉ';if(existing){const un=document.createElement('button');un.type='button';un.textContent='DÉLIER';un.onclick=()=>{lastSession.unassign(trackId);store.saveBindings(lastSession.exportBindings());renderIdentityPanel();refreshPlayerCards();};row.append(label,select,confirm,un);}else row.append(label,select,confirm,linked);rows.appendChild(row);
+    const confirm=document.createElement('button');confirm.type='button';confirm.textContent='CONFIRMER';confirm.disabled=!candidatePlayers.length;confirm.onclick=()=>{if(!select.value)return;const r=lastSession.assign(trackId,select.value,{confirmed:true,source:'coach_click'});if(r.accepted){store.saveBindings(lastSession.exportBindings(),activeAnalysisScope);renderIdentityPanel();refreshPlayerCards();}};
+    const linked=document.createElement('span');linked.style.cssText='font-size:11px;opacity:.72';linked.textContent=existing?'LIÉ ✓':'NON LIÉ';if(existing){const un=document.createElement('button');un.type='button';un.textContent='DÉLIER';un.onclick=()=>{lastSession.unassign(trackId);store.saveBindings(lastSession.exportBindings(),activeAnalysisScope);renderIdentityPanel();refreshPlayerCards();};row.append(label,select,confirm,un);}else row.append(label,select,confirm,linked);rows.appendChild(row);
   }
   refreshPlayerCards();return true;
 }
 function patchBridge(){
   const Bridge=root.CAYStableTrackingBridge;if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayClubRosterIdentityUIPatched)return false;
-  const baseCreate=Bridge.create.bind(Bridge);Bridge.create=function(options){const instance=baseCreate(options),baseReport=instance.report.bind(instance);instance.report=function(projectors,visualOptions){const report=baseReport(projectors,visualOptions);lastReport=report;setTimeout(()=>{try{renderRoster();renderIdentityPanel();}catch(_){}},0);return report;};return instance;};Bridge.__cayClubRosterIdentityUIPatched=true;return true;
+  const baseCreate=Bridge.create.bind(Bridge);Bridge.create=function(options){const instance=baseCreate(options),baseReport=instance.report.bind(instance),scope='analysis_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);instance.report=function(projectors,visualOptions){const report=baseReport(projectors,visualOptions);if(activeAnalysisScope!==scope){lastSession=null;activeAnalysisScope=scope;}lastReport=report;setTimeout(()=>{try{renderRoster();renderIdentityPanel();}catch(_){}},0);return report;};return instance;};Bridge.__cayClubRosterIdentityUIPatched=true;return true;
 }
 function install(){if(typeof document==='undefined')return false;ensureRosterPanel();renderRoster();patchBridge();return true;}
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();}
