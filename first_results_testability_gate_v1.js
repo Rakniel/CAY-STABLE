@@ -7,7 +7,9 @@
 
   const bool=v=>v===true;
   const finite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
-  const pct=v=>finite(v)?Math.max(0,Math.min(100,Number(v))):null;
+  const numeric=v=>(typeof v==='number'||typeof v==='string')&&finite(v);
+  const pct=v=>numeric(v)&&Number(v)>=0&&Number(v)<=100?Number(v):null;
+  const duration=v=>numeric(v)&&Number(v)>=0?Number(v):null;
   const CORE_KEYS=['tracking','trajectory','heatmap'];
   const PHYSICAL_KEYS=['distance','avgSpeed','maxSpeed','sprints'];
 
@@ -37,16 +39,16 @@
       pitchSpatialPct:pct(card?.pitchVisuals?.spatialCoverage),
       physicalMetricPct:pct(card?.pitchVisuals?.physicalMetricCoverage),
       pitchBasis:card?.pitchVisuals?.spatialCoverageBasis||null,
-      participationSeconds:finite(card?.pitchVisuals?.participationSeconds)?Number(card.pitchVisuals.participationSeconds):null,
-      renderedSeconds:finite(card?.pitchVisuals?.renderedSeconds)?Number(card.pitchVisuals.renderedSeconds):null,
+      participationSeconds:duration(card?.pitchVisuals?.participationSeconds),
+      renderedSeconds:duration(card?.pitchVisuals?.renderedSeconds),
       policy:'COUVERTURES_REPRISES_EN_LECTURE_SEULE_DEPUIS_LA_FICHE_JOUEUR; AUCUNE_PROMOTION_DE_STATUT_PAR_LA_COUVERTURE_SEULE'
     };
   }
 
   function summarizeCoverage(evidence,key,eligibleKey){
     const rows=(Array.isArray(evidence)?evidence:[]).filter(item=>item&&item[eligibleKey]===true);
-    const knownRows=rows.filter(item=>finite(item?.coverage?.[key]));
-    const values=knownRows.map(item=>Number(item.coverage[key]));
+    const knownRows=rows.filter(item=>pct(item?.coverage?.[key])!==null);
+    const values=knownRows.map(item=>pct(item.coverage[key]));
     const eligiblePlayers=rows.length;
     const knownPlayers=knownRows.length;
     const unknownPlayers=Math.max(0,eligiblePlayers-knownPlayers);

@@ -15,7 +15,7 @@
     const rawConfidence=entry.confidence;
     const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
     const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
-    const confidence=Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null;
+    const confidence=Number.isFinite(numericConfidence)&&numericConfidence>=0&&numericConfidence<=1?numericConfidence:null;
     return {validated:true,project:entry.project,confidence};
   }
   function createGrid(cols,rows){ return Array.from({length:rows},()=>Array(cols).fill(0)); }
