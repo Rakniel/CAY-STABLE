@@ -103,9 +103,25 @@ function observation(raw={}){
  if(state==='COACH_CONFIRMED'&&(!String(raw.coachName||'').trim()||quality==='AUTO_CANDIDATE'))throw Error('COACH_CONFIRMATION_REQUIRED');
  return {id:String(raw.id||''),action:raw.action,videoSecond:start,team:owner,zone,outcome,evidenceState:state,quality,coachName:state==='COACH_CONFIRMED'?String(raw.coachName).slice(0,120):null,playerId:raw.playerId==null?null:String(raw.playerId),notes:String(raw.notes||'').slice(0,2000),matchId:String(raw.matchId||''),sourceVideoId:String(raw.sourceVideoId||''),replayExcluded:raw.replayExcluded===true};
 }
-function summarizeObservations(input){
+function summarizeObservations(input,options={}){
  const rows=(Array.isArray(input)?input:[]).map(observation);
- const confirmed=rows.filter(r=>r.evidenceState==='COACH_CONFIRMED'&&!r.replayExcluded&&r.sourceVideoId);
+ const matchId=String(options.matchId||'').trim();
+ const scoped=matchId?rows.filter(r=>r.matchId===matchId):rows;
+ const unscopedExcluded=rows.length-scoped.length;
+ const candidates=scoped.filter(r=>r.evidenceState==='COACH_CONFIRMED'&&!r.replayExcluded&&r.sourceVideoId&&r.matchId);
+ // Duplicate IDs cannot increase evidence counts. Conflicting revisions of the
+ // same ID are withheld until the coach resolves them.
+ const byId=new Map(),conflicts=new Set();
+ let missingEventIdExcluded=0,duplicateRowsExcluded=0;
+ for(const row of candidates){
+   if(!row.id){missingEventIdExcluded++;continue;}
+   if(byId.has(row.id)){
+     duplicateRowsExcluded++;
+     if(JSON.stringify(byId.get(row.id))!==JSON.stringify(row))conflicts.add(row.id);
+   }else byId.set(row.id,row);
+ }
+ for(const id of conflicts)byId.delete(id);
+ const confirmed=[...byId.values()];
  const grouped={};for(const action of ACTIONS){const items=confirmed.filter(r=>r.action===action);grouped[action]={confirmed:items.length,byZone:Object.fromEntries(ZONES.map(z=>[z,items.filter(i=>i.zone===z).length]))};}
  const touch=confirmed.filter(r=>r.action==='THROW_IN'&&r.team==='CAY');
  const evaluated=touch.filter(r=>r.outcome==='RETAINED'||r.outcome==='LOST');
@@ -117,8 +133,8 @@ function summarizeObservations(input){
  if(defensive.length>=3)risks.push({play:'transition-defensive',cause:'Plusieurs pertes dans le tiers défensif',sample:defensive.length,action:'Atelier sortie de pression, couverture à la perte et fermeture de l’axe'});
  const offside=confirmed.filter(r=>r.action==='OFFSIDE');
  if(offside.length>=3)risks.push({play:'appel-contre-appel',cause:'Hors-jeu répétés confirmés',sample:offside.length,action:'Synchronisation porteur/receveur, appel-contre-appel et choix du moment de passe'});
- const eventsByVideo=confirmed.filter(r=>r.sourceVideoId).map(r=>({matchId:r.matchId,videoSecond:r.videoSecond,sourceVideoId:r.sourceVideoId,action:r.action}));
- return {version:VERSION,total:rows.length,confirmed:confirmed.length,excluded:rows.length-confirmed.length,grouped,throwIns,risks,eventsByVideo,policy:'UN EVENEMENT IA NON VALIDE N EST PAS UN FAIT; LES EXERCICES SONT DES SUGGESTIONS HEURISTIQUES; ZERO STATISTIQUE SUR LES SEQUENCES NON OBSERVEES'};
+ const eventsByVideo=confirmed.map(r=>({matchId:r.matchId,videoSecond:r.videoSecond,sourceVideoId:r.sourceVideoId,action:r.action}));
+ return {version:VERSION,matchId:matchId||null,total:scoped.length,confirmed:confirmed.length,excluded:scoped.length-confirmed.length,unscopedExcluded,duplicateRowsExcluded,conflictingEventIdsExcluded:conflicts.size,missingEventIdExcluded,grouped,throwIns,risks,eventsByVideo,policy:'UN EVENEMENT IA NON VALIDE N EST PAS UN FAIT; LES EXERCICES SONT DES SUGGESTIONS HEURISTIQUES; ZERO STATISTIQUE SUR LES SEQUENCES NON OBSERVEES; EVENEMENTS DOUBLONS OU CONTRADICTOIRES EXCLUS'};
 }
 return {VERSION,SHAPES,PLAYS,formationNames,makeFormation,normalizeSheet,placeLineup,ACTIONS,ZONES,observation,summarizeObservations};
 });
