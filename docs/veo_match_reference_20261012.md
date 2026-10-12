@@ -22,7 +22,7 @@
 - Tests du validateur : **26 assertions par passage, 5 passages réussis (130 assertions)** dans un environnement JavaScript isolé.
 - Test d'intégration du studio avec DOM simulé : **15 assertions réussies** (préparation du dossier, liaison du lien, archivage, traçabilité d'une observation et rejet du changement de source).
 - Aucun test Chromium, aucune vidéo réelle ni mesure de tracking exécutés pour cette livraison.
-- Aucun workflow GitHub Actions associé aux commits de cette branche au moment du contrôle.
+- Trois workflows GitHub Actions ont été déclenchés sur le commit de documentation : intégration STABLE, calibration V2 et contrôle syntaxique racine. Ils étaient encore **en cours** lors de la vérification ; aucun succès CI n'est revendiqué avant conclusion.
 
 ## Limites et prochaines étapes
 1. Tester l'interface sur navigateur réel, sur la version déployée.
