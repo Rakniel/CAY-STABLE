@@ -35,3 +35,12 @@ Le lien Veo précis a été communiqué dans une conversation privée. **Il n'es
 ## Prochaine validation
 - Navigateur Chromium sur l'application complète et export/réouverture d'archive réelle.
 - Vérification des accès Veo du staff et obtention d'un MP4 autorisé pour le pipeline tracking.
+
+## Extension du parcours de revue manuelle (12/10/2026)
+- Journal filtrable par action (touche, perte, récupération, hors-jeu...) sans modifier la synthèse ni ses dénominateurs.
+- Bouton « Repère » sur chaque observation : restaure le temps en secondes dans le formulaire et donne une minute lisible à rechercher **manuellement** sur Veo. Aucun paramètre de démarrage automatique ou contrôle du lecteur Veo n'est supposé.
+- Notes et commentaire court visibles immédiatement dans la liste ; contenu inséré via `textContent`, sans interprétation HTML.
+- Lorsque des annotations existent, les champs d'identifiant match et identifiant vidéo sont verrouillés dans le formulaire pour éviter d'attribuer les observations à un autre match/film. Le verrou est levé après nettoyage du journal ou lors d'un nouveau match.
+- Le formulaire refuse désormais l'horodatage vide, qui risquait d'être interprété comme la seconde zéro.
+- Aucun score ou événement n'a été inféré depuis la vidéo d'Albertville.
+- Contrôles : `tests/staff_veo_manual_review_v1.test.js` (23 assertions sur faux DOM), `tests/staff_video_source_v1.test.js` (26 assertions) exécutés dans un environnement JavaScript compatible ; vérification syntaxique du script inline du studio. Nécessite une vérification CI sur Node et un essai navigateur réel.
