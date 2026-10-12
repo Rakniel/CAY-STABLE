@@ -129,6 +129,12 @@ function renderPlayerStats(report){
   cards.dataset.cayRenderer='INDISPONIBLE';
   return false;
 }
+function clearPlayerStats(reason='Analyse en attente'){
+  const cards=$('stableStatsCardsV2'),coverage=$('stableStatsCoverageV2'),teamCoverage=$('stableTeamCoverageV2');
+  if(cards){cards.replaceChildren();cards.textContent='Fiches joueurs : INDISPONIBLE — '+reason;cards.dataset.cayRenderer='INDISPONIBLE';}
+  if(coverage)coverage.textContent='Couverture : INDISPONIBLE';
+  if(teamCoverage)teamCoverage.textContent='Résultats non publiables sans preuves de tracking.';
+}
 function drawLongTrackFrame(c,assigned){
   const x=c.getContext('2d');
   x.font='bold '+Math.max(11,c.width/86)+'px Arial';
@@ -160,6 +166,8 @@ root.CAYStableUnavailableFrameRuntime={mark:markUnavailableTrackingFrame};
 async function runTrackingLongTermStable(){
   lastTrackingReport=null;
   $('exportTracking').disabled=true;
+  clearPlayerStats('nouvelle analyse en attente de validation');
+  const previousGallery=$('trackingGallery');if(previousGallery)previousGallery.replaceChildren();
   if(root.CAYStableTrackingRuntimeGuard?.verdict?.(root)?.ok!==true){
     status($('trackingStatus'),'Tracking STABLE : INDISPONIBLE — moteur de suivi non validé.','warning');return null;
   }
@@ -215,13 +223,15 @@ async function runTrackingLongTermStable(){
     const completion=root.CAYFirstResultsRuntimeGuardBridge?.completionVerdict?.(playerStats,sum,frames,root)
       ||{status:'INDISPONIBLE',reason:'CONTRAT_COMPLETION_ABSENT',exportAllowed:false};
     lastTrackingReport.completion=completion;
-    renderPlayerStats(playerStats);
+    if(completion.exportAllowed===true)renderPlayerStats(playerStats);
+    else clearPlayerStats('analyse rejetée : '+(completion.reason||'preuves insuffisantes'));
     $('exportTracking').disabled=completion.exportAllowed!==true;
     const labels={RUNTIME_TRACKING_NON_VALIDE:'moteur non validé',LIMITE_TERRAIN_NON_PROUVEE:'limite terrain non vérifiée',TRACKS_NON_PROUVES:'suivi non vérifiable',AUCUN_TRACK_STABLE:'aucun joueur suivi sur cinq images',COUVERTURE_INDISPONIBLE:'couverture indisponible',PREUVES_FRAMES_INCOHERENTES:'images analysées incohérentes',IDENTITES_FRAMES_INCOHERENTES:'identités des joueurs incohérentes',COUVERTURE_PARTIELLE:'couverture partielle',CONTRAT_COMPLETION_ABSENT:'contrôle de fiabilité absent'};
     const label=completion.status==='ANALYSE_TERMINEE'?'Tracking terminé — preuves disponibles':completion.status==='PARTIEL'?'Tracking PARTIEL — résultats incomplets':'Tracking INDISPONIBLE — '+(labels[completion.reason]||'preuve insuffisante');
     status($('trackingStatus'),label+' • '+sum.segments+' segment(s) • max '+sum.maxVisible+'/11 • roster '+sum.rosterTotal+' • '+stable+' track(s) stables • couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %',completion.status==='ANALYSE_TERMINEE'?'success':'warning');
-    return completion.exportAllowed===true?lastTrackingReport:null;
-  }catch(err){lastTrackingReport=null;$('exportTracking').disabled=true;status($('trackingStatus'),'Erreur tracking longue durée : '+err.message,'warning');throw err;}
+    if(completion.exportAllowed!==true)lastTrackingReport=null;
+    return lastTrackingReport;
+  }catch(err){lastTrackingReport=null;$('exportTracking').disabled=true;clearPlayerStats('erreur pendant l’analyse');status($('trackingStatus'),'Erreur tracking longue durée : '+err.message,'warning');throw err;}
   finally{$('runTracking').disabled=root.CAYStableTrackingRuntimeGuard?.verdict?.(root)?.ok!==true;}
 }
 function install(){
