@@ -94,6 +94,7 @@ const ACTIONS=['THROW_IN','BALL_GAIN','BALL_LOSS','PASS','SHOT','OFFSIDE','AERIA
 const ZONES=['DEFENSIVE_THIRD','MIDDLE_THIRD','ATTACKING_THIRD','UNKNOWN'];
 function observation(raw={}){
  if(!ACTIONS.includes(raw.action))throw Error('UNKNOWN_ACTION');
+ if(raw.videoSecond===null||raw.videoSecond===undefined||String(raw.videoSecond).trim()==='')throw Error('VIDEO_TIME_REQUIRED');
  const start=Number(raw.videoSecond);if(!Number.isFinite(start)||start<0)throw Error('VIDEO_TIME_INVALID');
  const state=raw.evidenceState||'OBSERVED';if(!EVIDENCE_STATES.includes(state))throw Error('INVALID_EVIDENCE_STATE');
  const zone=raw.zone||'UNKNOWN';if(!ZONES.includes(zone))throw Error('INVALID_ZONE');
@@ -121,7 +122,24 @@ function summarizeObservations(input,options={}){
    }else byId.set(row.id,row);
  }
  for(const id of conflicts)byId.delete(id);
- const confirmed=[...byId.values()];
+ // A second ID cannot count the same verified on-ball action twice. Keep
+ // distinct passes/duels/positioning annotations that can share a timestamp.
+ const UNIQUE_ACTIONS=new Set(['THROW_IN','BALL_GAIN','BALL_LOSS','OFFSIDE','SHOT','CORNER','FREE_KICK']);
+ const byAction=new Map(),conflictingActionKeys=new Set();
+ let duplicateActionRowsExcluded=0;
+ for(const row of byId.values()){
+   if(!UNIQUE_ACTIONS.has(row.action)){
+     byAction.set('ID:'+row.id,row);continue;
+   }
+   const key=JSON.stringify([row.matchId,row.sourceVideoId,row.videoSecond,row.action,row.team]);
+   if(byAction.has(key)){
+     duplicateActionRowsExcluded++;
+     const existing=byAction.get(key);
+     if(existing.outcome!==row.outcome||existing.zone!==row.zone)conflictingActionKeys.add(key);
+   }else byAction.set(key,row);
+ }
+ for(const key of conflictingActionKeys)byAction.delete(key);
+ const confirmed=[...byAction.values()];
  const grouped={};for(const action of ACTIONS){const items=confirmed.filter(r=>r.action===action);grouped[action]={confirmed:items.length,byZone:Object.fromEntries(ZONES.map(z=>[z,items.filter(i=>i.zone===z).length]))};}
  const touch=confirmed.filter(r=>r.action==='THROW_IN'&&r.team==='CAY');
  const evaluated=touch.filter(r=>r.outcome==='RETAINED'||r.outcome==='LOST');
@@ -134,7 +152,7 @@ function summarizeObservations(input,options={}){
  const offside=confirmed.filter(r=>r.action==='OFFSIDE');
  if(offside.length>=3)risks.push({play:'appel-contre-appel',cause:'Hors-jeu répétés confirmés',sample:offside.length,action:'Synchronisation porteur/receveur, appel-contre-appel et choix du moment de passe'});
  const eventsByVideo=confirmed.map(r=>({matchId:r.matchId,videoSecond:r.videoSecond,sourceVideoId:r.sourceVideoId,action:r.action}));
- return {version:VERSION,matchId:matchId||null,total:scoped.length,confirmed:confirmed.length,excluded:scoped.length-confirmed.length,unscopedExcluded,duplicateRowsExcluded,conflictingEventIdsExcluded:conflicts.size,missingEventIdExcluded,grouped,throwIns,risks,eventsByVideo,policy:'UN EVENEMENT IA NON VALIDE N EST PAS UN FAIT; LES EXERCICES SONT DES SUGGESTIONS HEURISTIQUES; ZERO STATISTIQUE SUR LES SEQUENCES NON OBSERVEES; EVENEMENTS DOUBLONS OU CONTRADICTOIRES EXCLUS'};
+ return {version:VERSION,matchId:matchId||null,total:scoped.length,confirmed:confirmed.length,excluded:scoped.length-confirmed.length,unscopedExcluded,duplicateRowsExcluded,conflictingEventIdsExcluded:conflicts.size,missingEventIdExcluded,duplicateActionRowsExcluded,conflictingActionKeysExcluded:conflictingActionKeys.size,grouped,throwIns,risks,eventsByVideo,policy:'UN EVENEMENT IA NON VALIDE N EST PAS UN FAIT; LES EXERCICES SONT DES SUGGESTIONS HEURISTIQUES; ZERO STATISTIQUE SUR LES SEQUENCES NON OBSERVEES; EVENEMENTS DOUBLONS OU CONTRADICTOIRES EXCLUS'};
 }
 return {VERSION,SHAPES,PLAYS,formationNames,makeFormation,normalizeSheet,placeLineup,ACTIONS,ZONES,observation,summarizeObservations};
 });
