@@ -158,6 +158,11 @@ async function markUnavailableTrackingFrame(bridge,frames,t,c,i,total,reason,mes
 }
 root.CAYStableUnavailableFrameRuntime={mark:markUnavailableTrackingFrame};
 async function runTrackingLongTermStable(){
+  lastTrackingReport=null;
+  $('exportTracking').disabled=true;
+  if(root.CAYStableTrackingRuntimeGuard?.verdict?.(root)?.ok!==true){
+    status($('trackingStatus'),'Tracking STABLE : INDISPONIBLE — moteur de suivi non validé.','warning');return null;
+  }
   if(typeof root.CAYStableTrackingBridge?.create!=='function')throw new Error('bridge tracking longue durée indisponible');
   if(!currentFile){ status($('trackingStatus'),'Charge d’abord une vidéo.','warning');return; }
   if(refsFor('team').length<3){ status($('trackingStatus'),'Ajoute au moins 3 références de ton équipe.','warning');return; }
@@ -207,11 +212,17 @@ async function runTrackingLongTermStable(){
     const tracks=sum.tracks.map(s=>({...s,seen:s.observations,lastTime:s.lastTime,normalizedTravel:s.normalizedTravel}));
     const stable=tracks.filter(t=>t.seen>=5).length;
     lastTrackingReport={version:'STABLE_LONG_TERM_V2',video:currentFile.name,team:($('analysisTeamName')?.value||'').trim(),start:+start.toFixed(2),end:+end.toFixed(2),step,createdIds:sum.rosterTotal,totalAssociations:sum.totalAssociations,segments:sum.segments,maxVisible:sum.maxVisible,reidentified:sum.reidentified,manualMerges:sum.manualMerges,tracks,frames,observationCoverage:{attempted:playerStats.bridge?.attemptedObservationFrames||0,usable:playerStats.bridge?.usableObservationFrames||0,unavailable:playerStats.bridge?.unavailableObservationFrames||0,coverage:playerStats.bridge?.observationCoverage||0,reasons:playerStats.bridge?.unavailableReasons||{}},playerStats,unavailable:playerStats.unavailable};
-    renderPlayerStats(playerStats);$('exportTracking').disabled=false;
-    status($('trackingStatus'),'Tracking longue durée terminé ✓ • '+sum.segments+' segment(s) • max '+sum.maxVisible+'/11 • roster '+sum.rosterTotal+' • '+stable+' track(s) stables • couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %','success');
-    return lastTrackingReport;
-  }catch(err){status($('trackingStatus'),'Erreur tracking longue durée : '+err.message,'warning');throw err;}
-  finally{$('runTracking').disabled=false;}
+    const completion=root.CAYFirstResultsRuntimeGuardBridge?.completionVerdict?.(playerStats,sum,frames,root)
+      ||{status:'INDISPONIBLE',reason:'CONTRAT_COMPLETION_ABSENT',exportAllowed:false};
+    lastTrackingReport.completion=completion;
+    renderPlayerStats(playerStats);
+    $('exportTracking').disabled=completion.exportAllowed!==true;
+    const labels={RUNTIME_TRACKING_NON_VALIDE:'moteur non validé',LIMITE_TERRAIN_NON_PROUVEE:'limite terrain non vérifiée',TRACKS_NON_PROUVES:'suivi non vérifiable',AUCUN_TRACK_STABLE:'aucun joueur suivi sur cinq images',COUVERTURE_INDISPONIBLE:'couverture indisponible',PREUVES_FRAMES_INCOHERENTES:'images analysées incohérentes',IDENTITES_FRAMES_INCOHERENTES:'identités des joueurs incohérentes',COUVERTURE_PARTIELLE:'couverture partielle',CONTRAT_COMPLETION_ABSENT:'contrôle de fiabilité absent'};
+    const label=completion.status==='ANALYSE_TERMINEE'?'Tracking terminé — preuves disponibles':completion.status==='PARTIEL'?'Tracking PARTIEL — résultats incomplets':'Tracking INDISPONIBLE — '+(labels[completion.reason]||'preuve insuffisante');
+    status($('trackingStatus'),label+' • '+sum.segments+' segment(s) • max '+sum.maxVisible+'/11 • roster '+sum.rosterTotal+' • '+stable+' track(s) stables • couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %',completion.status==='ANALYSE_TERMINEE'?'success':'warning');
+    return completion.exportAllowed===true?lastTrackingReport:null;
+  }catch(err){lastTrackingReport=null;$('exportTracking').disabled=true;status($('trackingStatus'),'Erreur tracking longue durée : '+err.message,'warning');throw err;}
+  finally{$('runTracking').disabled=root.CAYStableTrackingRuntimeGuard?.verdict?.(root)?.ok!==true;}
 }
 function install(){
   if(typeof root.CAYStableTrackingBridge?.create!=='function')return;
