@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101014"><title>C.A. Yenne — Studio tactique du staff</title>
+<style>
+:root{font-family:Inter,Arial,sans-serif;color:#f2f2f6;background:#101014;--accent:#de2438;--dark:#151519;--border:#33333d;--muted:#a9a9b8}
+*{box-sizing:border-box}body{margin:0}header{background:#09090c;border-bottom:3px solid var(--accent);padding:17px clamp(16px,3vw,40px);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}header h1{font-size:22px;margin:0}header p{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#f16671;margin:0 0 6px}a{color:#f88c95}nav{display:flex;gap:14px;font-size:13px}main{max-width:1600px;margin:auto;padding:18px;display:grid;grid-template-columns:300px minmax(520px,1fr) 315px;gap:15px}.panel{background:#1a1a20;border:1px solid var(--border);border-radius:14px;padding:14px;min-width:0}.panel h2{font-size:15px;letter-spacing:.3px;margin:0 0 11px}.panel h3{font-size:13px;color:#e2d6d8;margin:17px 0 9px}label{display:block;font-size:12px;color:#cfcfd9;margin:9px 0}input,select,textarea{background:#111116;border:1px solid #454550;color:#fff;border-radius:8px;padding:9px;width:100%;margin-top:4px;font:inherit;font-size:13px}input[type=checkbox]{width:auto}button,.btn{background:#292930;border:1px solid #4a4a55;color:#fff;border-radius:8px;padding:9px 11px;cursor:pointer;font-size:12px}button:hover{border-color:#e74959}button.selected,button.primary{background:var(--accent);border-color:var(--accent);color:white}button:disabled{opacity:.4;cursor:not-allowed}.actions{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.actions>*{flex:1}small,.muted{color:var(--muted);font-size:12px;line-height:1.55}hr{border:0;border-top:1px solid #34343e;margin:17px 0}.roster-list{display:grid;gap:6px;max-height:300px;overflow:auto}.playerrow{display:flex;gap:7px;align-items:center;justify-content:space-between;border:1px solid #33333d;padding:6px;border-radius:8px}.playerrow span{font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.playerrow button{padding:5px 7px;font-size:11px}.tag{font-size:10px;background:#353541;padding:4px 7px;border-radius:40px}.pill{background:#3b2028;color:#ffadb8;font-size:11px;border-radius:8px;padding:6px 8px}.pitch-shell{position:relative;aspect-ratio:1000/640;width:100%;overflow:hidden;border:4px solid #25522d;border-radius:14px;touch-action:none;background:repeating-linear-gradient(90deg,#286737 0%,#286737 10%,#2d713d 10%,#2d713d 20%);margin:12px 0}.pitch-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.pitch-draw{position:absolute;inset:0;width:100%;height:100%;touch-action:none}.token{position:absolute;z-index:3;width:58px;height:68px;transform:translate(-50%,-50%);cursor:grab;touch-action:none;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;user-select:none}.token .avatar{height:43px;width:43px;border-radius:100%;background:#100d14;border:3px solid #e5394f;box-shadow:0 2px 8px #000a;display:grid;place-items:center;overflow:hidden;font-size:17px;font-weight:900}.token .avatar img{height:100%;width:100%;object-fit:cover}.token small{background:#101015ee;border-radius:5px;padding:2px 4px;color:white;font-weight:700;line-height:1;max-width:80px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.token .role{color:#f5c0c5;font-weight:400;font-size:9px}.token.active .avatar{border-color:#fff}.toolbox{display:flex;gap:6px;flex-wrap:wrap}.toolbox button{flex:1 0 24%;font-size:11px;white-space:nowrap}.legend{display:flex;gap:10px;flex-wrap:wrap;color:#b8d3bc;font-size:11px}.status{border-left:3px solid #d34758;padding:9px 12px;background:#231c22;font-size:12px;line-height:1.5;margin:8px 0}.plays{display:grid;gap:6px}.plays button{text-align:left}.mini{font-size:11px;color:#b3b3bd}.report{white-space:pre-wrap;background:#111116;border:1px solid #393943;border-radius:9px;padding:12px;font-size:12px;line-height:1.6}.divider{height:1px;background:#33333d;margin:14px 0}.footer-note{grid-column:1/-1;color:#a9a9b8;font-size:12px}.match-toolbar{display:flex;gap:9px;align-items:center;justify-content:space-between;flex-wrap:wrap}.match-toolbar h2{margin:0}.narrow{max-width:130px}.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.hidden{display:none!important}
+@media(max-width:1300px){main{grid-template-columns:290px minmax(430px,1fr)}.right{grid-column:1/-1}}@media(max-width:860px){main{grid-template-columns:1fr}.right{grid-column:auto}.token{width:42px;height:54px}.token .avatar{width:33px;height:33px;border-width:2px}.token small{font-size:9px}.panel{padding:12px}}
+</style></head><body>
+<header><div><p>C.A. Yenne Foot · Rouge &amp; Noir</p><h1>Studio tactique <span style="color:#f36b78">STABLE</span></h1></div><nav><a href="./index.html">← Analyse vidéo</a><a href="#feuille">Feuille de match</a><a href="#observations">Observations</a></nav></header>
+<main>
+<section class="panel" id="feuille"><h2>Feuille de match</h2><h3>Dossiers des matchs enregistrés</h3><div class="row"><select id="matchArchive" aria-label="Dossier match"></select><button id="newMatch">＋ Nouveau</button></div>
+<div class="row"><label>Adversaire<input id="opponent" placeholder="Ex. Chambéry" maxlength="80"></label><label>Date<input type="date" id="matchDate"></label></div>
+<label>Identifiant match (pour relier rapports et vidéos)<input id="matchId" placeholder="ex. CAY-S1-2026-10-18" maxlength="120"></label>
+<label>Système de jeu<select id="formation"></select></label>
+<div class="actions"><button id="applyFormation" class="primary">Appliquer formation</button><button id="reverse">↔ Sens attaque</button></div>
+<p class="mini">Le système initialise les emplacements. Ensuite, chaque position reste modifiable à la main. Gardien + 10 joueurs maximum, banc libre.</p>
+<div class="row"><span class="pill" id="lineupCount">0 / 11 titulaires</span><span class="pill" id="benchCount">0 remplaçant</span></div>
+<h3>Effectif C.A. Yenne</h3><div id="rosterList" class="roster-list"></div>
+<h3>Ajouter un joueur</h3><div class="row"><input id="newNumber" type="number" min="1" max="99" placeholder="N°" aria-label="Numéro"><input id="newName" placeholder="Nom du joueur" aria-label="Nom du joueur"></div>
+<div class="row"><select id="newRole" aria-label="Poste"><option value="GK">Gardien</option><option value="CB">Défenseur central</option><option value="RB">Latéral droit</option><option value="LB">Latéral gauche</option><option value="DM">Sentinelle</option><option value="CM">Milieu</option><option value="AM">N°10</option><option value="RW">Ailier droit</option><option value="LW">Ailier gauche</option><option value="ST" selected>Avant-centre</option></select><button id="addPlayer">+ Effectif</button></div>
+<label>Photo du joueur (optionnelle, miniaturisée localement)<input id="newPhoto" type="file" accept="image/png,image/jpeg,image/webp"></label>
+<hr><label>Consignes pour les titulaires et remplaçants<textarea id="coachNote" rows="3" placeholder="Responsabilités individuelles, coups de pied arrêtés, remplacements prévus…"></textarea></label>
+<div class="actions"><button id="saveSheet" class="primary">Enregistrer la feuille</button><button id="exportAll">Exporter dossier JSON</button></div>
+<div id="saveState" class="status" role="status">Stockage local du navigateur. Pas de synchronisation serveur ni authentification simulée.</div>
+</section>
+<section class="panel"><div class="match-toolbar"><h2>Terrain tactique — jetons CAY</h2><span class="pill" id="sceneLabel">Scène 1</span></div>
+<div class="toolbox" id="tools"><button data-tool="move" class="selected">✥ Déplacer</button><button data-tool="pen">✎ Stylo</button><button data-tool="arrow">➜ Flèche</button><button data-tool="line">╱ Ligne</button><button data-tool="rectangle">▭ Rectangle</button><button data-tool="circle">◯ Cercle</button><button data-tool="offside">┆ Hors-jeu</button><button data-tool="eraser">⌫ Gomme</button></div>
+<div class="pitch-shell" id="pitch" aria-label="Terrain de football, glissez les jetons pour construire le schéma">
+<svg class="pitch-lines" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-hidden="true"><g stroke="#e0f4e4" stroke-width="3" fill="none" opacity=".8"><rect x="18" y="18" width="964" height="604"/><line x1="500" y1="18" x2="500" y2="622"/><circle cx="500" cy="320" r="88"/><circle cx="500" cy="320" r="3" fill="#e0f4e4"/><rect x="18" y="168" width="157" height="304"/><rect x="825" y="168" width="157" height="304"/><rect x="18" y="237" width="56" height="166"/><rect x="926" y="237" width="56" height="166"/><path d="M175 250 A90 90 0 0 1 175 390"/><path d="M825 250 A90 90 0 0 0 825 390"/><circle cx="120" cy="320" r="3" fill="#e0f4e4"/><circle cx="880" cy="320" r="3" fill="#e0f4e4"/><path d="M18 38 A20 20 0 0 0 38 18 M962 18 A20 20 0 0 0 982 38 M18 602 A20 20 0 0 1 38 622 M962 622 A20 20 0 0 1 982 602"/></g></svg>
+<svg class="pitch-draw" id="drawSvg" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-label="Zone de dessin"><defs><marker id="arrowhead" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#ffda46"/></marker></defs><g id="marks"></g><g id="preview"></g></svg>
+<div id="tokens"></div></div>
+<div class="legend"><span>● Bord rouge : joueurs CAY</span><span>➜ Jaune : déplacement / course</span><span>┆ Blanc : ligne hors-jeu illustrative</span></div>
+<div class="actions"><button id="undo">↶ Annuler tracé</button><button id="clearDrawing">Effacer dessins</button><button id="saveScene">💾 Scène</button><button id="newScene">＋ Scène</button></div>
+<label>Scénario enregistré<select id="sceneSelect"></select></label>
+<h3>Bibliothèque de situations</h3><div class="plays" id="playList"></div>
+<div class="status" id="scenarioHelp">Sélectionne une situation : appels, contre-appels, faux 9, numéro 10, repli, touche, bloc, hors-jeu, CPA.</div>
+<p class="mini">Règle importante : <b>un joueur ne peut pas être sanctionné hors-jeu directement sur une rentrée de touche.</b> La ligne est un support pédagogique, pas une décision arbitrale ou une mesure vidéo.</p>
+</section>
+<section class="panel right" id="observations"><h2>Observation → interprétation → coach</h2>
+<p class="muted">Chaque séquence analysée doit être retrouvable dans le match. Une hypothèse IA n'est jamais présentée comme un fait sans validation.</p>
+<label>Vidéo / rapport source (identifiant)<input id="videoId" placeholder="vidéo-match-1"></label>
+<div class="row"><label>Temps vidéo (secondes)<input id="videoTime" type="number" min="0" step="1" value="0"></label><label>Action<select id="actionType"></select></label></div>
+<div class="row"><label>Équipe<select id="eventTeam"><option value="CAY">C.A. Yenne</option><option value="OPPONENT">Adversaire</option><option value="UNKNOWN">Indéterminé</option></select></label><label>Zone<select id="zone"><option value="DEFENSIVE_THIRD">Tiers défensif</option><option value="MIDDLE_THIRD">Milieu terrain</option><option value="ATTACKING_THIRD">Tiers offensif</option><option value="UNKNOWN">Non identifiable</option></select></label></div>
+<label>Issue observée<select id="outcome"><option value="UNKNOWN">Non déterminée</option><option value="RETAINED">Ballon conservé</option><option value="LOST">Ballon perdu</option><option value="WON">Ballon gagné</option><option value="NO_CONCLUSION">Séquence incomplète</option></select></label>
+<label>Constat et contexte<textarea id="observationNotes" rows="4" placeholder="Ex. touche côté droit, 2 solutions proches, pression adverse immédiate, remise risquée…"></textarea></label>
+<label>Nom du coach qui confirme<input id="coachName" placeholder="Coach référent"></label>
+<label><input id="confirmEvent" type="checkbox"> Observation revue et validée par le coach</label>
+<label><input id="isReplay" type="checkbox"> Ralenti / replay (à exclure des statistiques de jeu en direct)</label>
+<button id="addObservation" class="primary">Ajouter l'observation</button>
+<div class="divider"></div><h3>Journal de match</h3><div id="eventList" class="roster-list"></div>
+<h3>Synthèse exploitable</h3><div id="report" class="report">Aucune séquence validée.</div>
+<div class="actions"><button id="exportReport">Exporter synthèse JSON</button><button id="removeAllObservations">Réinitialiser journal</button></div>
+<p class="mini">V1 : observations manuelles vérifiables, suggestions par règles transparentes. Détection automatique de touches, hors-jeu, appels et possession : <b>non branchée</b>, donc INDISPONIBLE. Les vidéos sources restent sur votre appareil.</p>
+</section><p class="footer-note">CAY-STABLE • prototype navigateur sans backend • stockage local au même domaine que l'analyse • ne pas publier de données nominatives de mineurs ou de photos sans autorisation appropriée.</p></main>
+<script src="./app_domain_models_v1.js"></script><script src="./club_roster_identity_ui_v1.js"></script><script id="cayStaffTacticalEngine">
+(function(root,factory){
+  const api=factory(typeof module==='object'&&module.exports?require('./app_domain_models_v1.js'):root.CAYAppDomainModels);
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  else root.CAYStaffTacticalEngine=api;
+})(typeof globalThis!=='undefined'?globalThis:this,function(Domain){
+'use strict';
+const VERSION='CAY_STAFF_TACTICAL_ENGINE_V1';
+const SHAPES={
+ '4-4-2':[[4,'BACK'],[4,'MID'],[2,'FRONT']],
+ '4-4-2 diamant':[[4,'BACK'],[1,'DM'],[2,'CM'],[1,'AM'],[2,'FRONT']],
+ '4-3-3':[[4,'BACK'],[1,'DM'],[2,'CM'],[3,'FRONT']],
+ '4-2-3-1':[[4,'BACK'],[2,'DM'],[3,'AM'],[1,'FRONT']],
+ '4-1-4-1':[[4,'BACK'],[1,'DM'],[4,'MID'],[1,'FRONT']],
+ '4-5-1':[[4,'BACK'],[5,'MID'],[1,'FRONT']],
+ '4-2-2-2':[[4,'BACK'],[2,'DM'],[2,'AM'],[2,'FRONT']],
+ '4-3-1-2':[[4,'BACK'],[3,'MID'],[1,'AM'],[2,'FRONT']],
+ '4-1-2-1-2':[[4,'BACK'],[1,'DM'],[2,'CM'],[1,'AM'],[2,'FRONT']],
+ '4-2-4':[[4,'BACK'],[2,'MID'],[4,'FRONT']],
+ '3-5-2':[[3,'BACK'],[2,'WING_BACK'],[3,'MID'],[2,'FRONT']],
+ '3-4-3':[[3,'BACK'],[4,'MID'],[3,'FRONT']],
+ '3-4-2-1':[[3,'BACK'],[4,'MID'],[2,'AM'],[1,'FRONT']],
+ '3-4-1-2':[[3,'BACK'],[4,'MID'],[1,'AM'],[2,'FRONT']],
+ '3-2-4-1':[[3,'BACK'],[2,'DM'],[4,'AM'],[1,'FRONT']],
+ '5-3-2':[[5,'BACK'],[3,'MID'],[2,'FRONT']],
+ '5-4-1':[[5,'BACK'],[4,'MID'],[1,'FRONT']],
+ '5-2-3':[[5,'BACK'],[2,'MID'],[3,'FRONT']]
+};
+const PLAYS={
+  'appel-contre-appel':{label:'Appel / contre-appel',focus:'Désynchroniser les courses : attirer, décrocher, attaquer espace libre',tags:['MOUVEMENT','DEMARQUAGE']},
+  'faux-neuf':{label:'Faux 9',focus:'Décrochage du 9, occupation profondeur par les ailiers, connexion au 10',tags:['F9','ZONE14']},
+  'numero-dix':{label:'Numéro 10 entre les lignes',focus:'Se rendre disponible entre lignes et fixer avant la dernière passe',tags:['10','ENTRELIGNES']},
+  'hors-jeu':{label:'Ligne de hors-jeu (simulation)',focus:'Synchroniser appel/passe et observation avant-dernier défenseur; aucun jugement arbitral automatique',tags:['PROFONDEUR','TIMING']},
+  'touche-courte':{label:'Touche : triangle de soutien',focus:'Porteur + appui proche + troisième homme, sécuriser première remise',tags:['TOUCHE','CONSERVATION']},
+  'touche-longue':{label:'Touche : profondeur',focus:'Appel proche pour fixer, second appel en profondeur, couvrir la deuxième balle',tags:['TOUCHE','DEUXIEMEBALLE']},
+  'coulissement':{label:'Coulissement du bloc',focus:'Fermer axe, côté faible et distances interlignes lors du déplacement du ballon',tags:['BLOC','DEFENSE']},
+  'transition-defensive':{label:'Perte de balle : repli',focus:'Pression sur porteur, couverture derrière, fermeture axe et profondeur',tags:['TRANSITION','REPLI']},
+  'transition-offensive':{label:'Récupération : contre-attaque',focus:'Première passe sécurisée, soutien, profondeur, choix contre-attaque ou conservation',tags:['TRANSITION','GAIN']},
+  'jeu-de-tete':{label:'Duel aérien / second ballon',focus:'Timing impulsion, protection, couverture des retombées',tags:['AERIEN','SECOND_BALLON']},
+  'corner':{label:'Corner / coup de pied arrêté',focus:'Variantes premier poteau, deuxième poteau, retrait, couverture transition',tags:['CPA','CORNER']},
+  'coup-franc':{label:'Coup franc',focus:'Timing des courses, zones, écran licite et organisation à la perte',tags:['CPA']}
+};
+function clamp(v,min=0,max=100){const n=Number(v);if(!Number.isFinite(n))throw Error('COORDINATE_INVALID');return Math.max(min,Math.min(max,n));}
+function formationNames(){return Object.keys(SHAPES);}
+function makeFormation(name='4-3-3',direction='right'){
+ const shape=SHAPES[name];if(!shape)throw Error('UNKNOWN_FORMATION');
+ if(direction!=='right'&&direction!=='left')throw Error('INVALID_DIRECTION');
+ const out=[{slot:'GK',role:'GK',x:7,y:50}];
+ const anchors={BACK:24,DM:42,CM:58,MID:56,WING_BACK:48,AM:70,FRONT:84};
+ let offset=0;
+ shape.forEach(([count,group],i)=>{
+   const x=anchors[group];
+   for(let k=0;k<count;k++){
+     let y=100*(k+1)/(count+1);
+     if(group==='WING_BACK')y=k===0?8:92;
+     let role=group==='FRONT'?(count===1?'ST':count===3?(k===0?'LW':k===1?'ST':'RW'):'ST'):group==='AM'?(count===1?'AM':count===3?(k===0?'LM':k===1?'AM':'RM'):'AM'):group==='DM'?'DM':group==='WING_BACK'?(k===0?'LWB':'RWB'):group==='BACK'?(k===0?'LB':k===count-1?'RB':'CB'):(count===1?'CM':count===3&&k===1?'CM':count===4&&(k===0||k===3)?(k===0?'LM':'RM'):'CM');
+     out.push({slot:`${group}_${++offset}`,role,x,y});
+   }
+ });
+ if(out.length!==11)throw Error('FORMATION_NOT_11');
+ // Widely-spaced wingbacks belong between defence and midfield, even in 3-5-2.
+ if(name==='3-5-2'){out.filter(p=>p.slot.startsWith('WING_BACK')).forEach(p=>p.x=48);}
+ // More specific x locations preserve diamond shape, defensive pivots and two striker lines.
+ if(name==='4-4-2 diamant'||name==='4-1-2-1-2'){
+   out.filter(p=>p.slot.startsWith('DM')).forEach(p=>p.x=39);
+   out.filter(p=>p.slot.startsWith('CM')).forEach(p=>p.x=54);
+   out.filter(p=>p.slot.startsWith('AM')).forEach(p=>p.x=68);
+   out.filter(p=>p.slot.startsWith('FRONT')).forEach(p=>p.x=83);
+ }
+ if(direction==='left')out.forEach(p=>p.x=100-p.x);
+ return out;
+}
+function normalizeSheet(team,raw={}){
+ if(!Domain||typeof Domain.createTeam!=='function')throw Error('CAY_DOMAIN_REQUIRED');
+ const t=Domain.createTeam(team),lineup=Array.isArray(raw.lineup)?raw.lineup.map(String):[],bench=Array.isArray(raw.bench)?raw.bench.map(String):[];
+ const check=Domain.validateMatchParticipants(t,lineup,bench);
+ if(!check.valid)throw Error('MATCH_SHEET_INVALID:'+check.errors.join(','));
+ const formation=raw.formation||'4-3-3';if(!SHAPES[formation])throw Error('UNKNOWN_FORMATION');
+ const entries=Array.isArray(raw.positions)?raw.positions:[];
+ const ids=new Set(lineup),slots=new Set();
+ const positions=entries.map(p=>{
+  const playerId=String(p.playerId||'');if(!ids.has(playerId))throw Error('UNASSIGNED_POSITION_PLAYER');
+  if(slots.has(playerId))throw Error('DUPLICATE_POSITION_PLAYER');slots.add(playerId);
+  return {playerId,x:clamp(p.x),y:clamp(p.y),role:String(p.role||'').slice(0,30)};
+ });
+ return {version:VERSION,matchId:String(raw.matchId||''),opponent:String(raw.opponent||''),date:String(raw.date||''),formation,lineup,bench,positions,validatedByCoach:raw.validatedByCoach===true,coachNote:String(raw.coachNote||'').slice(0,2000),updatedAt:String(raw.updatedAt||'')};
+}
+function placeLineup(team,raw){
+ const sheet=normalizeSheet(team,raw),slots=makeFormation(sheet.formation,raw.direction||'right');
+ const existing=new Map(sheet.positions.map(p=>[p.playerId,p]));
+ return sheet.lineup.map((id,i)=>({...slots[i],...existing.get(id),playerId:id}));
+}
+const EVIDENCE_STATES=['OBSERVED','COACH_CONFIRMED','REJECTED'];
+const ACTIONS=['THROW_IN','BALL_GAIN','BALL_LOSS','PASS','SHOT','OFFSIDE','AERIAL_DUEL','CORNER','FREE_KICK','DEFENSIVE_TRANSITION','ATTACKING_TRANSITION','POSITIONING','OTHER'];
+const ZONES=['DEFENSIVE_THIRD','MIDDLE_THIRD','ATTACKING_THIRD','UNKNOWN'];
+function observation(raw={}){
+ if(!ACTIONS.includes(raw.action))throw Error('UNKNOWN_ACTION');
+ const start=Number(raw.videoSecond);if(!Number.isFinite(start)||start<0)throw Error('VIDEO_TIME_INVALID');
+ const state=raw.evidenceState||'OBSERVED';if(!EVIDENCE_STATES.includes(state))throw Error('INVALID_EVIDENCE_STATE');
+ const zone=raw.zone||'UNKNOWN';if(!ZONES.includes(zone))throw Error('INVALID_ZONE');
+ const owner=raw.team||'UNKNOWN';if(!['CAY','OPPONENT','UNKNOWN'].includes(owner))throw Error('INVALID_TEAM');
+ let outcome=raw.outcome||'UNKNOWN';if(!['RETAINED','LOST','WON','NO_CONCLUSION','UNKNOWN'].includes(outcome))throw Error('INVALID_OUTCOME');
+ const quality=raw.quality||'MANUAL';if(!['MANUAL','VIDEO_REVIEWED','AUTO_CANDIDATE'].includes(quality))throw Error('INVALID_EVIDENCE_SOURCE');
+ if(state==='COACH_CONFIRMED'&&(!String(raw.coachName||'').trim()||quality==='AUTO_CANDIDATE'))throw Error('COACH_CONFIRMATION_REQUIRED');
+ return {id:String(raw.id||''),action:raw.action,videoSecond:start,team:owner,zone,outcome,evidenceState:state,quality,coachName:state==='COACH_CONFIRMED'?String(raw.coachName).slice(0,120):null,playerId:raw.playerId==null?null:String(raw.playerId),notes:String(raw.notes||'').slice(0,2000),matchId:String(raw.matchId||''),sourceVideoId:String(raw.sourceVideoId||''),replayExcluded:raw.replayExcluded===true};
+}
+function summarizeObservations(input){
+ const rows=(Array.isArray(input)?input:[]).map(observation);
+ const confirmed=rows.filter(r=>r.evidenceState==='COACH_CONFIRMED'&&!r.replayExcluded&&r.sourceVideoId);
+ const grouped={};for(const action of ACTIONS){const items=confirmed.filter(r=>r.action===action);grouped[action]={confirmed:items.length,byZone:Object.fromEntries(ZONES.map(z=>[z,items.filter(i=>i.zone===z).length]))};}
+ const touch=confirmed.filter(r=>r.action==='THROW_IN'&&r.team==='CAY');
+ const evaluated=touch.filter(r=>r.outcome==='RETAINED'||r.outcome==='LOST');
+ const kept=evaluated.filter(r=>r.outcome==='RETAINED').length;
+ const throwIns={confirmed:touch.length,evaluable:evaluated.length,retained:kept,lost:evaluated.length-kept,retentionPct:evaluated.length?Math.round(100*kept/evaluated.length):null,coverage:evaluated.length&&touch.length?+(evaluated.length/touch.length).toFixed(3):0,status:evaluated.length?'PARTIEL':'INDISPONIBLE',rule:'CONSERVATION_APRES_TOUCHE_UNIQUEMENT_SUR_ACTIONS_REVUES_ET_VALIDÉES; NON_REPRÉSENTATIF_SANS_COUVERTURE_COMPLETE'};
+ const risks=[];
+ if(evaluated.length>=3&&kept/evaluated.length<.5)risks.push({play:'touche-courte',cause:'Pertes fréquentes après touche favorable dans les séquences validées',sample:evaluated.length,action:'Répéter triangle de soutien et troisième homme; annoter pression, zone et première remise'});
+ const defensive=confirmed.filter(r=>r.action==='BALL_LOSS'&&r.zone==='DEFENSIVE_THIRD');
+ if(defensive.length>=3)risks.push({play:'transition-defensive',cause:'Plusieurs pertes dans le tiers défensif',sample:defensive.length,action:'Atelier sortie de pression, couverture à la perte et fermeture de l’axe'});
+ const offside=confirmed.filter(r=>r.action==='OFFSIDE');
+ if(offside.length>=3)risks.push({play:'appel-contre-appel',cause:'Hors-jeu répétés confirmés',sample:offside.length,action:'Synchronisation porteur/receveur, appel-contre-appel et choix du moment de passe'});
+ const eventsByVideo=confirmed.filter(r=>r.sourceVideoId).map(r=>({matchId:r.matchId,videoSecond:r.videoSecond,sourceVideoId:r.sourceVideoId,action:r.action}));
+ return {version:VERSION,total:rows.length,confirmed:confirmed.length,excluded:rows.length-confirmed.length,grouped,throwIns,risks,eventsByVideo,policy:'UN EVENEMENT IA NON VALIDE N EST PAS UN FAIT; LES EXERCICES SONT DES SUGGESTIONS HEURISTIQUES; ZERO STATISTIQUE SUR LES SEQUENCES NON OBSERVEES'};
+}
+return {VERSION,SHAPES,PLAYS,formationNames,makeFormation,normalizeSheet,placeLineup,ACTIONS,ZONES,observation,summarizeObservations};
+});
+
+</script>
+<script>
+(function(){'use strict';
+const E=window.CAYStaffTacticalEngine,D=window.CAYAppDomainModels,R=window.CAYClubRosterIdentityUI;
+const $=id=>document.getElementById(id),S='CAY_STAFF_TACTICS_V1',store=R.createStore(window.localStorage);
+const q=v=>String(v??'').trim();const ARCH='CAY_STAFF_MATCH_ARCHIVE_V1';let team,model={matchId:'',opponent:'',date:'',formation:'4-3-3',lineup:[],bench:[],positions:[],drawings:[],scenes:[],sceneIndex:0,observations:[],videoId:'',coachNote:'',direction:'right'},currentTool='move',pointer=null,selectedToken=null;
+function safeRead(){try{return JSON.parse(localStorage.getItem(S)||'null')}catch(_){return null}}
+function notify(msg){$('saveState').textContent=msg;}
+function snapshot(){return JSON.parse(JSON.stringify(model));}
+function persist(){try{localStorage.setItem(S,JSON.stringify(model));if(q(model.matchId)){const archive=loadArchive();archive[model.matchId]={...snapshot(),teamId:team.id};localStorage.setItem(ARCH,JSON.stringify(archive));}renderArchive();notify('Enregistré localement ✓ • Aucun envoi au serveur.');return true}catch(err){notify('Stockage impossible ou plein : exporte le dossier JSON. '+err.message);return false}}
+function loadArchive(){try{const obj=JSON.parse(localStorage.getItem(ARCH)||'{}');return obj&&typeof obj==='object'&&!Array.isArray(obj)?obj:{}}catch(_){return {}}}
+function renderArchive(){const input=$('matchArchive');if(!input)return;input.replaceChildren();const empty=document.createElement('option');empty.value='';empty.textContent='Choisir un match enregistré';input.append(empty);for(const [id,match] of Object.entries(loadArchive()).sort(([a],[b])=>b.localeCompare(a))){if(match.teamId&&match.teamId!==team.id)continue;const option=document.createElement('option');option.value=id;option.textContent=(match.date||'Sans date')+' · '+(match.opponent||id);input.append(option);}input.value=Object.prototype.hasOwnProperty.call(loadArchive(),model.matchId)?model.matchId:'';}
+function refreshTeam(){team=R.currentTeam();}
+function getPositions(){if(!model.lineup.length)return [];const sheet=E.normalizeSheet(team,{...model,positions:model.positions});return E.placeLineup(team,{...sheet,direction:model.direction});}
+function setPositionsFromFormation(){const f=E.makeFormation(model.formation,model.direction),order=[...model.lineup];const gki=order.findIndex(id=>{const p=findPlayer(id);return p&&(p.isGoalkeeper===true||p.primaryPosition==='GK');});if(gki>0)order.unshift(order.splice(gki,1)[0]);model.positions=order.map((id,i)=>({playerId:id,x:f[i].x,y:f[i].y,role:f[i].role}));}
+function syncMeta(){model.opponent=q($('opponent').value);model.date=q($('matchDate').value);model.matchId=q($('matchId').value);model.coachNote=$('coachNote').value.slice(0,2000);model.videoId=q($('videoId').value);}
+function findPlayer(id){return team.roster.find(p=>String(p.id)===String(id));}
+function renderRoster(){refreshTeam();$('lineupCount').textContent=model.lineup.length+' / 11 titulaires';$('benchCount').textContent=model.bench.length+' remplaçants';$('rosterList').replaceChildren();
+ for(const player of team.roster){const row=document.createElement('div');row.className='playerrow';const name=document.createElement('span');name.title=player.displayName;name.textContent='#'+(player.number||'–')+' '+player.displayName+' · '+(player.primaryPosition||'?');const status=document.createElement('span');status.className='tag';const position=model.lineup.includes(player.id)?'TITULAIRE':model.bench.includes(player.id)?'BANC':'HORS';status.textContent=position;
+ const btn=document.createElement('button');btn.textContent=position==='TITULAIRE'?'→ Banc':position==='BANC'?'× Retirer':'+ Terrain';btn.onclick=()=>{if(position==='TITULAIRE'){model.lineup=model.lineup.filter(x=>x!==player.id);if(!model.bench.includes(player.id))model.bench.push(player.id);}else if(position==='BANC'){model.bench=model.bench.filter(x=>x!==player.id);}else{if(model.lineup.length>=11){notify('11 titulaires maximum : retire un joueur avant d’en ajouter un.');return;}model.lineup.push(player.id);}setPositionsFromFormation();renderAll();persist();};row.append(name,status,btn);$('rosterList').append(row);}
+ if(!team.roster.length){const info=document.createElement('p');info.className='muted';info.textContent='Aucun joueur. Ajoute un joueur ci-dessous ou utilise le trombinoscope de CAY Analyzer.';$('rosterList').append(info);}}
+function addPlayerWithPhoto(photo){const name=q($('newName').value),number=$('newNumber').value,role=$('newRole').value;if(!name){notify('Nom du joueur obligatoire.');return;}
+ const id='cay_player_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
+ try{const player=D.createPlayer({id,displayName:name,number,primaryPosition:role,photoUrl:photo||''});store.saveTeam({...team,roster:[...team.roster,player]});$('newName').value='';$('newNumber').value='';$('newPhoto').value='';refreshTeam();renderRoster();persist();}catch(e){notify(e.message)}}
+$('addPlayer').onclick=()=>{const file=$('newPhoto').files[0];if(!file){addPlayerWithPhoto(null);return}if(file.size>7*1024*1024||!/^image\/(png|jpeg|webp)$/.test(file.type)){notify('Photo PNG, JPG ou WebP de moins de 7 Mo.');return;}const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=96;c.height=96;const cx=c.getContext('2d');const side=Math.min(img.width,img.height),x=(img.width-side)/2,y=(img.height-side)/2;cx.drawImage(img,x,y,side,side,0,0,96,96);addPlayerWithPhoto(c.toDataURL('image/jpeg',.7));};img.onerror=()=>notify('Photo illisible');img.src=reader.result;};reader.onerror=()=>notify('Lecture photo impossible');reader.readAsDataURL(file);};
+function renderTokens(){const parent=$('tokens');parent.replaceChildren();const positions=getPositions();positions.forEach(p=>{const player=findPlayer(p.playerId);if(!player)return;const token=document.createElement('div');token.className='token'+(selectedToken===p.playerId?' active':'');token.style.left=p.x+'%';token.style.top=p.y+'%';token.title=(player.displayName||'Joueur')+' · '+p.role;const avatar=document.createElement('div');avatar.className='avatar';if(player.photoUrl){const img=document.createElement('img');img.alt='';img.referrerPolicy='no-referrer';img.src=player.photoUrl;avatar.append(img);}else avatar.textContent=player.number||'•';const name=document.createElement('small');name.textContent=player.displayName||'Joueur';const role=document.createElement('small');role.className='role';role.textContent=p.role;token.append(avatar,name,role);parent.append(token);
+ token.addEventListener('pointerdown',ev=>{if(currentTool!=='move')return;ev.preventDefault();ev.stopPropagation();token.setPointerCapture(ev.pointerId);pointer={kind:'token',id:p.playerId};selectedToken=p.playerId;renderTokenSelection();});
+ token.addEventListener('pointermove',ev=>{if(!pointer||pointer.kind!=='token'||pointer.id!==p.playerId)return;const pt=ptFromEvent(ev);const item=model.positions.find(x=>x.playerId===p.playerId);if(item){item.x=Math.max(2,Math.min(98,pt.x/10));item.y=Math.max(4,Math.min(96,pt.y/6.4));token.style.left=item.x+'%';token.style.top=item.y+'%';}});
+ token.addEventListener('pointerup',()=>{if(pointer?.kind==='token'){pointer=null;persist();}});
+ token.addEventListener('pointercancel',()=>{pointer=null;});
+ });}
+function renderTokenSelection(){document.querySelectorAll('.token').forEach(el=>el.classList.remove('active'));}
+function ptFromEvent(ev){const r=$('pitch').getBoundingClientRect();return {x:Math.max(0,Math.min(1000,(ev.clientX-r.left)/r.width*1000)),y:Math.max(0,Math.min(640,(ev.clientY-r.top)/r.height*640))};}
+const NS='http://www.w3.org/2000/svg';function shapeElement(kind,points,preview=false){const el=document.createElementNS(NS,kind==='rectangle'?'rect':kind==='circle'?'ellipse':'path');const first=points[0],last=points[points.length-1]||first;
+ const att=(n,v)=>el.setAttribute(n,String(v));att('fill','none');att('stroke',kind==='offside'?'#fff':kind==='arrow'?'#ffda46':'#f4f5ff');att('stroke-width',preview?'5':'4');att('stroke-linecap','round');att('stroke-linejoin','round');if(kind==='offside')att('stroke-dasharray','15 11');
+ if(kind==='rectangle'){att('x',Math.min(first.x,last.x));att('y',Math.min(first.y,last.y));att('width',Math.abs(last.x-first.x));att('height',Math.abs(last.y-first.y));}else if(kind==='circle'){att('cx',(first.x+last.x)/2);att('cy',(first.y+last.y)/2);att('rx',Math.abs(last.x-first.x)/2);att('ry',Math.abs(last.y-first.y)/2);}else if(kind==='offside')att('d',`M${first.x.toFixed(1)},0 L${first.x.toFixed(1)},640`);else{att('d',points.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' '));if(kind==='arrow')att('marker-end','url(#arrowhead)');}return el;}
+function drawMarks(){const target=$('marks');target.replaceChildren();for(const sh of model.drawings){if(!sh.points?.length)continue;target.append(shapeElement(sh.kind,sh.points));}}
+function eraseAt(pt){let idx=-1,distance=1e9;model.drawings.forEach((s,i)=>{for(const p of s.points||[]){let d=Math.hypot(p.x-pt.x,p.y-pt.y);if(s.kind==='offside')d=Math.abs(p.x-pt.x);if(d<distance){distance=d;idx=i;}}});if(distance<70){model.drawings.splice(idx,1);drawMarks();persist();}}
+function setTool(t){currentTool=t;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('selected',b.dataset.tool===t));$('drawSvg').style.pointerEvents=t==='move'?'none':'auto';}
+$('tools').onclick=ev=>{const b=ev.target.closest('[data-tool]');if(b)setTool(b.dataset.tool)};
+$('drawSvg').addEventListener('pointerdown',ev=>{if(currentTool==='move')return;const pt=ptFromEvent(ev);if(currentTool==='eraser'){eraseAt(pt);return;}$('drawSvg').setPointerCapture(ev.pointerId);pointer={kind:'draw',shape:{kind:currentTool,points:[pt]}};});
+$('drawSvg').addEventListener('pointermove',ev=>{if(pointer?.kind!=='draw')return;const pt=ptFromEvent(ev),shape=pointer.shape;if(shape.kind==='pen')shape.points.push(pt);else if(shape.points.length===1)shape.points.push(pt);else shape.points[1]=pt;const preview=$('preview');preview.replaceChildren(shapeElement(shape.kind,shape.points,true));});
+function endDrawing(){if(pointer?.kind!=='draw')return;const shape=pointer.shape;pointer=null;$('preview').replaceChildren();if(shape.kind==='offside'||shape.points.length>1){model.drawings.push(shape);drawMarks();persist();}}
+$('drawSvg').addEventListener('pointerup',endDrawing);$('drawSvg').addEventListener('pointercancel',()=>{pointer=null;$('preview').replaceChildren()});
+$('undo').onclick=()=>{model.drawings.pop();drawMarks();persist()};$('clearDrawing').onclick=()=>{if(!confirm('Effacer tous les dessins de cette scène ?'))return;model.drawings=[];drawMarks();persist()};
+function renderScenes(){const select=$('sceneSelect');select.replaceChildren();model.scenes.forEach((scene,i)=>{const opt=document.createElement('option');opt.value=i;opt.textContent=scene.name||'Scène '+(i+1);select.append(opt)});select.value=String(model.sceneIndex||0);$('sceneLabel').textContent='Scène '+(Number(model.sceneIndex||0)+1);}
+function saveScene(){syncMeta();const id=model.sceneIndex||0;model.scenes[id]={name:'Scène '+(id+1)+' — '+model.formation,formation:model.formation,direction:model.direction,positions:model.positions.map(p=>({...p})),drawings:JSON.parse(JSON.stringify(model.drawings))};persist();renderScenes();notify('Scène tactique enregistrée ✓');}
+$('saveScene').onclick=saveScene;$('newScene').onclick=()=>{saveScene();model.scenes.push({name:'Scène '+(model.scenes.length+1),formation:model.formation,direction:model.direction,positions:model.positions.map(p=>({...p})),drawings:[]});model.sceneIndex=model.scenes.length-1;model.drawings=[];drawMarks();renderScenes();persist()};
+$('sceneSelect').onchange=()=>{const i=Number($('sceneSelect').value),s=model.scenes[i];if(!s)return;model.sceneIndex=i;model.formation=s.formation;model.direction=s.direction;model.positions=s.positions.map(p=>({...p}));model.drawings=JSON.parse(JSON.stringify(s.drawings||[]));$('formation').value=model.formation;renderTokens();drawMarks();renderScenes();persist()};
+$('formation').onchange=()=>{model.formation=$('formation').value};$('applyFormation').onclick=()=>{model.formation=$('formation').value;setPositionsFromFormation();renderTokens();persist()};$('reverse').onclick=()=>{model.direction=model.direction==='right'?'left':'right';model.positions=model.positions.map(p=>({...p,x:100-p.x}));renderTokens();persist();};
+function renderPlays(){const list=$('playList');for(const [id,play] of Object.entries(E.PLAYS)){const b=document.createElement('button');b.textContent=play.label;b.onclick=()=>{const text=play.label+' — '+play.focus;$('scenarioHelp').textContent=text;if(id==='faux-neuf'){const strikers=model.positions.filter(p=>p.role==='ST');if(strikers.length){const striker=strikers[Math.floor(strikers.length/2)];striker.x+=(model.direction==='right'?-15:15);striker.role='F9';renderTokens();}}if(id==='numero-dix'){const am=model.positions.find(p=>p.role==='AM');if(am){am.role='10';renderTokens();}}if(id==='hors-jeu')setTool('offside');else if(id==='appel-contre-appel')setTool('arrow');else setTool('move');persist();};list.append(b);}}
+function renderReport(){let report;try{report=E.summarizeObservations(model.observations);}catch(e){$('report').textContent='Erreur dans les observations : '+e.message;return;}const touched=report.throwIns;let lines=[`Séquences enregistrées : ${report.total} | validées + reliées à une vidéo : ${report.confirmed}`,`Touches CAY validées : ${touched.confirmed} | évaluables : ${touched.evaluable}`,`Conservation après touche : ${touched.retentionPct==null?'INDISPONIBLE':touched.retentionPct+' % (échantillon revu uniquement)'}`,`Pertes validées : ${report.grouped.BALL_LOSS.confirmed} | Récupérations validées : ${report.grouped.BALL_GAIN.confirmed}`,`Hors-jeu validés : ${report.grouped.OFFSIDE.confirmed}`,''];if(report.risks.length){lines.push('AXES PROPOSÉS (à valider par le coach) :');for(const risk of report.risks)lines.push('• '+risk.cause+' → '+risk.action+' (n='+risk.sample+')');}else lines.push('Aucun axe automatique justifié : données insuffisantes ou pas de récurrence confirmée.');lines.push('','Les situations non filmées, non confirmées et les replays ne sont pas comptées.');$('report').textContent=lines.join('\n');}
+function renderEvents(){const node=$('eventList');node.replaceChildren();for(const obs of model.observations.slice().reverse().slice(0,60)){const row=document.createElement('div');row.className='playerrow';const s=document.createElement('span');s.textContent=`${Math.floor(obs.videoSecond/60)}:${String(Math.floor(obs.videoSecond%60)).padStart(2,'0')} · ${obs.action} · ${obs.outcome} · ${obs.evidenceState==='COACH_CONFIRMED'?'✓ Coach':'À valider'}`;const del=document.createElement('button');del.textContent='Retirer';del.onclick=()=>{model.observations=model.observations.filter(e=>e.id!==obs.id);renderEvents();renderReport();persist()};row.append(s,del);node.append(row);}renderReport();}
+$('addObservation').onclick=()=>{syncMeta();const accepted=$('confirmEvent').checked;try{const raw={id:'ev_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6),action:$('actionType').value,videoSecond:$('videoTime').value,team:$('eventTeam').value,zone:$('zone').value,outcome:$('outcome').value,evidenceState:accepted?'COACH_CONFIRMED':'OBSERVED',quality:'VIDEO_REVIEWED',coachName:q($('coachName').value),notes:$('observationNotes').value,sourceVideoId:model.videoId,matchId:model.matchId,replayExcluded:$('isReplay').checked};const entry=E.observation(raw);if(!entry.sourceVideoId)throw Error('Identifiant vidéo obligatoire pour une observation traçable');if(!entry.matchId)throw Error('Identifiant match obligatoire');model.observations.push(entry);$('observationNotes').value='';$('confirmEvent').checked=false;renderEvents();persist();}catch(err){notify('Observation non enregistrée : '+err.message);}};
+$('removeAllObservations').onclick=()=>{if(!confirm('Effacer définitivement les observations de ce match dans le navigateur ?'))return;model.observations=[];renderEvents();persist();};
+$('matchArchive').onchange=()=>{const id=$('matchArchive').value,arch=loadArchive();if(!id||!arch[id])return;const saved=arch[id];if(saved.teamId&&saved.teamId!==team.id){notify('Dossier appartenant à une autre équipe');return;}model={...model,...JSON.parse(JSON.stringify(saved))};loadForm();renderAll();persist();};
+$('newMatch').onclick=()=>{model={version:'CAY_STAFF_UI_V1',matchId:'',opponent:'',date:'',formation:'4-3-3',lineup:[],bench:[],positions:[],drawings:[],scenes:[],sceneIndex:0,observations:[],videoId:'',coachNote:'',direction:'right'};loadForm();renderAll();persist();};
+function loadForm(){$('matchId').value=model.matchId;$('opponent').value=model.opponent;$('matchDate').value=model.date;$('formation').value=model.formation;$('coachNote').value=model.coachNote;$('videoId').value=model.videoId;}
+$('saveSheet').onclick=()=>{syncMeta();try{E.normalizeSheet(team,model);persist()}catch(err){notify('Feuille invalide : '+err.message)}};
+function downloadJSON(obj,filename){const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}
+$('exportAll').onclick=()=>{syncMeta();try{const sheet=E.normalizeSheet(team,model);downloadJSON({version:'CAY_STAFF_EXPORT_V1',sheet,scenes:model.scenes,drawings:model.drawings,observations:model.observations,summary:E.summarizeObservations(model.observations)},'cay-staff-'+(model.matchId||'match')+'.json');}catch(e){notify(e.message)}};
+$('exportReport').onclick=()=>downloadJSON({matchId:model.matchId,summary:E.summarizeObservations(model.observations),observations:model.observations},'cay-synthese-'+(model.matchId||'match')+'.json');
+function renderAll(){renderRoster();renderTokens();drawMarks();renderEvents();renderScenes()}
+function init(){if(!E||!D||!R){notify('Scripts CAY indisponibles.');return;}refreshTeam();for(const name of E.formationNames()){const o=document.createElement('option');o.value=name;o.textContent=name;$('formation').append(o);}for(const name of E.ACTIONS){const o=document.createElement('option');o.value=name;o.textContent=({THROW_IN:'Touche',BALL_GAIN:'Récupération',BALL_LOSS:'Perte',OFFSIDE:'Hors-jeu',AERIAL_DUEL:'Duel aérien',DEFENSIVE_TRANSITION:'Transition défensive',ATTACKING_TRANSITION:'Transition offensive',POSITIONING:'Placement',FREE_KICK:'Coup franc',SHOT:'Tir',PASS:'Passe',CORNER:'Corner',OTHER:'Autre'}[name]||name);$('actionType').append(o);}
+ const saved=safeRead();if(saved&&saved.version==='CAY_STAFF_UI_V1'){const keys=['matchId','opponent','date','formation','lineup','bench','positions','drawings','scenes','sceneIndex','observations','videoId','coachNote','direction'];for(const k of keys)if(saved[k]!==undefined)model[k]=saved[k];}model.version='CAY_STAFF_UI_V1';
+ // Never infer a match lineup from track IDs. Roster membership is the sole source.
+ const validIds=new Set(team.roster.filter(p=>p.status!=='INACTIVE').map(p=>p.id));model.lineup=model.lineup.filter(x=>validIds.has(x)).slice(0,11);model.bench=model.bench.filter(x=>validIds.has(x)&&!model.lineup.includes(x));if(!E.SHAPES[model.formation])model.formation='4-3-3';if(model.lineup.length&&model.positions.length!==model.lineup.length)setPositionsFromFormation();
+ loadForm();renderPlays();setTool('move');renderAll();notify('Studio tactique prêt. Formations, journal et scénarios restent sur cet appareil jusqu’à export.');}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init,{once:true}):init();
+})();
+</script></body></html>
