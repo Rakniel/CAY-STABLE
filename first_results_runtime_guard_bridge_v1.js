@@ -31,7 +31,7 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const missing={available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    const missing={available:true,quality:'INDISPONIBLE',coverage:null,attempted:0,usable:null,unavailable:null,reasons:{OBSERVATION_EVIDENCE_MISSING:1}};
     if(!Object.prototype.hasOwnProperty.call(bridge,'attemptedObservationFrames'))return missing;
     const attempted=bridge.attemptedObservationFrames;
     const usable=bridge.usableObservationFrames;
