@@ -116,10 +116,11 @@ function summarizeObservations(input,options={}){
  let missingEventIdExcluded=0,duplicateRowsExcluded=0;
  for(const row of candidates){
    if(!row.id){missingEventIdExcluded++;continue;}
-   if(byId.has(row.id)){
+   const eventKey=JSON.stringify([row.matchId,row.sourceVideoId,row.id]);
+   if(byId.has(eventKey)){
      duplicateRowsExcluded++;
-     if(JSON.stringify(byId.get(row.id))!==JSON.stringify(row))conflicts.add(row.id);
-   }else byId.set(row.id,row);
+     if(JSON.stringify(byId.get(eventKey))!==JSON.stringify(row))conflicts.add(eventKey);
+   }else byId.set(eventKey,row);
  }
  for(const id of conflicts)byId.delete(id);
  // A second ID cannot count the same verified on-ball action twice. Keep
