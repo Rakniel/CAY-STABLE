@@ -121,16 +121,41 @@
     return Number.isFinite(e)?e:null;
   }
 
+  // Preserve the original lexicographic hypothesis order without materializing C(n,4).
+  function chooseSmall(n,k){
+    if(k<0||k>n)return 0;
+    let count=1;
+    for(let i=1;i<=k;i++)count=count*(n-k+i)/i;
+    return Math.round(count);
+  }
+  function unrankFour(n,rank){
+    const indices=[];
+    let first=0;
+    for(let remaining=4;remaining>=1;remaining--){
+      for(let value=first;value<=n-remaining;value++){
+        const count=chooseSmall(n-value-1,remaining-1);
+        if(rank<count){indices.push(value);first=value+1;break;}
+        rank-=count;
+      }
+    }
+    return indices;
+  }
   function combinations4(n,max=512){
-    const all=[];
-    for(let a=0;a<n-3;a++)for(let b=a+1;b<n-2;b++)for(let c=b+1;c<n-1;c++)for(let d=c+1;d<n;d++)all.push([a,b,c,d]);
+    const size=Number(n);
+    if(!Number.isSafeInteger(size)||size<4)return [];
     const limit=Number.isFinite(Number(max))?Math.max(1,Math.floor(Number(max))):512;
-    if(all.length<=limit)return all;
-    if(limit===1)return [all[Math.floor((all.length-1)/2)]];
+    const total=chooseSmall(size,4);
+    if(!Number.isSafeInteger(total))return [];
+    if(total<=limit){
+      const all=[];
+      for(let a=0;a<size-3;a++)for(let b=a+1;b<size-2;b++)for(let c=b+1;c<size-1;c++)for(let d=c+1;d<size;d++)all.push([a,b,c,d]);
+      return all;
+    }
+    if(limit===1)return [unrankFour(size,Math.floor((total-1)/2))];
     const out=[];
     for(let i=0;i<limit;i++){
-      const idx=Math.round(i*(all.length-1)/(limit-1));
-      out.push(all[idx]);
+      const rank=Math.round(i*(total-1)/(limit-1));
+      out.push(unrankFour(size,rank));
     }
     return out;
   }
