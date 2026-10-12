@@ -26,7 +26,8 @@ for(const provenance of [null,undefined,'','   ',{},[],false]){
 }
 {
   const input=all();input.heatmaps.inputFingerprint='heatmap-stage-v2';
-  assert.strictEqual(Gate.evaluateFirstResults(input).ready,true,'stage-specific fingerprints need not match');
+  assert.strictEqual(Gate.evaluateFirstResults(input).ready,false,'stage-specific fingerprints require explicit common source video provenance');
+  assert.strictEqual(Gate.evaluateFirstResults(input).unavailable.find(x=>x.name==='heatmaps')?.reason,'INPUT_FINGERPRINT_MISMATCH');
 }
 for(const threshold of [null,'', '  ',false,[],{}]){
   assert.throws(()=>Gate.evaluateFirstResults(all(),{minCoverage:threshold}),/minCoverage/);
