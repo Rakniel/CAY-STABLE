@@ -31,6 +31,12 @@ ok(large[511].join(',')==='56,57,58,59','last combination preserved');
 eq(h.combinations4(3,512),[],'less than four correspondences returns no hypotheses');
 eq(h.combinations4(Number.NaN,512),[],'invalid point count fails closed');
 
+// Regression sentinel: exhaustive materialization would allocate 64,684,950 arrays at n=200.
+const stress=h.combinations4(200,512);
+ok(stress.length===512,'200-point calibration must remain bounded to 512 hypotheses');
+eq(stress[0],[0,1,2,3],'large-n first hypothesis preserved');
+eq(stress[stress.length-1],[196,197,198,199],'large-n last hypothesis preserved');
+
 // Calibration remains fail-closed without independent validation after sampling.
 const correspondences=Array.from({length:12},(_,i)=>({
   image:{x:.1+.8*(i%4)/3,y:.1+.8*Math.floor(i/4)/2},
