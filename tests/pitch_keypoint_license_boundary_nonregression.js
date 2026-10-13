@@ -18,9 +18,10 @@ for(let repeat=0;repeat<5;repeat++){
   }
   for(const license of ['AGPL-3.0','GPL-3.0','proprietary','unknown','MIT+unknown','MIT OR GPL-3.0','','CAY-INTERNAL']){
     const p={...base,license};
+    assert.equal(Guard.inspectLicense(license).allowed,license==='CAY-INTERNAL','central guard '+license);
     assert.equal(Provider.validateArtifact(artifact(p)).ok,false,'artifact '+license);
     assert.equal(Runtime.providerVerdict(direct(p)).allowed,false,'runtime '+license);
-    checks+=2;
+    checks+=3;
   }
   const internal={...base,license:'CAY-INTERNAL',kind:'internal'};
   assert.equal(Provider.validateArtifact(artifact(internal)).ok,true);
