@@ -19,7 +19,7 @@
     if(typeof entry==='function')return {validated:false,project:null,source:'legacy_function',confidence:null,pitchLengthM:DEFAULT_PITCH_LENGTH_M,pitchWidthM:DEFAULT_PITCH_WIDTH_M,reason:'projection fournie sans validation explicite'};
     const validated=entry.validated===true&&typeof entry.project==='function';
     const rawConfidence=entry.confidence;
-    const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
+    const hasConfidence=(typeof rawConfidence==='number'||(typeof rawConfidence==='string'&&rawConfidence.trim()!==''));
     const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
     const pitchLengthM=positivePitchDimension(entry.pitch?.lengthM,DEFAULT_PITCH_LENGTH_M),pitchWidthM=positivePitchDimension(entry.pitch?.widthM,DEFAULT_PITCH_WIDTH_M);
     return {validated,project:validated?entry.project:null,source:entry.source||entry.method||null,confidence:Number.isFinite(numericConfidence)&&numericConfidence>=0&&numericConfidence<=1?numericConfidence:null,pitchLengthM,pitchWidthM,reason:validated?null:(entry.reason||'projection terrain non validée')};
