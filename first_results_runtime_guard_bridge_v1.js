@@ -260,7 +260,7 @@
     if(!Array.isArray(frames)||frames.length!==obs.attempted||frames.length===0)return blocked('PREUVES_FRAMES_INCOHERENTES');
     const observed=new Map();let usable=0,unavailable=0,lastTime=-Infinity;
     for(const frame of frames){
-      if(!frame||!Number.isFinite(frame.time)||frame.time<lastTime||!Array.isArray(frame.detections)
+      if(!frame||!Number.isFinite(frame.time)||frame.time<=lastTime||!Array.isArray(frame.detections)
         ||(frame.status!=='OBSERVE'&&frame.status!=='INDISPONIBLE'))return blocked('PREUVES_FRAMES_INCOHERENTES');
       lastTime=frame.time;
       if(frame.status==='INDISPONIBLE'){
