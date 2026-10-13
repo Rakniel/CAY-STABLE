@@ -258,9 +258,9 @@
     const obs=observationState(report);
     if(!obs.available||obs.quality==='INDISPONIBLE'||obs.coverage===null||obs.coverage<=0)return blocked('COUVERTURE_INDISPONIBLE');
     if(!Array.isArray(frames)||frames.length!==obs.attempted||frames.length===0)return blocked('PREUVES_FRAMES_INCOHERENTES');
-    const observed=new Map();let usable=0,unavailable=0,lastTime=-Infinity;
+    const observed=new Map();let usable=0,unavailable=0,lastTime=-Infinity,peakVisible=0;
     for(const frame of frames){
-      if(!frame||!Number.isFinite(frame.time)||frame.time<=lastTime||!Array.isArray(frame.detections)
+      if(!frame||!Number.isFinite(frame.time)||frame.time<0||frame.time<=lastTime||!Array.isArray(frame.detections)
         ||(frame.status!=='OBSERVE'&&frame.status!=='INDISPONIBLE'))return blocked('PREUVES_FRAMES_INCOHERENTES');
       lastTime=frame.time;
       if(frame.status==='INDISPONIBLE'){
@@ -269,6 +269,7 @@
         continue;
       }
       usable++;
+      peakVisible=Math.max(peakVisible,frame.detections.length);
       if(frame.detections.length>11)return blocked('LIMITE_TERRAIN_NON_PROUVEE');
       const ids=new Set();
       for(const d of frame.detections){
@@ -280,6 +281,7 @@
       }
     }
     if(usable!==obs.usable||unavailable!==obs.unavailable)return blocked('PREUVES_FRAMES_INCOHERENTES');
+    if(summary.maxVisible<peakVisible)return blocked('LIMITE_TERRAIN_NON_PROUVEE');
     const ids=new Set();
     for(const track of summary.tracks){
       if(!Number.isInteger(track?.id)||track.id<1||ids.has(track.id))return blocked('TRACKS_NON_PROUVES');
