@@ -21,6 +21,7 @@ for(let repeat=0;repeat<5;repeat++){
  check(verdict(report(),summary,frames(),{CAYStableTrackingRuntimeGuard:{verdict:()=>({ok:false})}}).exportAllowed,false,'runtime env');
  check(verdict(report(),summary,frames().slice(1)).exportAllowed,false,'missing frame');
  check(verdict(report(),summary,frames().map((f,i)=>({...f,time:9-i}))).exportAllowed,false,'reversed time');
+ check(verdict(report(),summary,frames().map((f,i)=>({...f,time:Math.floor(i/2)}))).exportAllowed,false,'duplicate frame timestamp');
  check(verdict(report(),summary,frames().map(f=>f.status==='OBSERVE'?{...f,detections:f.detections.map(d=>({...d,x:NaN}))}:f)).exportAllowed,false,'invalid coords');
  check(verdict(report(),summary,frames().map(f=>f.status==='OBSERVE'?{...f,detections:Array.from({length:12},(_,i)=>({id:i+1,cat:'team',x:.5,y:.5}))}:f)).exportAllowed,false,'12 detections');
  check(verdict(report(),summary,frames().map(f=>f.status==='INDISPONIBLE'?{...f,detections:[{id:7,cat:'team',x:.5,y:.5}]}:f)).exportAllowed,false,'unavailable detections');
