@@ -4,8 +4,9 @@
 function $(id){ return document.getElementById(id); }
 function clamp01(v){ return Math.max(0,Math.min(1,Number(v)||0)); }
 function normalizedTrackingAnchor(p){
-  const x=Number(p?.x),y=Number(p?.y);
-  if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1||y<0||y>1)return null;
+  if(!p||typeof p!=='object'||Array.isArray(p))return null;
+  const {x,y}=p;
+  if(typeof x!=='number'||typeof y!=='number'||!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1||y<0||y>1)return null;
   return {x,y};
 }
 root.CAYStableRuntimeNormalizeAnchor=normalizedTrackingAnchor;
@@ -68,8 +69,10 @@ function semanticKeypointProviderVerdict(provider){
   if(provider.runtimeDefaultAllowed!==true)return {allowed:false,reason:'PITCH_KEYPOINT_PROVIDER_NOT_APPROVED'};
   const provenance=providerProvenance(provider);
   if(!provenance)return {allowed:false,reason:'PITCH_KEYPOINT_PROVENANCE_REQUIRED'};
-  const lic=provenance.license.toLowerCase();
-  if(lic.includes('agpl')||lic.includes('gpl-')||lic==='gpl')return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_REJECTED',provenance};
+  const guard=root.CAYDetectorLicenseGuard;
+  if(!guard||typeof guard.inspectLicense!=='function')return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_GUARD_UNAVAILABLE',provenance};
+  const licenseVerdict=guard.inspectLicense(provenance.license);
+  if(licenseVerdict?.allowed!==true)return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_REJECTED',provenance};
   return {allowed:true,reason:null,provenance};
 }
 async function refreshSemanticPitchCalibration(canvas,time,segment,options={}){
