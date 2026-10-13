@@ -1,8 +1,8 @@
 (function(root,factory){
-  const api=factory(root);
+  const api=factory(root, typeof module==='object'&&module.exports?require('./detector_license_guard_v1.js'):root.CAYDetectorLicenseGuard);
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.CAYPitchKeypointArtifactProvider=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(root){
+})(typeof globalThis!=='undefined'?globalThis:this,function(root,LicenseGuard){
   'use strict';
 
   const VERSION='CAY_PITCH_KEYPOINT_ARTIFACT_V1';
@@ -16,8 +16,14 @@
     if(!present(provenance.source)||!present(provenance.license)||!(present(provenance.revision)||present(provenance.weightId)||present(provenance.sha256))){
       return {allowed:false,reason:'PITCH_KEYPOINT_ARTIFACT_PROVENANCE_REQUIRED'};
     }
-    const license=String(provenance.license).toLowerCase();
-    if(license.includes('agpl')||license.includes('gpl-')||license==='gpl')return {allowed:false,reason:'PITCH_KEYPOINT_ARTIFACT_LICENSE_REJECTED'};
+    // Reuse the central allowlist; unknown or mixed declarations never imply permission.
+    if(!LicenseGuard||typeof LicenseGuard.inspectLicense!=='function')return {allowed:false,reason:'PITCH_KEYPOINT_ARTIFACT_LICENSE_GUARD_UNAVAILABLE'};
+    const decision=LicenseGuard.inspectLicense(provenance.license);
+    if(!decision.allowed){
+      const upper=String(provenance.license).toUpperCase();
+      return {allowed:false,reason:upper.includes('GPL')?'PITCH_KEYPOINT_ARTIFACT_LICENSE_REJECTED':'PITCH_KEYPOINT_ARTIFACT_LICENSE_UNVERIFIED'};
+    }
+    if((decision.license==='CAY-INTERNAL')!==(provenance.kind==='internal'))return {allowed:false,reason:'PITCH_KEYPOINT_ARTIFACT_LICENSE_UNVERIFIED'};
     return {allowed:true,reason:null};
   }
 

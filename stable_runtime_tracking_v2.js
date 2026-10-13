@@ -68,8 +68,18 @@ function semanticKeypointProviderVerdict(provider){
   if(provider.runtimeDefaultAllowed!==true)return {allowed:false,reason:'PITCH_KEYPOINT_PROVIDER_NOT_APPROVED'};
   const provenance=providerProvenance(provider);
   if(!provenance)return {allowed:false,reason:'PITCH_KEYPOINT_PROVENANCE_REQUIRED'};
-  const lic=provenance.license.toLowerCase();
-  if(lic.includes('agpl')||lic.includes('gpl-')||lic==='gpl')return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_REJECTED',provenance};
+  // Share the artifact provider's audited license boundary, including internal scope.
+  const boundary=root.CAYPitchKeypointArtifactProvider||
+    (typeof module==='object'&&module.exports?require('./pitch_keypoint_artifact_provider_v1.js'):null);
+  const verdict=boundary&&typeof boundary.provenanceVerdict==='function'
+    ?boundary.provenanceVerdict(provider.provenance):null;
+  if(!verdict||!verdict.allowed){
+    const reason=verdict?.reason==='PITCH_KEYPOINT_ARTIFACT_LICENSE_REJECTED'
+      ?'PITCH_KEYPOINT_LICENSE_REJECTED'
+      :(verdict?.reason==='PITCH_KEYPOINT_ARTIFACT_PROVENANCE_REQUIRED'
+        ?'PITCH_KEYPOINT_PROVENANCE_REQUIRED':'PITCH_KEYPOINT_LICENSE_UNVERIFIED');
+    return {allowed:false,reason,provenance};
+  }
   return {allowed:true,reason:null,provenance};
 }
 async function refreshSemanticPitchCalibration(canvas,time,segment,options={}){
