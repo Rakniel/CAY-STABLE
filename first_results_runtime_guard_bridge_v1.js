@@ -31,22 +31,39 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
-    const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
+    const absent={available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    // Missing legacy ledger is not upgraded; explicit zero attempted frames must fail closed.
+    if(!Object.prototype.hasOwnProperty.call(bridge,'attemptedObservationFrames'))return absent;
+    const attempted=bridge.attemptedObservationFrames;
+    const usable=bridge.usableObservationFrames;
+    const unavailable=bridge.unavailableObservationFrames;
+    const count=v=>Number.isSafeInteger(v)&&v>=0;
+    const countsValid=count(attempted)&&count(usable)&&count(unavailable)&&usable+unavailable===attempted;
+    const issues=[];
+    if(!countsValid)issues.push('FRAME_COUNTS_INCONSISTENT');
+    const computedCoverage=countsValid&&attempted>0?usable/attempted:0;
+    const coverage=+computedCoverage.toFixed(4);
+    const expectedQuality=computedCoverage>=.8?'FIABLE':(computedCoverage>0?'PARTIEL':'INDISPONIBLE');
+    const declaredCoverage=bridge.observationCoverage;
+    // The canonical strict frame guard rounds its fraction to four decimals.
+    const coverageValid=typeof declaredCoverage==='number'&&Number.isFinite(declaredCoverage)&&declaredCoverage>=0&&declaredCoverage<=1
+      &&Math.abs(declaredCoverage-computedCoverage)<=0.000051;
+    if(!coverageValid)issues.push('DECLARED_COVERAGE_INCONSISTENT');
+    const declaredQuality=typeof bridge.observationQuality==='string'?bridge.observationQuality.trim().toUpperCase():'';
+    if(declaredQuality!==expectedQuality)issues.push('DECLARED_QUALITY_INCONSISTENT');
+    const reasons=bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'&&!Array.isArray(bridge.unavailableReasons)
+      ?{...bridge.unavailableReasons}:{};
     return {
       available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
+      quality:issues.length?'INDISPONIBLE':expectedQuality,
+      coverage:countsValid?coverage:0,
+      attempted:count(attempted)?attempted:0,
+      usable:count(usable)?usable:null,
+      unavailable:count(unavailable)?unavailable:null,
+      reasons,
+      integrityIssues:issues,
+      declaredCoverage:typeof declaredCoverage==='number'&&Number.isFinite(declaredCoverage)?declaredCoverage:null,
+      declaredQuality:declaredQuality||null
     };
   }
 
@@ -120,7 +137,7 @@
       ...observation,
       physicalResultsAllowed:observation.quality==='FIABLE',
       visualResultsAllowed:observation.quality!=='INDISPONIBLE',
-      policy:'REUTILISE_LA_QUALITE_DU_STRICT_TRACKING_FRAME_GUARD; FIABLE_AUTORISE_PHYSIQUE, PARTIEL_BLOQUE_PHYSIQUE, INDISPONIBLE_BLOQUE_TOUS_PREMIERS_RESULTATS'
+      policy:'RECALCULE_LA_COUVERTURE_SUR_COUNTS_STRICTS_ET_VERIFIE_LES_DECLARATIONS; PREUVE_INCOHERENTE_OU_ZERO_FRAME_BLOQUE_TOUS_PREMIERS_RESULTATS; PARTIEL_BLOQUE_PHYSIQUE'
     };
     if(observation.quality==='FIABLE'){
       if(report.firstResultsTestability)report.firstResultsTestability.observationCoverageReady=true;
