@@ -6,6 +6,8 @@
   'use strict';
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const isPresentFinite=v=>(typeof v==='number'||(typeof v==='string'&&v.trim()!==''))&&Number.isFinite(Number(v));
+  const validSegment=value=>isPresentFinite(value)&&Number.isSafeInteger(Number(value))&&Number(value)>=0;
+  const validTimestamp=value=>isPresentFinite(value)&&Number(value)>=0;
   const finiteOptionOr=(value,fallback)=>isPresentFinite(value)?Number(value):fallback;
   const nonNegativeOptionOr=(value,fallback)=>isPresentFinite(value)&&Number(value)>=0?Number(value):fallback;
   // Limit UI grid allocation; metric evidence, calibration and pitch dimensions are unchanged.
@@ -32,7 +34,7 @@
     return cells.map(r=>r.map(v=>+(v/total).toFixed(6)));
   }
   function projectPoint(p,projectors,pitchLengthM,pitchWidthM,cols,rows){
-    if(!p||!isPresentFinite(p.x)||!isPresentFinite(p.y)||!isPresentFinite(p.segment))return null;
+    if(!p||!isPresentFinite(p.x)||!isPresentFinite(p.y)||!validSegment(p.segment))return null;
     const info=projectorInfo(projectors&&projectors[p.segment]);
     if(!info.validated)return null;
     let q=null;
@@ -81,7 +83,7 @@
     const flush=()=>{if(current.length)runs.push(current);current=[];};
     for(let i=0;i<prepared.length;i++){
       const row=prepared[i],p=row?.p,q=row?.projected;
-      if(!p||!q||!isPresentFinite(p.time)){flush();continue;}
+      if(!p||!q||!validTimestamp(p.time)){flush();continue;}
       const point={time:+Number(p.time).toFixed(3),segment:Number(p.segment),x:+q.x.toFixed(3),y:+q.y.toFixed(3),calibrationConfidence:isPresentFinite(q.confidence)?+Number(q.confidence).toFixed(3):null};
       if(current.length){
         const prev=current[current.length-1],dt=point.time-prev.time;
@@ -135,7 +137,7 @@
     const maxRawSpeedKmh=isPresentFinite(opts.maxRawSpeedKmh)&&Number(opts.maxRawSpeedKmh)>0?Number(opts.maxRawSpeedKmh):RAW_SPIKE_THRESHOLD_KMH;
     const segmentInfos={};
     for(const p of path){
-      if(!p||!isPresentFinite(p.segment))continue;
+      if(!p||!validSegment(p.segment))continue;
       const key=String(p.segment);
       if(!(key in segmentInfos))segmentInfos[key]=projectorInfo(projectors&&projectors[p.segment]);
     }
@@ -144,7 +146,7 @@
     let eligible=0,projected=0,rejected=0,lowConfidenceSegmentRejected=0,confidenceSum=0,confidenceKnown=0,eligibleIntervalSeconds=0,projectedIntervalSeconds=0,unobservedGapSeconds=0,gapBreaks=0,segmentBoundarySeconds=0,segmentBoundaryBreaks=0,rejectedRawSpikeSeconds=0,rejectedRawSpikePairs=0;
     const projectedPoints=[],prepared=[];
     for(const p of path){
-      const structurallyEligible=!!p&&isPresentFinite(p.x)&&isPresentFinite(p.y)&&isPresentFinite(p.segment);
+      const structurallyEligible=!!p&&isPresentFinite(p.x)&&isPresentFinite(p.y)&&validSegment(p.segment);
       if(!structurallyEligible){prepared.push({p,projected:null});continue;}
       eligible++;
       const info=segmentInfos[String(p.segment)]||projectorInfo(projectors&&projectors[p.segment]);
@@ -154,12 +156,12 @@
       if(!projectedPoint){rejected++;prepared.push({p,projected:null});continue;}
       cells[projectedPoint.cy][projectedPoint.cx]++;projected++;
       if(isPresentFinite(projectedPoint.confidence)){confidenceSum+=Number(projectedPoint.confidence);confidenceKnown++;}
-      projectedPoints.push({time:isPresentFinite(p.time)?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:isPresentFinite(projectedPoint.confidence)?+Number(projectedPoint.confidence).toFixed(3):null});
+      projectedPoints.push({time:validTimestamp(p.time)?Number(p.time):null,segment:Number(p.segment),x:+projectedPoint.x.toFixed(3),y:+projectedPoint.y.toFixed(3),calibrationConfidence:isPresentFinite(projectedPoint.confidence)?+Number(projectedPoint.confidence).toFixed(3):null});
       prepared.push({p,projected:projectedPoint});
     }
     for(let i=0;i+1<prepared.length;i++){
       const a=prepared[i],b=prepared[i+1];if(!a?.p||!b?.p)continue;
-      if(!isPresentFinite(a.p.time)||!isPresentFinite(b.p.time))continue;
+      if(!validTimestamp(a.p.time)||!validTimestamp(b.p.time))continue;
       const ta=Number(a.p.time),tb=Number(b.p.time);if(tb<=ta)continue;
       const dt=tb-ta;eligibleIntervalSeconds+=dt;
       if(Number(a.p.segment)!==Number(b.p.segment)){segmentBoundarySeconds+=dt;segmentBoundaryBreaks++;continue;}
