@@ -29,8 +29,13 @@
   function rosterEligibility(card,requireRoster=false){
     const rosterScoped=!!card&&Object.prototype.hasOwnProperty.call(card,'roster');
     if(!rosterScoped&&!requireRoster)return {clubEligible:true,rosterScoped:false,reason:null};
-    const clubEligible=rosterScoped&&card?.roster?.status==='LIÉ';
-    return {clubEligible,rosterScoped,reason:clubEligible?null:(rosterScoped?'ROSTER_NON_LIE':'ROSTER_ABSENT_EN_CONTEXTE_ROSTER')};
+    const linked=rosterScoped&&card?.roster?.status==='LIÉ';
+    // A linked label without a real roster player ID is not identity evidence.
+    const playerId=card?.roster?.playerId;
+    const hasPlayerId=typeof playerId==='string'&&playerId.trim().length>0;
+    const clubEligible=linked&&hasPlayerId;
+    const reason=clubEligible?null:(linked?'ROSTER_PLAYER_ID_MISSING':rosterScoped?'ROSTER_NON_LIE':'ROSTER_ABSENT_EN_CONTEXTE_ROSTER');
+    return {clubEligible,rosterScoped,reason};
   }
 
   function coverageEvidence(card){
