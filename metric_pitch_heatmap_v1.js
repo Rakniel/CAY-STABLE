@@ -185,11 +185,11 @@
     const coverageOk=coverage>=minMetricCoverage;
     const temporalCoverageOk=hasTemporalEvidence&&temporalCoverage!==null&&temporalCoverage>=minTemporalCoverage;
     const confidenceOk=confidenceComplete&&avgCalibrationConfidence>=minCalibrationConfidence;
-    const available=projected>0&&coverageOk&&temporalCoverageOk&&confidenceOk;
+    const available=projected>0&&projectedIntervalSeconds>0&&coverageOk&&temporalCoverageOk&&confidenceOk;
     const max=cells.reduce((m,r)=>Math.max(m,...r),0),maxTimeSeconds=timeCells.reduce((m,r)=>Math.max(m,...r),0);
     const normalizedObservationCells=normalizeGrid(cells,projected),normalizedTimeCells=normalizeGrid(timeCells,projectedIntervalSeconds);
     let reason=null;
-    if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':!hasTemporalEvidence?'aucune preuve temporelle continue pour une heatmap terrain défendable':!temporalCoverageOk?'couverture temporelle insuffisante pour une heatmap terrain défendable':!confidenceComplete?'confiance calibration indisponible pour une heatmap terrain défendable':'confiance calibration insuffisante pour une heatmap terrain défendable';
+    if(!available)reason=eligible===0?'aucune position joueur exploitable':projected===0?'aucune position projetée sur un terrain calibré':!coverageOk?'couverture métrique insuffisante pour une heatmap terrain':!hasTemporalEvidence?'aucune preuve temporelle continue pour une heatmap terrain défendable':!temporalCoverageOk?'couverture temporelle insuffisante pour une heatmap terrain défendable':!(projectedIntervalSeconds>0)?'aucun intervalle temporel métrique continu et plausible':!confidenceComplete?'confiance calibration indisponible pour une heatmap terrain défendable':'confiance calibration insuffisante pour une heatmap terrain défendable';
     const trajectory=buildTrajectory(prepared,eligible,projected,confidenceSum,confidenceKnown,maxDwellGapSec,minCalibrationConfidence,maxRawSpeedKmh);
     return {
       status:available?'DISPONIBLE':'INDISPONIBLE',reason,coordinateSystem:'PITCH_METERS',pitchLengthM,pitchWidthM,cols,rows,cells,
