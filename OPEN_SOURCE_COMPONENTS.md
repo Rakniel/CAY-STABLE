@@ -155,3 +155,10 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 4. Prefer explicit `INDISPONIBLE` over guessed statistics.
 5. External components must not weaken the 11-on-field invariant, bench/spectator exclusion or CAY identity guards.
 6. Measure before/after gains on representative football footage before making a heavy dependency mandatory.
+
+
+## Papa Parse — CAY roster bulk import
+- Source: https://github.com/mholt/PapaParse ; pinned version **5.7.0** ; license **MIT**.
+- Vendored unmodified `vendor/papaparse.min.js` with full MIT notice `vendor/PAPAPARSE_LICENSE`.
+- Local adaptation: `club_roster_identity_ui_v1.js` lazy-loads the parser on bulk-import click and reuses `CAYAppDomainModels` to validate/persist an entire roster atomically.
+- Replaces repetitive player-by-player entry, not tracking or calibration. Test: `tests/club_roster_bulk_import_nonregression.js`. See `docs/roster_bulk_import_papaparse_20261014.md`.
