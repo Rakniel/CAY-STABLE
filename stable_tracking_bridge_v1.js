@@ -46,11 +46,12 @@
   }
   function bindProjectorsToSegments(projectors){
     const supplied=projectors||{},bound={};
+    const explicitSegment=value=>(typeof value==='number'||(typeof value==='string'&&/^(0|[1-9][0-9]*)$/.test(value)))&&Number.isSafeInteger(Number(value))&&Number(value)>=0;
     for(const [key,entry] of Object.entries(supplied)){
-      const segment=Number(key);
+      const segment=explicitSegment(key)?Number(key):NaN;
       if(!entry||typeof entry!=='object'){ bound[key]=entry; continue; }
-      const declared=Number(entry.segment);
-      if(entry.validated===true&&(!Number.isFinite(declared)||declared!==segment))bound[key]={...entry,validated:false,project:null,reason:Number.isFinite(declared)?`calibration liée au segment ${declared}, incompatible avec le segment ${segment}`:`calibration validée sans liaison explicite au segment ${segment}`};
+      const declared=explicitSegment(entry.segment)?Number(entry.segment):NaN;
+      if(entry.validated===true&&(!Number.isFinite(segment)||!Number.isFinite(declared)||declared!==segment))bound[key]={...entry,validated:false,project:null,reason:!Number.isFinite(segment)?'clé de segment de calibration invalide':Number.isFinite(declared)?`calibration liée au segment ${declared}, incompatible avec le segment ${segment}`:`calibration validée sans liaison explicite au segment ${segment}`};
       else bound[key]=entry;
     }
     return bound;
@@ -102,8 +103,8 @@
       timeline.push({type:'SEGMENT_BREAK',time:Number.isFinite(Number(time))?Number(time):lastTime,segment:state.segment,reason:why,confidence:details?.confidence??null,evidence:Array.isArray(details?.evidence)?[...details.evidence]:[]});
     }
     function processFrame(input,time,context){
-      const ctx=context||{},t=Number(time);
-      if(!Number.isFinite(t))throw new Error('temps frame invalide');
+      const ctx=context||{},t=validNumeric(time)?Number(time):NaN;
+      if(!Number.isFinite(t)||t<0)throw new Error('temps frame invalide');
       const breakDecision=inferSegmentBreak(ctx,lastTime,t,opts);
       if(breakDecision.break){ startSegment(breakDecision.reason,t,breakDecision); if(ctx.segmentBreak!==true&&breakDecision.reason!=='timeline_rewind')automaticSegmentBreaks++; }
       const width=Number(ctx.width)||0,height=Number(ctx.height)||0,accepted=[],frameRejected=[];
