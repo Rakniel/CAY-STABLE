@@ -108,8 +108,27 @@ function prepareRosterImport(text,parser,team){
   catch(_){return {accepted:false,reason:'ROSTER_CSV_PARSE_FAILED'};}
   if(!Array.isArray(parsed?.data)||parsed.errors?.length)return {accepted:false,reason:'ROSTER_CSV_PARSE_FAILED'};
   const rows=parsed.data.slice();
-  const header=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  if(rows[0]&&['numero','number','#'].includes(header(rows[0][0]))&&['nom','name','joueur'].includes(header(rows[0][1])))rows.shift();
+  // Only map explicit spreadsheet headers; never infer identities from a player row.
+  const header=v=>{
+    const value=clean(v);
+    if(value==='#')return 'number'; // preserve legacy #;Nom CSV headers
+    const normalized=value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const aliases={
+      number:['numero','number','n','no','num','maillot','numerodemaillot'],
+      name:['nom','name','joueur','nomdujoueur','nomcomplet','prenomnom','nomprenom'],
+      position:['poste','position','primaryposition']
+    };
+    return Object.keys(aliases).find(key=>aliases[key].includes(normalized))||null;
+  };
+  const headings=Array.isArray(rows[0])?rows[0].map(header):[];
+  const hasHeader=headings.length>=2&&headings.length<=3&&headings.every(Boolean)
+    &&new Set(headings).size===headings.length&&headings.includes('name')
+    &&(headings.includes('number')||headings.includes('position'));
+  const columns=hasHeader
+    ?{number:headings.indexOf('number'),name:headings.indexOf('name'),position:headings.indexOf('position')}
+    :{number:0,name:1,position:2};
+  const headerOffset=hasHeader?1:0;
+  if(hasHeader)rows.shift();
   if(!rows.length)return {accepted:false,reason:'ROSTER_IMPORT_EMPTY'};
   if(rows.length>100)return {accepted:false,reason:'ROSTER_IMPORT_OVER_100'};
   const base=team&&typeof team==='object'?team:currentTeam();
@@ -117,16 +136,18 @@ function prepareRosterImport(text,parser,team){
   const players=[];
   for(let i=0;i<rows.length;i++){
     const row=rows[i];
-    if(!Array.isArray(row)||(row.length!==2&&row.length!==3))return {accepted:false,reason:'ROSTER_IMPORT_COLUMNS_INVALID',line:i+1};
-    const number=clean(row[0]),name=clean(row[1]),position=clean(row[2]).toUpperCase();
-    if(!name)return {accepted:false,reason:'PLAYER_NAME_REQUIRED',line:i+1};
-    if(number&&!/^[0-9]{1,2}$/.test(number))return {accepted:false,reason:'INVALID_SHIRT_NUMBER',line:i+1};
-    if(position&&!Domain.POSITIONS.includes(position))return {accepted:false,reason:'INVALID_PRIMARY_POSITION',line:i+1};
+    if(!Array.isArray(row)||(hasHeader?row.length!==headings.length:(row.length!==2&&row.length!==3)))return {accepted:false,reason:'ROSTER_IMPORT_COLUMNS_INVALID',line:i+1+headerOffset};
+    const number=columns.number<0?'':clean(row[columns.number]);
+    const name=columns.name<0?'':clean(row[columns.name]);
+    const position=columns.position<0?'':clean(row[columns.position]).toUpperCase();
+    if(!name)return {accepted:false,reason:'PLAYER_NAME_REQUIRED',line:i+1+headerOffset};
+    if(number&&!/^[0-9]{1,2}$/.test(number))return {accepted:false,reason:'INVALID_SHIRT_NUMBER',line:i+1+headerOffset};
+    if(position&&!Domain.POSITIONS.includes(position))return {accepted:false,reason:'INVALID_PRIMARY_POSITION',line:i+1+headerOffset};
     const draft=sanitizePlayerDraft({id:'cay_import_'+Date.now().toString(36)+'_'+i+'_'+Math.random().toString(36).slice(2,9),displayName:name,number,primaryPosition:position});
     let player;
-    try{player=Domain.createPlayer(draft);}catch(e){return {accepted:false,reason:e.message||'PLAYER_REJECTED',line:i+1};}
+    try{player=Domain.createPlayer(draft);}catch(e){return {accepted:false,reason:e.message||'PLAYER_REJECTED',line:i+1+headerOffset};}
     const key=player.displayName.toLowerCase()+'|'+(player.number??'');
-    if(seen.has(key))return {accepted:false,reason:'ROSTER_IMPORT_DUPLICATE_PLAYER',line:i+1};
+    if(seen.has(key))return {accepted:false,reason:'ROSTER_IMPORT_DUPLICATE_PLAYER',line:i+1+headerOffset};
     seen.add(key);players.push(player);
   }
   try{return {accepted:true,added:players.length,team:Domain.createTeam({...base,roster:[...(base.roster||[]),...players]})};}
@@ -147,7 +168,7 @@ function ensureRosterPanel(){
   panel.style.cssText='margin-top:12px;padding:14px;border:1px solid rgba(205,31,45,.35);border-radius:14px;background:linear-gradient(145deg,rgba(205,31,45,.08),rgba(0,0,0,.22));color:#fff';
   panel.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><strong>ÉQUIPE / TROMBINOSCOPE</strong><div style="font-size:11px;opacity:.68">Roster supérieur à 11 autorisé • 11 CAY maximum simultanément sur le terrain.</div></div><span id="cayRosterCountV1" style="font-size:12px;opacity:.72">0 joueur</span></div><div style="display:grid;grid-template-columns:80px minmax(150px,1fr) 100px minmax(150px,1fr) auto;gap:7px;margin-top:10px"><input id="cayRosterNumberV1" type="number" min="1" max="99" placeholder="#" aria-label="numéro"><input id="cayRosterNameV1" type="text" placeholder="Nom du joueur" aria-label="nom du joueur"><select id="cayRosterPositionV1" aria-label="poste"></select><input id="cayRosterPhotoV1" type="url" placeholder="Photo URL (optionnel)" aria-label="photo URL"><button id="cayRosterAddV1" type="button">AJOUTER</button></div><div id="cayRosterMessageV1" style="margin-top:7px;font-size:11px;opacity:.72"></div><div id="cayRosterListV1" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px"></div>';
   const host=anchor.closest('.grid2')||anchor.parentElement;host?.insertAdjacentElement('afterend',panel);
-  panel.insertAdjacentHTML('beforeend','<details style="margin-top:12px;border-top:1px solid rgba(255,255,255,.12);padding-top:10px"><summary style="cursor:pointer;font-weight:700">IMPORTER PLUSIEURS JOUEURS (CSV / EXCEL)</summary><p style="font-size:12px;opacity:.75">Numéro ; nom ; poste, une ligne par joueur. Le collage Excel fonctionne aussi.</p><textarea id="cayRosterBulkTextV1" rows="5" aria-label="liste des joueurs" placeholder="8;Prénom Nom;CM&#10;9;Prénom Nom;ST" style="width:100%;box-sizing:border-box;resize:vertical;border-radius:8px;padding:9px;background:#171717;color:#fff;border:1px solid #555"></textarea><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px"><button id="cayRosterBulkAddV1" type="button">IMPORTER LA LISTE</button><span id="cayRosterBulkStatusV1" role="status" aria-live="polite" style="font-size:12px;opacity:.85"></span></div></details>');
+  panel.insertAdjacentHTML('beforeend','<details style="margin-top:12px;border-top:1px solid rgba(255,255,255,.12);padding-top:10px"><summary style="cursor:pointer;font-weight:700">IMPORTER PLUSIEURS JOUEURS (CSV / EXCEL)</summary><p style="font-size:12px;opacity:.75">Colle Numéro, Nom et Poste dans l’ordre souhaité, avec ou sans en-têtes. Le collage Excel fonctionne aussi.</p><textarea id="cayRosterBulkTextV1" rows="5" aria-label="liste des joueurs" placeholder="8;Prénom Nom;CM&#10;9;Prénom Nom;ST" style="width:100%;box-sizing:border-box;resize:vertical;border-radius:8px;padding:9px;background:#171717;color:#fff;border:1px solid #555"></textarea><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px"><button id="cayRosterBulkAddV1" type="button">IMPORTER LA LISTE</button><span id="cayRosterBulkStatusV1" role="status" aria-live="polite" style="font-size:12px;opacity:.85"></span></div></details>');
   const importButton=panel.querySelector('#cayRosterBulkAddV1');
   importButton.onclick=async()=>{
     const status=panel.querySelector('#cayRosterBulkStatusV1');
