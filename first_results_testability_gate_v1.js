@@ -154,10 +154,33 @@
     };
   }
 
+  // Conflicting claims to the same official player ID remain unavailable.
+  function rosterEvidence(cards){
+    const rosterContext=cards.some(card=>card&&Object.prototype.hasOwnProperty.call(card,'roster'));
+    const claims=new Map();
+    for(const card of cards){
+      const id=card?.roster?.playerId;
+      if(card?.roster?.status!=='LIÉ'||typeof id!=='string'||!id.trim())continue;
+      const key=id.trim();
+      claims.set(key,(claims.get(key)||0)+1);
+    }
+    return cards.map(card=>{
+      const item=cardEvidence(card,rosterContext);
+      const id=card?.roster?.playerId;
+      if(item.clubEligible&&typeof id==='string'&&(claims.get(id.trim())||0)>1){
+        return {...item,status:'INDISPONIBLE',clubEligible:false,
+          exclusionReason:'ROSTER_PLAYER_ID_CONFLICT',
+          nextAction:'RESOUDRE_CONFLIT_IDENTITE_ROSTER'};
+      }
+      return item;
+    });
+  }
+
   function canonicalCardReadiness(card,evidence){
     const source=card?.firstResults||{};
     const item=evidence||cardEvidence(card);
     if(item.clubEligible===false){
+      const exclusionAction=item.exclusionReason==='ROSTER_PLAYER_ID_CONFLICT'?'RESOUDRE_CONFLIT_IDENTITE_ROSTER':'LIER_PISTE_AU_ROSTER_CAY';
       return {
         ...source,
         status:'INDISPONIBLE',
@@ -180,7 +203,7 @@
         metricReady:false,
         clubEligible:false,
         exclusionReason:item.exclusionReason||'ROSTER_NON_LIE',
-        nextAction:'LIER_PISTE_AU_ROSTER_CAY',
+        nextAction:exclusionAction,
         policy:'PISTE_NON_LIEE_AU_ROSTER_CAY_EXCLUE_DES_PREMIERS_RESULTATS_Y_COMPRIS_DRAPEAUX_DE_DISPONIBILITE; LES_PREUVES_BRUTES_RESTENT_DIAGNOSTIQUES_DANS_LES_OBJETS_METRIQUES_ET_VISUELS_MAIS_NE_SONT_JAMAIS_PUBLIEES_COMME_RESULTATS_JOUEUR_CAY'
       };
     }
@@ -221,8 +244,7 @@
 
   function evaluate(playerCards,options={}){
     const cards=Array.isArray(playerCards?.players)?playerCards.players:[];
-    const rosterContext=cards.some(card=>card&&Object.prototype.hasOwnProperty.call(card,'roster'));
-    const evidence=cards.map(card=>cardEvidence(card,rosterContext));
+    const evidence=rosterEvidence(cards);
     const eligibleEvidence=evidence.filter(item=>item?.clubEligible!==false);
     const count=key=>eligibleEvidence.filter(item=>item[key]===true).length;
     const players=evidence.length;
@@ -239,6 +261,7 @@
     const physicalTestable=metricReadyPlayers>=minMetricPlayers;
     const status=physicalTestable?'PHYSICAL_TESTABLE':coreTestable?'PITCH_VISUAL_TESTABLE':withTracking>0?'TRACKING_TESTABLE':'INDISPONIBLE';
     const blockers=blockerCounts(evidence);
+    const hasRosterConflict=evidence.some(item=>item.exclusionReason==='ROSTER_PLAYER_ID_CONFLICT');
     return {
       version:'CAY_FIRST_RESULTS_TESTABILITY_GATE_V1_8',
       status,
@@ -256,7 +279,7 @@
       blockers,
       blockerEligibility:{pitchVisualPlayers:withTracking,physicalPlayers:withCorePitchVisuals},
       coverageSummary:coverageSummary(evidence),
-      nextAction:nextAction(status,blockers),
+      nextAction:status==='INDISPONIBLE'&&hasRosterConflict?'RESOUDRE_CONFLIT_IDENTITE_ROSTER':nextAction(status,blockers),
       evidence,
       policy:'FAIL_CLOSED; EN_CONTEXTE_ROSTER_SEULE_UNE_PISTE_EXPLICITEMENT_LIEE_COMPTE_COMME_JOUEUR_CAY; PISTES_NON_LIEES_EXCLUES_DES_STATUTS_BLOQUEURS_ET_DENOMINATEURS_DE_COUVERTURE; SANS_CONTEXTE_ROSTER_COMPORTEMENT_LEGACY_CONSERVE; AUCUN_JOUEUR_PRET_TERRAIN_SANS_TRACKING_ET_TRAJECTOIRE_ET_HEATMAP; AUCUN_JOUEUR_PRET_METRIQUES_SANS_4_METRIQUES_PHYSIQUES_DEFENDABLES; BLOQUEURS_VISUELS_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_TRACKES; BLOQUEURS_PHYSIQUES_COMPTES_UNIQUEMENT_PARMI_LES_JOUEURS_AVEC_CORE_VISUEL_COMPLET; COUVERTURES_EXPOSEES_ET_RESUMEES_AVEC_INCONNU_ET_PONDERATION_TEMPORELLE_SANS_MODIFIER_LA_DECISION; COMPLETUDE_DES_DUREES_REQUISE_POUR_PUBLIER_UNE_PART_TEMPORELLE_CONNUE; FICHES_JOUEURS_REALIGNEES_SUR_CE_STATUT_CANONIQUE'
     };
@@ -264,15 +287,16 @@
 
   function alignPlayerCards(playerCards,testability){
     if(!playerCards||!Array.isArray(playerCards.players))return playerCards;
-    const rosterContext=playerCards.players.some(card=>card&&Object.prototype.hasOwnProperty.call(card,'roster'));
-    const evidence=Array.isArray(testability?.evidence)?testability.evidence:playerCards.players.map(card=>cardEvidence(card,rosterContext));
+    // Never trust stale or foreign evidence when aligning published cards.
+    const canonical=evaluate(playerCards,testability?.thresholds||{});
+    const evidence=canonical.evidence;
     const players=playerCards.players.map((card,index)=>({...card,firstResults:canonicalCardReadiness(card,evidence[index])}));
     const eligibleEvidence=evidence.filter(item=>item?.clubEligible!==false);
     const coreReadyPlayers=eligibleEvidence.filter(item=>item?.pitchVisualCore===true).length;
     const physicalReadyPlayers=eligibleEvidence.filter(item=>item?.metricReady===true).length;
     const summary={
       ...(playerCards.summary||{}),
-      status:testability?.status||'INDISPONIBLE',
+      status:canonical.status,
       detectedPlayerCards:evidence.length,
       players:eligibleEvidence.length,
       excludedNonClubPlayers:Math.max(0,evidence.length-eligibleEvidence.length),
