@@ -67,7 +67,8 @@
     };
   }
   function auditRosterTimeline(layer,initialActiveIds,options){
-    const maxActive=Math.max(1,Number(options&&options.maxActive)||11);
+    const requestedMax=Number(options&&options.maxActive);
+    const maxActive=Number.isInteger(requestedMax)&&requestedMax>=1?Math.min(11,requestedMax):11;
     if(!Array.isArray(initialActiveIds)||initialActiveIds.length===0){
       return {
         quality:'INDISPONIBLE',reason:'INITIAL_LINEUP_NOT_VALIDATED',maxActive,
