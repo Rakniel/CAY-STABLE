@@ -8,4 +8,14 @@ r=sla.evaluate({...base,roster:{complete:true,seconds:1100}}); assert.equal(r.st
 r=sla.evaluate(base,{targetMinutes:12}); assert.equal(r.status,'PRET_DANS_SLA'); assert.equal(r.targetMinutes,12);
 r=sla.evaluate({...base,firstResults:{complete:false,seconds:120}}); assert.equal(r.status,'INCOMPLET'); assert(r.blockers.includes('ETAPE_FIRST_RESULTS_INCOMPLETE')); assert.equal(r.withinTarget,false);
 r=sla.evaluate({...base,firstResults:{complete:true}}); assert.equal(r.status,'NON_MESURE'); assert.equal(r.withinTarget,false);
+for(const seconds of [null,'','  ',false,-1,NaN,Infinity]){
+  const result=sla.evaluate({...base,firstResults:{complete:true,seconds}});
+  assert.equal(result.status,'NON_MESURE',`invalid duration ${String(seconds)} must not pass`);
+  assert.equal(result.totalSeconds,null);
+  assert.equal(result.withinTarget,false);
+}
+for(const targetMinutes of [null,'',false,-1,0]){
+  const result=sla.evaluate(base,{targetMinutes});
+  assert.equal(result.targetMinutes,20,`invalid target ${String(targetMinutes)} must default to 20`);
+}
 console.log('setup SLA nonregression: OK');

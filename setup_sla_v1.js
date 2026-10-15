@@ -5,15 +5,15 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const REQUIRED=['team','roster','video','analysis','launch','firstResults'];
-  const finite=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+  const finite=v=>v!==null&&v!==undefined&&typeof v!=='boolean'&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
   function stage(input,key){
     const raw=input&&input[key]||{};
     const complete=raw.complete===true;
-    const seconds=finite(raw.seconds)?Math.max(0,Number(raw.seconds)):null;
+    const seconds=finite(raw.seconds)&&Number(raw.seconds)>=0?Number(raw.seconds):null;
     return {key,complete,seconds,blocker:complete?null:`ETAPE_${key.replace(/([A-Z])/g,'_$1').toUpperCase()}_INCOMPLETE`};
   }
   function evaluate(input={},options={}){
-    const targetMinutes=finite(options.targetMinutes)?Math.max(1,Number(options.targetMinutes)):20;
+    const targetMinutes=finite(options.targetMinutes)&&Number(options.targetMinutes)>0?Number(options.targetMinutes):20;
     const targetSeconds=targetMinutes*60;
     const stages=REQUIRED.map(key=>stage(input,key));
     const blockers=stages.filter(x=>!x.complete).map(x=>x.blocker);
