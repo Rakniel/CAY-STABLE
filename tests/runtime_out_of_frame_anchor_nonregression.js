@@ -13,6 +13,14 @@ assert.strictEqual(normalize({x:.5,y:1.01}),null,'y > 1 must be rejected');
 assert.strictEqual(normalize({x:NaN,y:.5}),null,'non-finite x must be rejected');
 assert.deepStrictEqual(normalize({x:0,y:1}),{x:0,y:1},'exact image boundaries remain valid');
 assert.deepStrictEqual(normalize({x:.42,y:.61}),{x:.42,y:.61},'valid normalized anchors remain unchanged');
+for(const bad of [null,undefined,'',false,NaN,Infinity,[],{}]){
+  assert.strictEqual(normalize({x:bad,y:.5}),null,'invalid x must not become a phantom CAY anchor');
+  assert.strictEqual(normalize({x:.5,y:bad}),null,'invalid y must not become a phantom CAY anchor');
+}
+assert.strictEqual(normalize(null),null,'missing anchor rejected');
+assert.strictEqual(normalize([]),null,'array is not an anchor');
+assert.strictEqual(normalize({x:'0.25',y:.5}),null,'numeric strings are not runtime coordinates');
+assert.deepStrictEqual(normalize({x:0,y:0}),{x:0,y:0},'real zero coordinate preserved');
 
 const runtime=fs.readFileSync(path.join(__dirname,'..','stable_runtime_tracking_v2.js'),'utf8');
 assert(!runtime.includes('x:clamp01(p.x),y:clamp01(p.y)'), 'runtime must not clamp player anchors before bridge normalization');

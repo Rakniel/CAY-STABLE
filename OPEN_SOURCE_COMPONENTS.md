@@ -141,6 +141,9 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 - Estimated work avoided if validated: roughly 3–7 days versus implementing and maintaining another complete MOT backend and benchmark harness from scratch.
 - Expected measurable impact: objective tracker selection on SoccerNet/SportsMOT-style evidence, with a realistic path to fewer ID switches/re-entry breaks while preserving CAY's fail-closed rules.
 
+- **Audit complémentaire du 12 octobre 2026 (sans import)** : version PyPI `trackers==2.6.1` (25 septembre 2026, Apache-2.0 ; provenance de publication `3666546420b0fd564c8e63157a6621efffdfa01a`, https://pypi.org/project/trackers/). Couplage de benchmark envisageable avec `supervision==0.30.6` (29 septembre 2026, MIT, https://github.com/roboflow/supervision/releases), qui fournit l'interface `Detections` ; la version 0.30.6 corrige notamment le comptage de franchissements sur tracks non confirmés. **Statut : étudié, non intégré.** Aucun code ni poids tiers importé ; le navigateur CAY n'acquiert aucune dépendance Python. Réutiliser `detector_coco_interchange_v1.js` et `tracking_backend_candidate_registry_v1.js` pour un comparatif hors ligne avant toute promotion, plutôt que dupliquer l'association dans le navigateur. Travail potentiellement évité : ~2 à 4 jours d'adaptation/évaluation (estimation non mesurée) ; impact à mesurer : IDF1, HOTA, faux CAY, sorties de banc, plans caméra, temps d'installation. Les poids des modèles et dépendances optionnelles ont leurs propres conditions de licence.
+- **SoccerNet 2026 : prudence sur les données** (https://github.com/SoccerNet/SoccerNet) : les jeux de données Ball Action Spotting 2024/2025 et Player-Centric BAS 2026 sont soumis à approbation/NDA par jeu de données ; le caractère public du code ne donne pas le droit de réutiliser ou redistribuer ces vidéos. Aucun dataset gated n'est importé dans CAY-STABLE.
+
 ## Rejected / reference-only examples
 - `Tony-Luna/soccer-video-analytics`: AGPL-3.0. Useful as a conceptual reference for possession/homography/heatmaps, but not copied or incorporated into the current CAY-STABLE runtime because its copyleft obligations are intentionally avoided at this stage.
 - `mikel-brostrom/boxmot`: AGPL-3.0 in its current public repository. Useful for benchmarking tracker/ReID options and hardware trade-offs, but no BoxMOT source code is incorporated into the current CAY-STABLE runtime.
@@ -152,3 +155,10 @@ CAY-STABLE uses a reuse-first policy: prefer mature, legally compatible building
 4. Prefer explicit `INDISPONIBLE` over guessed statistics.
 5. External components must not weaken the 11-on-field invariant, bench/spectator exclusion or CAY identity guards.
 6. Measure before/after gains on representative football footage before making a heavy dependency mandatory.
+
+
+## Papa Parse — CAY roster bulk import
+- Source: https://github.com/mholt/PapaParse ; pinned version **5.7.0** ; license **MIT**.
+- Vendored unmodified `vendor/papaparse.min.js` with full MIT notice `vendor/PAPAPARSE_LICENSE`.
+- Local adaptation: `club_roster_identity_ui_v1.js` lazy-loads the parser on bulk-import click and reuses `CAYAppDomainModels` to validate/persist an entire roster atomically.
+- Replaces repetitive player-by-player entry, not tracking or calibration. Test: `tests/club_roster_bulk_import_nonregression.js`. See `docs/roster_bulk_import_papaparse_20261014.md`.

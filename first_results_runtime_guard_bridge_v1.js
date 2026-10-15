@@ -31,7 +31,7 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const missing={available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    const missing={available:true,quality:'INDISPONIBLE',coverage:null,attempted:0,usable:null,unavailable:null,reasons:{OBSERVATION_EVIDENCE_MISSING:1}};
     if(!Object.prototype.hasOwnProperty.call(bridge,'attemptedObservationFrames'))return missing;
     const attempted=bridge.attemptedObservationFrames;
     const usable=bridge.usableObservationFrames;
@@ -249,6 +249,52 @@
     return report;
   }
 
+
+  function completionVerdict(report,summary,frames,env=root){
+    const blocked=reason=>({status:'INDISPONIBLE',reason,exportAllowed:false,coverage:null,stableTracks:0,physicalMetricsAllowed:false});
+    if(runtimeState(env).ok!==true||report?.runtimeTrackingGuard?.ok!==true)return blocked('RUNTIME_TRACKING_NON_VALIDE');
+    if(!summary||!Number.isInteger(summary.maxVisible)||summary.maxVisible<1||summary.maxVisible>11)return blocked('LIMITE_TERRAIN_NON_PROUVEE');
+    if(!Array.isArray(summary.tracks))return blocked('TRACKS_NON_PROUVES');
+    const obs=observationState(report);
+    if(!obs.available||obs.quality==='INDISPONIBLE'||obs.coverage===null||obs.coverage<=0)return blocked('COUVERTURE_INDISPONIBLE');
+    if(!Array.isArray(frames)||frames.length!==obs.attempted||frames.length===0)return blocked('PREUVES_FRAMES_INCOHERENTES');
+    const observed=new Map();let usable=0,unavailable=0,lastTime=-Infinity,peakVisible=0;
+    for(const frame of frames){
+      if(!frame||!Number.isFinite(frame.time)||frame.time<0||frame.time<=lastTime||!Array.isArray(frame.detections)
+        ||(frame.status!=='OBSERVE'&&frame.status!=='INDISPONIBLE'))return blocked('PREUVES_FRAMES_INCOHERENTES');
+      lastTime=frame.time;
+      if(frame.status==='INDISPONIBLE'){
+        unavailable++;
+        if(frame.detections.length)return blocked('PREUVES_FRAMES_INCOHERENTES');
+        continue;
+      }
+      usable++;
+      peakVisible=Math.max(peakVisible,frame.detections.length);
+      if(frame.detections.length>11)return blocked('LIMITE_TERRAIN_NON_PROUVEE');
+      const ids=new Set();
+      for(const d of frame.detections){
+        if(!d||!Number.isInteger(d.id)||d.id<1||ids.has(d.id)
+          ||(d.cat!=='team'&&d.cat!=='goalkeeper')
+          ||!Number.isFinite(d.x)||!Number.isFinite(d.y)
+          ||d.x<0||d.x>1||d.y<0||d.y>1)return blocked('IDENTITES_FRAMES_INCOHERENTES');
+        ids.add(d.id);observed.set(d.id,(observed.get(d.id)||0)+1);
+      }
+    }
+    if(usable!==obs.usable||unavailable!==obs.unavailable)return blocked('PREUVES_FRAMES_INCOHERENTES');
+    if(summary.maxVisible<peakVisible)return blocked('LIMITE_TERRAIN_NON_PROUVEE');
+    const ids=new Set();
+    for(const track of summary.tracks){
+      if(!Number.isInteger(track?.id)||track.id<1||ids.has(track.id))return blocked('TRACKS_NON_PROUVES');
+      ids.add(track.id);
+    }
+    const stableTracks=summary.tracks.filter(t=>Number.isInteger(t.observations)&&t.observations>=5&&(observed.get(t.id)||0)>=5).length;
+    if(!stableTracks)return blocked('AUCUN_TRACK_STABLE');
+    const status=obs.quality==='FIABLE'?'ANALYSE_TERMINEE':'PARTIEL';
+    return {status,reason:status==='PARTIEL'?'COUVERTURE_PARTIELLE':null,exportAllowed:true,coverage:obs.coverage,
+      attemptedFrames:obs.attempted,usableFrames:obs.usable,stableTracks,physicalMetricsAllowed:false,
+      policy:'EXPORT_TRACKING_AVEC_PREUVES; PAS_DE_METRIQUES_PHYSIQUES_PROMUES_PAR_CE_VERDICT'};
+  }
+
   function install(env=root){
     const Bridge=env?.CAYStableTrackingBridge;
     if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayFirstResultsRuntimeGuardPatched)return false;
@@ -267,5 +313,5 @@
   }
 
   install(root);
-  return {VERSION,BLOCKED_ACTION,COVERAGE_ACTION,runtimeState,observationState,blockedReadiness,blockPhysicalReadiness,applyObservationGuard,apply,install};
+  return {VERSION,BLOCKED_ACTION,COVERAGE_ACTION,runtimeState,observationState,blockedReadiness,blockPhysicalReadiness,applyObservationGuard,completionVerdict,apply,install};
 });

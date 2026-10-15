@@ -1,5 +1,6 @@
 const assert=require('assert');
 
+require('../detector_license_guard_v1.js');
 require('../stable_runtime_tracking_v2.js');
 const api=global.CAYStableSemanticKeypointRuntime;
 assert.ok(api&&typeof api.refresh==='function','semantic keypoint runtime bridge must be exposed');
@@ -31,6 +32,18 @@ assert.ok(api&&typeof api.refresh==='function','semantic keypoint runtime bridge
   r=await api.refresh({width:1280,height:720},1,2,{provider:agpl,metricRuntime:{}});
   assert.strictEqual(r.reason,'PITCH_KEYPOINT_LICENSE_REJECTED');
   assert.strictEqual(blockedCalls,0,'copyleft provider must be rejected before inference');
+
+  for(const license of ['unknown','proprietary','MIT OR GPL-3.0','MIT; UNKNOWN','GPL-2.0']){
+    const unapproved={...agpl,provenance:{...agpl.provenance,license}};
+    r=await api.refresh({width:1280,height:720},1,2,{provider:unapproved,metricRuntime:{}});
+    assert.strictEqual(r.reason,'PITCH_KEYPOINT_LICENSE_REJECTED','unapproved '+license+' must fail closed');
+  }
+  const savedLicenseGuard=global.CAYDetectorLicenseGuard;
+  try{
+    delete global.CAYDetectorLicenseGuard;
+    r=await api.refresh({width:1280,height:720},1,2,{provider:agpl,metricRuntime:{}});
+    assert.strictEqual(r.reason,'PITCH_KEYPOINT_LICENSE_GUARD_UNAVAILABLE');
+  }finally{global.CAYDetectorLicenseGuard=savedLicenseGuard;}
 
   let calibratedArgs=null,keyframeArgs=null,inferContext=null;
   const projector={validated:true,confidence:.91,project(p){return {x:p.x,y:p.y};}};

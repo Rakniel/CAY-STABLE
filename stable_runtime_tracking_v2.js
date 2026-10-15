@@ -4,8 +4,9 @@
 function $(id){ return document.getElementById(id); }
 function clamp01(v){ return Math.max(0,Math.min(1,Number(v)||0)); }
 function normalizedTrackingAnchor(p){
-  const x=Number(p?.x),y=Number(p?.y);
-  if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1||y<0||y>1)return null;
+  if(!p||typeof p!=='object'||Array.isArray(p))return null;
+  const {x,y}=p;
+  if(typeof x!=='number'||typeof y!=='number'||!Number.isFinite(x)||!Number.isFinite(y)||x<0||x>1||y<0||y>1)return null;
   return {x,y};
 }
 root.CAYStableRuntimeNormalizeAnchor=normalizedTrackingAnchor;
@@ -68,8 +69,10 @@ function semanticKeypointProviderVerdict(provider){
   if(provider.runtimeDefaultAllowed!==true)return {allowed:false,reason:'PITCH_KEYPOINT_PROVIDER_NOT_APPROVED'};
   const provenance=providerProvenance(provider);
   if(!provenance)return {allowed:false,reason:'PITCH_KEYPOINT_PROVENANCE_REQUIRED'};
-  const lic=provenance.license.toLowerCase();
-  if(lic.includes('agpl')||lic.includes('gpl-')||lic==='gpl')return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_REJECTED',provenance};
+  const guard=root.CAYDetectorLicenseGuard;
+  if(!guard||typeof guard.inspectLicense!=='function')return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_GUARD_UNAVAILABLE',provenance};
+  const licenseVerdict=guard.inspectLicense(provenance.license);
+  if(licenseVerdict?.allowed!==true)return {allowed:false,reason:'PITCH_KEYPOINT_LICENSE_REJECTED',provenance};
   return {allowed:true,reason:null,provenance};
 }
 async function refreshSemanticPitchCalibration(canvas,time,segment,options={}){
@@ -129,6 +132,12 @@ function renderPlayerStats(report){
   cards.dataset.cayRenderer='INDISPONIBLE';
   return false;
 }
+function clearPlayerStats(reason='Analyse en attente'){
+  const cards=$('stableStatsCardsV2'),coverage=$('stableStatsCoverageV2'),teamCoverage=$('stableTeamCoverageV2');
+  if(cards){cards.replaceChildren();cards.textContent='Fiches joueurs : INDISPONIBLE — '+reason;cards.dataset.cayRenderer='INDISPONIBLE';}
+  if(coverage)coverage.textContent='Couverture : INDISPONIBLE';
+  if(teamCoverage)teamCoverage.textContent='Résultats non publiables sans preuves de tracking.';
+}
 function drawLongTrackFrame(c,assigned){
   const x=c.getContext('2d');
   x.font='bold '+Math.max(11,c.width/86)+'px Arial';
@@ -158,6 +167,13 @@ async function markUnavailableTrackingFrame(bridge,frames,t,c,i,total,reason,mes
 }
 root.CAYStableUnavailableFrameRuntime={mark:markUnavailableTrackingFrame};
 async function runTrackingLongTermStable(){
+  lastTrackingReport=null;
+  $('exportTracking').disabled=true;
+  clearPlayerStats('nouvelle analyse en attente de validation');
+  const previousGallery=$('trackingGallery');if(previousGallery)previousGallery.replaceChildren();
+  if(root.CAYStableTrackingRuntimeGuard?.verdict?.(root)?.ok!==true){
+    status($('trackingStatus'),'Tracking STABLE : INDISPONIBLE — moteur de suivi non validé.','warning');return null;
+  }
   if(typeof root.CAYStableTrackingBridge?.create!=='function')throw new Error('bridge tracking longue durée indisponible');
   if(!currentFile){ status($('trackingStatus'),'Charge d’abord une vidéo.','warning');return; }
   if(refsFor('team').length<3){ status($('trackingStatus'),'Ajoute au moins 3 références de ton équipe.','warning');return; }
@@ -207,11 +223,19 @@ async function runTrackingLongTermStable(){
     const tracks=sum.tracks.map(s=>({...s,seen:s.observations,lastTime:s.lastTime,normalizedTravel:s.normalizedTravel}));
     const stable=tracks.filter(t=>t.seen>=5).length;
     lastTrackingReport={version:'STABLE_LONG_TERM_V2',video:currentFile.name,team:($('analysisTeamName')?.value||'').trim(),start:+start.toFixed(2),end:+end.toFixed(2),step,createdIds:sum.rosterTotal,totalAssociations:sum.totalAssociations,segments:sum.segments,maxVisible:sum.maxVisible,reidentified:sum.reidentified,manualMerges:sum.manualMerges,tracks,frames,observationCoverage:{attempted:playerStats.bridge?.attemptedObservationFrames||0,usable:playerStats.bridge?.usableObservationFrames||0,unavailable:playerStats.bridge?.unavailableObservationFrames||0,coverage:playerStats.bridge?.observationCoverage||0,reasons:playerStats.bridge?.unavailableReasons||{}},playerStats,unavailable:playerStats.unavailable};
-    renderPlayerStats(playerStats);$('exportTracking').disabled=false;
-    status($('trackingStatus'),'Tracking longue durée terminé ✓ • '+sum.segments+' segment(s) • max '+sum.maxVisible+'/11 • roster '+sum.rosterTotal+' • '+stable+' track(s) stables • couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %','success');
+    const completion=root.CAYFirstResultsRuntimeGuardBridge?.completionVerdict?.(playerStats,sum,frames,root)
+      ||{status:'INDISPONIBLE',reason:'CONTRAT_COMPLETION_ABSENT',exportAllowed:false};
+    lastTrackingReport.completion=completion;
+    if(completion.exportAllowed===true)renderPlayerStats(playerStats);
+    else clearPlayerStats('analyse rejetée : '+(completion.reason||'preuves insuffisantes'));
+    $('exportTracking').disabled=completion.exportAllowed!==true;
+    const labels={RUNTIME_TRACKING_NON_VALIDE:'moteur non validé',LIMITE_TERRAIN_NON_PROUVEE:'limite terrain non vérifiée',TRACKS_NON_PROUVES:'suivi non vérifiable',AUCUN_TRACK_STABLE:'aucun joueur suivi sur cinq images',COUVERTURE_INDISPONIBLE:'couverture indisponible',PREUVES_FRAMES_INCOHERENTES:'images analysées incohérentes',IDENTITES_FRAMES_INCOHERENTES:'identités des joueurs incohérentes',COUVERTURE_PARTIELLE:'couverture partielle',CONTRAT_COMPLETION_ABSENT:'contrôle de fiabilité absent'};
+    const label=completion.status==='ANALYSE_TERMINEE'?'Tracking terminé — preuves disponibles':completion.status==='PARTIEL'?'Tracking PARTIEL — résultats incomplets':'Tracking INDISPONIBLE — '+(labels[completion.reason]||'preuve insuffisante');
+    status($('trackingStatus'),label+' • '+sum.segments+' segment(s) • max '+sum.maxVisible+'/11 • roster '+sum.rosterTotal+' • '+stable+' track(s) stables • couverture '+Math.round((playerStats.bridge?.observationCoverage||0)*100)+' %',completion.status==='ANALYSE_TERMINEE'?'success':'warning');
+    if(completion.exportAllowed!==true)lastTrackingReport=null;
     return lastTrackingReport;
-  }catch(err){status($('trackingStatus'),'Erreur tracking longue durée : '+err.message,'warning');throw err;}
-  finally{$('runTracking').disabled=false;}
+  }catch(err){lastTrackingReport=null;$('exportTracking').disabled=true;clearPlayerStats('erreur pendant l’analyse');status($('trackingStatus'),'Erreur tracking longue durée : '+err.message,'warning');throw err;}
+  finally{$('runTracking').disabled=root.CAYStableTrackingRuntimeGuard?.verdict?.(root)?.ok!==true;}
 }
 function install(){
   if(typeof root.CAYStableTrackingBridge?.create!=='function')return;
