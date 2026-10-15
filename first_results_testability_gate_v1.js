@@ -217,6 +217,12 @@
       avgSpeed:bool(source.avgSpeed),
       maxSpeed:bool(source.maxSpeed),
       sprints:bool(source.sprints),
+      // Publication availability is derived from current canonical evidence, never stale hints.
+      distanceAvailable:item.pitchVisualCore&&bool(source.distance),
+      avgSpeedAvailable:item.pitchVisualCore&&bool(source.avgSpeed),
+      maxSpeedAvailable:item.pitchVisualCore&&bool(source.maxSpeed),
+      sprintsAvailable:item.pitchVisualCore&&bool(source.sprints),
+      physicalMetricsAvailable:item.pitchVisualCore&&PHYSICAL_KEYS.some(key=>bool(source[key])),
       physicalMetrics:item.physicalAny,
       physicalMetricsComplete:item.physicalComplete,
       pitchVisualCore:item.pitchVisualCore,
