@@ -1,27 +1,59 @@
 # SoccerTrack v2 open-source audit
 
-- Project: `AtomScott/SoccerTrack-v2`
-- Audited revision: `6f5c47cd3a5c38b074c44e9c98dfba48daa230d3` (2026-08-11)
-- Source-code license: MIT.
-- Dataset license: CC BY 4.0 (`LICENSE-DATA`).
-- CAY-STABLE status: studied as a benchmark/data-format reference; no SoccerTrack v2 code, dataset assets, model weights, or annotations are copied into CAY-STABLE by this audit.
+Date audited: 2026-09-17
 
-## Useful scope
+## Provenance
 
-SoccerTrack v2 provides a current full-pitch, multi-view football benchmark covering persistent multi-object tracking (MOT), game-state reconstruction (GSR) and ball-action spotting (BAS). Its runnable evaluators and public annotation formats make it a useful external reference for measuring CAY tracking continuity and event quality instead of inventing a private metric from scratch.
+- Project: AtomScott/SoccerTrack-v2
+- Source: https://github.com/AtomScott/SoccerTrack-v2
+- Audited upstream revision: `6f5c47cd3a5c38b074c44e9c98dfba48daa230d3`
+- Code license: MIT, verified from upstream `LICENSE`.
+- Dataset license: CC BY 4.0, verified separately from upstream `LICENSE-DATA`.
+- Upstream scope: full-pitch multi-view football data/tooling for Game State Reconstruction (GSR), Ball Action Spotting (BAS), and Multi-Object Tracking (MOT). The dataset exposes per-frame metric pitch coordinates, persistent jersey-based identities/roles/teams, plus 12 ball-action classes.
 
-## What CAY should reuse
+## Useful reuse for CAY-STABLE
 
-Reuse the *evaluation contract and benchmark methodology* rather than importing a tracking stack into the browser build. CAY can later export a benchmark adapter from its existing persistent-track / roster / event artifacts into a SoccerTrack-compatible evaluation representation. This can quantify ID continuity and event quality while leaving CAY's 11-on-field, participation, yellow-detail, bench/spectator and fail-closed publication guards intact.
+The immediate value is not another runtime tracker. CAY-STABLE already owns stricter browser-first contracts for roster identity, camera segments, calibration, coverage and `INDISPONIBLE`. SoccerTrack v2 is instead a strong offline benchmark seam for the STABLE path already being built:
 
-No local tracking logic is replaced by this audit. The likely work avoided is roughly 1–2 days of designing and validating bespoke MOT/GSR/BAS scoring conventions once representative benchmark work begins.
+1. export CAY observations into an isolated evaluation adapter;
+2. compare persistent identities and pitch-metre positions against GSR annotations;
+3. evaluate MOT/GSR without weakening CAY-specific bench/spectator/yellow-detail guards;
+4. later evaluate ball actions against BAS only after the ball/event pipeline is mature.
 
-## License boundary / risks
+The upstream repository also documents an important evaluator lesson: its August 2026 GS-HOTA fix added a ground-truth-vs-ground-truth identity test expected to score 1.0 and corrected format seams between documented and shipped annotations. CAY should copy the *testing principle*, not assume an external schema is correct: every future adapter must first prove an identity fixture and fail closed on schema/version mismatch.
 
-The repository source is MIT and the dataset is CC BY 4.0 with attribution requirements. Individual optional backends and model dependencies still keep their own licenses: the repository includes a BoxMOT backend, while current BoxMOT licensing is not treated as permissive by CAY-STABLE. Therefore CAY must not infer that every third-party dependency transitively used by SoccerTrack v2 is MIT.
+## What this replaces / avoids
 
-The dataset is not needed for the immediate STABLE browser runtime and should not become a mandatory download. Any future use of the dataset must preserve CC BY 4.0 attribution and document the exact dataset version/split.
+- Avoids inventing a synthetic-only football benchmark for persistent IDs + metric pitch positions.
+- Avoids designing a bespoke event-class benchmark taxonomy before CAY's pass/shot phase.
+- Provides a realistic multi-view/panoramic stress source for validating coverage and identity continuity independently from C.A. Yenne footage.
 
-## Modification record
+Estimated engineering avoided: **1–2 days** for benchmark/schema/evaluator design, excluding dataset download and representative C.A. Yenne annotation work.
 
-2026-09-15: documentation-only audit added. No upstream source code modified or incorporated. Candidate future adaptation is limited to an exporter/evaluator bridge and benchmark methodology, subject to representative C.A. Yenne and/or licensed benchmark validation.
+## CAY safety boundaries
+
+- No SoccerTrack code or dataset is copied into the browser runtime by this audit.
+- Dataset attribution remains mandatory under CC BY 4.0 and is tracked separately from MIT code provenance.
+- Dataset benchmark results never override CAY's fail-closed rules: invalid calibration, unknown roster identity, camera-segment mismatch, bench/spectator evidence, or insufficient coverage remain `INDISPONIBLE`.
+- The 11-on-field invariant remains CAY-owned; a benchmark annotation cannot create a 12th CAY player.
+- Jersey-number identity in SoccerTrack is benchmark evidence only. CAY persistent identity still requires its own roster/evidence contracts.
+- External schema mismatches must fail closed; never silently coerce coordinates/timestamps.
+
+## Expected measurable impact
+
+When the adapter is implemented, measure at minimum:
+
+- identity continuity / ID switches;
+- valid metric-position coverage;
+- pitch-position error median and p95 in metres;
+- unavailable-rate split by calibration, identity and segment guard;
+- false on-field CAY identities, especially bench/spectator leakage;
+- later: BAS event precision/recall/F1 and temporal error for passes/shots.
+
+No accuracy gain is claimed by this documentation-only audit.
+
+## Status
+
+**Studied / benchmark adapter candidate / not integrated into runtime.**
+
+Next implementation gate: add a small CAY-to-GSR evaluation adapter only if it can remain offline/optional, preserve explicit provenance, pass an identity-fixture self-test, and introduce no mandatory heavy dependency into STABLE.
