@@ -6,7 +6,7 @@
   'use strict';
 
   const EPS = 1e-9;
-  const finite = n => Number.isFinite(Number(n));
+  const finite = n => (typeof n === 'number' || (typeof n === 'string' && n.trim() !== '')) && Number.isFinite(Number(n));
   const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 
   function normalizePoints(points) {
@@ -163,7 +163,7 @@
   }
 
   return {
-    VERSION: '1.0.0',
+    VERSION: '1.1.0',
     POLICY: 'CONSTRAINED_FOOTBALL_PITCH_GEOMETRY',
     canonicalizeBoundary,
     canonicalPitchModel,
