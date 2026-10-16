@@ -5,12 +5,14 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   const clamp01=v=>Math.max(0,Math.min(1,Number(v)||0));
   function createState(){
-    return {frames:[],players:new Map(),maxObserved:0,rejectedDuplicateIds:0,rejectedOverflow:0};
+    return {frames:[],players:new Map(),maxObserved:0,rejectedDuplicateIds:0,rejectedOverflow:0,rejectedInvalidIds:0};
   }
-  function normalizeId(x){
-    const id=Number(x&&x.trackId);
-    return Number.isInteger(id)&&id>0?id:null;
+  function normalizeTrackId(raw){
+    if(!(typeof raw==='number'||(typeof raw==='string'&&raw.trim()!=='')))return null;
+    const id=Number(raw);
+    return Number.isSafeInteger(id)&&id>0?id:null;
   }
+  function normalizeId(x){return normalizeTrackId(x&&x.trackId);}
   function observeFrame(state,assignments,time,meta){
     if(!state||!Array.isArray(state.frames)||!(state.players instanceof Map))throw new Error('presence state invalide');
     const t=Number(time);
@@ -18,8 +20,10 @@
     meta=meta||{};
     const segment=Number.isInteger(meta.segment)?meta.segment:1;
     const byId=new Map();
+    let rejectedInvalidIds=0;
     for(const a of assignments||[]){
-      const id=normalizeId(a); if(id===null)continue;
+      const id=normalizeId(a);
+      if(id===null){rejectedInvalidIds++;state.rejectedInvalidIds=(state.rejectedInvalidIds||0)+1;continue;}
       const score=Number.isFinite(a.score)?clamp01(a.score):null;
       const prev=byId.get(id);
       if(prev){ state.rejectedDuplicateIds++; if((score??-1)>(prev.score??-1))byId.set(id,{id,score,cat:a.cat||null}); }
@@ -30,8 +34,16 @@
     const ids=observed.map(x=>x.id);
     const confidenceValues=observed.map(x=>x.score).filter(Number.isFinite);
     const frameConfidence=confidenceValues.length?confidenceValues.reduce((a,b)=>a+b,0)/confidenceValues.length:null;
-    const frame={time:t,segment,observedIds:ids,observedCount:ids.length,coverage:ids.length/11,confidence:frameConfidence===null?null:+frameConfidence.toFixed(4),quality:ids.length===11?'FIABLE':(ids.length?'PARTIEL':'INDISPONIBLE')};
-    state.frames.push(frame); state.maxObserved=Math.max(state.maxObserved,ids.length);
+    // Invalid source identities invalidate the entire instant, including otherwise
+    // valid assignments: they must not contaminate the persistent player roster.
+    const evidenceValid=rejectedInvalidIds===0;
+    const frame={time:t,segment,observedIds:evidenceValid?ids:[],rejectedInvalidIds,
+      observedCount:evidenceValid?ids.length:0,coverage:evidenceValid?ids.length/11:0,
+      confidence:evidenceValid&&frameConfidence!==null?+frameConfidence.toFixed(4):null,
+      quality:evidenceValid?(ids.length===11?'FIABLE':(ids.length?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE'};
+    state.frames.push(frame);
+    if(!evidenceValid)return frame;
+    state.maxObserved=Math.max(state.maxObserved,ids.length);
     for(const o of observed){
       let p=state.players.get(o.id);
       if(!p){ p={id:o.id,firstObserved:t,lastObserved:t,framesObserved:0,segments:new Set(),appearanceBlocks:0,lastFrameIndex:-2,confidenceSamples:[]}; state.players.set(o.id,p); }
@@ -53,7 +65,7 @@
       const avg=p.confidenceSamples.length?p.confidenceSamples.reduce((a,b)=>a+b,0)/p.confidenceSamples.length:null;
       return {id:p.id,firstObserved:p.firstObserved,lastObserved:p.lastObserved,framesObserved:p.framesObserved,reappearances:Math.max(0,p.appearanceBlocks-1),segments:[...p.segments].sort((a,b)=>a-b),identityObservationConfidence:avg===null?null:+avg.toFixed(4)};
     }).sort((a,b)=>a.firstObserved-b.firstObserved||a.id-b.id);
-    return {rosterSize:players.length,maxObservedSimultaneously:state.maxObserved,players,rejectedDuplicateIds:state.rejectedDuplicateIds,rejectedOverflow:state.rejectedOverflow,policy:{presence:'OBSERVED_ONLY',maxSimultaneousCAY:11,substitutions:'NEVER_INFERRED_FROM_PRESENCE',missingPlayer:'NOT_COUNTED_PRESENT_AT_INSTANT'}};
+    return {rosterSize:players.length,maxObservedSimultaneously:state.maxObserved,players,rejectedDuplicateIds:state.rejectedDuplicateIds,rejectedOverflow:state.rejectedOverflow,rejectedInvalidIds:state.rejectedInvalidIds||0,policy:{presence:'OBSERVED_ONLY',maxSimultaneousCAY:11,substitutions:'NEVER_INFERRED_FROM_PRESENCE',missingPlayer:'NOT_COUNTED_PRESENT_AT_INSTANT'}};
   }
-  return {createState,observeFrame,frameAtOrBefore,summarize};
+  return {createState,observeFrame,frameAtOrBefore,summarize,normalizeTrackId};
 });
