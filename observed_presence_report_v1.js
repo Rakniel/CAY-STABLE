@@ -23,11 +23,12 @@
     const supplied=hasIds?frame.observedIds:[];
     const raw=supplied.map(ObservedPresence.normalizeTrackId).filter(id=>id!==null);
     const rejected=frame&&frame.rejectedInvalidIds;
-    const sourceInvalidIds=rejected===undefined?0:(Number.isSafeInteger(rejected)&&rejected>=0?rejected:1);
+    const sourceCount=value=>value===undefined?0:(Number.isSafeInteger(value)&&value>=0?value:1);
+    const sourceInvalidIds=sourceCount(rejected);
     const invalidIdCount=supplied.length-raw.length+(hasIds?0:1)+sourceInvalidIds;
     const unique=[...new Set(raw)];
-    const duplicateCount=Math.max(0,raw.length-unique.length);
-    const overflowCount=Math.max(0,unique.length-11);
+    const duplicateCount=Math.max(0,raw.length-unique.length)+sourceCount(frame&&frame.rejectedDuplicateIds);
+    const overflowCount=Math.max(0,unique.length-11)+sourceCount(frame&&frame.rejectedOverflowIds);
     const valid=invalidIdCount===0&&duplicateCount===0&&overflowCount===0;
     return {
       valid,rawCount:supplied.length,uniqueCount:unique.length,invalidIdCount,duplicateCount,overflowCount,
@@ -90,8 +91,8 @@
       identityCoverage:+identityCoverage.toFixed(4),identityQuality:quality(identityCoverage),
       metricProjectionCoverage:+metricProjectionCoverage.toFixed(4),metricProjectionQuality:quality(metricProjectionCoverage),
       observationConfidence:observationConfidence===null?null:+observationConfidence.toFixed(4),
-      rejectedDuplicateIds:(summary.rejectedDuplicateIds||0)+duplicateFrameIds,
-      rejectedOverflow:(summary.rejectedOverflow||0)+overflowFrameIds,
+      rejectedDuplicateIds:Math.max(summary.rejectedDuplicateIds||0,duplicateFrameIds),
+      rejectedOverflow:Math.max(summary.rejectedOverflow||0,overflowFrameIds),
       invalidFrameEvidence:{count:invalidFrames,invalidIds:invalidFrameIds,duplicateIds:duplicateFrameIds,overflowIds:overflowFrameIds,policy:'INVALID_FRAME_EXCLUDED_FROM_COVERAGE_DENOMINATOR'},
       players:summary.players,
       policy:{

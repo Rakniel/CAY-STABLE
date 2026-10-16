@@ -1,0 +1,30 @@
+'use strict';
+const assert=require('node:assert/strict');
+const Presence=require('../observed_presence_v1.js');
+const Report=require('../observed_presence_report_v1.js');
+let checks=0;
+const check=(a,b)=>{assert.deepEqual(a,b);checks++};
+for(let round=0;round<3;round++){
+  const s=Presence.createState();
+  const eleven=Array.from({length:11},(_,i)=>({trackId:i+1,score:.9}));
+  const good=Presence.observeFrame(s,eleven,0,{segment:1});
+  check(good.quality,'FIABLE');check(good.observedCount,11);check(s.players.size,11);
+  const duplicate=Presence.observeFrame(s,[...eleven,{trackId:1,score:.99}],1,{segment:1});
+  check(duplicate.quality,'INDISPONIBLE');check(duplicate.observedCount,0);
+  check(duplicate.rejectedDuplicateIds,1);check(s.players.size,11);
+  const overflow=Presence.observeFrame(s,[...eleven,{trackId:12,score:.99}],2,{segment:1});
+  check(overflow.quality,'INDISPONIBLE');check(overflow.observedCount,0);
+  check(overflow.rejectedOverflowIds,1);check(s.players.has(12),false);
+  const report=Report.buildPresenceReport(s,[],{});
+  check(report.invalidObservedInstants,2);check(report.validObservedInstants,1);
+  check(report.observedPlayerSlots,11);check(report.possiblePlayerSlots,11);
+  check(report.frames[1].frameEvidenceReason,'DUPLICATE_ID_SAME_FRAME');
+  check(report.frames[2].frameEvidenceReason,'MORE_THAN_11_CAY_IDS');
+  check(report.invalidFrameEvidence.duplicateIds,1);check(report.invalidFrameEvidence.overflowIds,1);
+  Presence.observeFrame(s,[...eleven.slice(0,10),{trackId:12,score:.95}],3,{segment:2});
+  check(s.players.size,12);check(s.maxObserved,11);
+  check(Report.buildPresenceReport(s,[],{}).validObservedInstants,2);
+  const corrupt=Report.frameIdentityAudit({observedIds:[],rejectedOverflowIds:'oops'});
+  check(corrupt.valid,false);check(corrupt.reason,'MORE_THAN_11_CAY_IDS');
+}
+console.log('RUN32 atomic duplicate/overflow: PASS ('+checks+' assertions)');

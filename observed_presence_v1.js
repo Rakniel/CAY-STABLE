@@ -20,24 +20,25 @@
     meta=meta||{};
     const segment=Number.isInteger(meta.segment)?meta.segment:1;
     const byId=new Map();
-    let rejectedInvalidIds=0;
+    let rejectedInvalidIds=0,rejectedDuplicateIds=0;
     for(const a of assignments||[]){
       const id=normalizeId(a);
       if(id===null){rejectedInvalidIds++;state.rejectedInvalidIds=(state.rejectedInvalidIds||0)+1;continue;}
       const score=Number.isFinite(a.score)?clamp01(a.score):null;
       const prev=byId.get(id);
-      if(prev){ state.rejectedDuplicateIds++; if((score??-1)>(prev.score??-1))byId.set(id,{id,score,cat:a.cat||null}); }
+      if(prev){ rejectedDuplicateIds++;state.rejectedDuplicateIds++; } // Duplicates invalidate the instant; never select a winner silently.
       else byId.set(id,{id,score,cat:a.cat||null});
     }
     const observed=[...byId.values()].sort((a,b)=>(b.score??-1)-(a.score??-1)||a.id-b.id);
-    if(observed.length>11){ state.rejectedOverflow+=observed.length-11; observed.length=11; }
+    const rejectedOverflowIds=Math.max(0,observed.length-11);
+    if(rejectedOverflowIds)state.rejectedOverflow+=rejectedOverflowIds;
     const ids=observed.map(x=>x.id);
     const confidenceValues=observed.map(x=>x.score).filter(Number.isFinite);
     const frameConfidence=confidenceValues.length?confidenceValues.reduce((a,b)=>a+b,0)/confidenceValues.length:null;
     // Invalid source identities invalidate the entire instant, including otherwise
     // valid assignments: they must not contaminate the persistent player roster.
-    const evidenceValid=rejectedInvalidIds===0;
-    const frame={time:t,segment,observedIds:evidenceValid?ids:[],rejectedInvalidIds,
+    const evidenceValid=rejectedInvalidIds===0&&rejectedDuplicateIds===0&&rejectedOverflowIds===0;
+    const frame={time:t,segment,observedIds:evidenceValid?ids:[],rejectedInvalidIds,rejectedDuplicateIds,rejectedOverflowIds,
       observedCount:evidenceValid?ids.length:0,coverage:evidenceValid?ids.length/11:0,
       confidence:evidenceValid&&frameConfidence!==null?+frameConfidence.toFixed(4):null,
       quality:evidenceValid?(ids.length===11?'FIABLE':(ids.length?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE'};
