@@ -16,7 +16,7 @@
   const presenceQuality=c=>c>=.999999?'FIABLE':c>0?'PARTIEL':'INDISPONIBLE';
   function ensureDeps(){
     if(!ObservedPresence||typeof ObservedPresence.summarize!=='function')throw new Error('CAYObservedPresence.summarize requis');
-    if(!PlayerStats||typeof PlayerStats.projectorInfo!=='function')throw new Error('CAYPlayerStats.projectorInfo requis');
+    if(!PlayerStats||typeof PlayerStats.metricProjectorInfo!=='function')throw new Error('CAYPlayerStats.metricProjectorInfo requis');
   }
   function frameIdentityAudit(frame){
     const hasIds=Boolean(frame&&Array.isArray(frame.observedIds));
@@ -55,8 +55,9 @@
         if(identityQuality==='FIABLE')reliableIdentityCount++;
       }
       reliableIdentitySlots+=reliableIdentityCount;
-      const calibration=PlayerStats.projectorInfo((projectors||{})[frame.segment]);
-      if(calibration.validated&&audit.valid)metricProjectionSlots+=presentCount;
+      const calibration=PlayerStats.metricProjectorInfo((projectors||{})[frame.segment]);
+      const metricEligible=audit.valid&&calibration.metricEligible===true;
+      if(metricEligible)metricProjectionSlots+=presentCount;
       const frameConfidence=finiteEvidenceNumber(frame.confidence);
       if(audit.valid&&frameConfidence!==null){confidenceSum+=frameConfidence*presentCount;confidenceSlots+=presentCount;}
       const identityCoverage=presentCount?reliableIdentityCount/presentCount:0;
@@ -68,7 +69,7 @@
         observationConfidence:audit.valid&&frameConfidence!==null?clamp01(frameConfidence):null,
         reliableIdentityCount,uncertainIdentityCount:presentCount-reliableIdentityCount,
         identityCoverage:+identityCoverage.toFixed(4),identityQuality:audit.valid?quality(identityCoverage):'INDISPONIBLE',
-        metricProjectionValidated:audit.valid&&calibration.validated===true,
+        metricProjectionValidated:metricEligible,
         metricCalibrationSource:calibration.source||null,
         metricCalibrationConfidence:Number.isFinite(calibration.confidence)?calibration.confidence:null,
         metricCalibrationReason:audit.valid?(calibration.reason||null):`frame rejetée: ${audit.reason}`,
