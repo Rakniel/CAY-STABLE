@@ -9,7 +9,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (geometryGuard) {
   'use strict';
 
-  function finite(n) { return Number.isFinite(Number(n)); }
+  function finite(n) { return (typeof n === 'number' || (typeof n === 'string' && n.trim() !== '')) && Number.isFinite(Number(n)); }
 
   function bottomCenterAnchor(box) {
     if (!box || !finite(box.x) || !finite(box.y) || !finite(box.width) || !finite(box.height)) return null;
@@ -29,7 +29,7 @@
   }
 
   function pointInPolygon(point, polygon) {
-    if (!point || !Array.isArray(polygon) || polygon.length < 3) return false;
+    if (!point || !finite(point.x) || !finite(point.y) || !Array.isArray(polygon) || polygon.length < 3) return false;
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
       const a = polygon[j], b = polygon[i];
@@ -46,8 +46,11 @@
     if (!Array.isArray(pitchPolygon) || pitchPolygon.length < 3) {
       return { ok: false, reason: 'PITCH_POLYGON_MISSING', boundary: null };
     }
+    if (pitchPolygon.some(p => !p || !finite(p.x) || !finite(p.y))) {
+      return { ok: false, reason: 'PITCH_POLYGON_INVALID_COORDINATES', boundary: null };
+    }
     if (!geometryGuard || typeof geometryGuard.canonicalizeBoundary !== 'function') {
-      return { ok: true, reason: null, boundary: pitchPolygon, geometry: null };
+      return { ok: false, reason: 'PITCH_GEOMETRY_GUARD_MISSING', boundary: null, geometry: null };
     }
     const geometry = geometryGuard.canonicalizeBoundary(pitchPolygon, options && options.pitchGeometry);
     if (!geometry.ok) return { ok: false, reason: geometry.reason || 'PITCH_GEOMETRY_INVALID', boundary: null, geometry };
@@ -56,8 +59,9 @@
 
   function evaluateDetection(detection, pitchPolygon, options) {
     const opts = options || {};
-    const minConfidence = finite(opts.minConfidence) ? Number(opts.minConfidence) : 0.35;
-    const confidence = finite(detection && detection.confidence) ? Number(detection.confidence) : 0;
+    const minConfidence = finite(opts.minConfidence) ? Math.max(0.35, Math.min(1, Number(opts.minConfidence))) : 0.35;
+    const confidenceValid = finite(detection && detection.confidence) && Number(detection.confidence) >= 0 && Number(detection.confidence) <= 1;
+    const confidence = confidenceValid ? Number(detection.confidence) : 0;
     const anchor = bottomCenterAnchor(detection && detection.box);
     const canonical = canonicalPitchPolygon(pitchPolygon, opts);
 
@@ -65,6 +69,7 @@
       return { status: 'INDISPONIBLE', eligible: false, reason: canonical.reason, anchor: anchor, pitchGeometry: canonical.geometry || null };
     }
     if (!anchor) return { status: 'REJETE', eligible: false, reason: 'INVALID_BOX', anchor: null, pitchGeometry: canonical.geometry || null };
+    if (!confidenceValid) return { status: 'REJETE', eligible: false, reason: 'INVALID_CONFIDENCE', anchor: anchor, pitchGeometry: canonical.geometry || null };
     if (confidence < minConfidence) return { status: 'REJETE', eligible: false, reason: 'LOW_CONFIDENCE', anchor: anchor, pitchGeometry: canonical.geometry || null };
     if (!pointInPolygon(anchor, canonical.boundary)) {
       return { status: 'REJETE', eligible: false, reason: 'GROUND_POINT_OUTSIDE_PITCH', anchor: anchor, pitchGeometry: canonical.geometry || null };
@@ -85,7 +90,7 @@
   }
 
   return {
-    VERSION: '1.1.0',
+    VERSION: '1.3.0',
     POLICY: 'BOTTOM_CENTER_GROUND_ANCHOR_ON_CANONICAL_PITCH_BOUNDARY',
     bottomCenterAnchor: bottomCenterAnchor,
     pointInPolygon: pointInPolygon,
