@@ -31,22 +31,24 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
+    const attempted=bridge.attemptedObservationFrames;
+    if(!(typeof attempted==='number'&&Number.isSafeInteger(attempted)&&attempted>0))
+      return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    const rawCoverage=bridge.observationCoverage;
+    const validCoverage=typeof rawCoverage==='number'&&Number.isFinite(rawCoverage)&&rawCoverage>=0&&rawCoverage<=1;
+    const usable=bridge.usableObservationFrames;
+    const unavailable=bridge.unavailableObservationFrames;
+    const validCounts=Number.isSafeInteger(usable)&&usable>=0&&usable<=attempted
+      &&Number.isSafeInteger(unavailable)&&unavailable>=0&&unavailable<=attempted
+      &&usable+unavailable===attempted;
+    const consistent=validCoverage&&validCounts&&Math.abs(usable/attempted-rawCoverage)<=0.0001;
+    const coverage=validCoverage?rawCoverage:null;
+    const computed=consistent?(coverage>=.8?'FIABLE':(coverage>0?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE';
     const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
-    return {
-      available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
+    const quality=declared==='INDISPONIBLE'?'INDISPONIBLE':declared==='PARTIEL'&&computed==='FIABLE'?'PARTIEL':computed;
+    return {available:true,quality,coverage,attempted,
+      usable:validCounts?usable:null,unavailable:validCounts?unavailable:null,
+      reasons:bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'&&!Array.isArray(bridge.unavailableReasons)?{...bridge.unavailableReasons}:{}
     };
   }
 
@@ -114,7 +116,8 @@
   }
 
   function applyObservationGuard(report,observation){
-    if(!observation.available)return report;
+    // Missing or invalid attempted-frame evidence cannot authorize results.
+    if(!observation.available)observation={...observation,quality:'INDISPONIBLE'};
     report.observationCoverageGuard={
       version:'CAY_FIRST_RESULTS_OBSERVATION_COVERAGE_GUARD_V1',
       ...observation,
