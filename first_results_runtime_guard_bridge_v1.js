@@ -116,7 +116,8 @@
   }
 
   function applyObservationGuard(report,observation){
-    if(!observation.available)return report;
+    // Missing or invalid attempted-frame evidence cannot authorize results.
+    if(!observation.available)observation={...observation,quality:'INDISPONIBLE'};
     report.observationCoverageGuard={
       version:'CAY_FIRST_RESULTS_OBSERVATION_COVERAGE_GUARD_V1',
       ...observation,

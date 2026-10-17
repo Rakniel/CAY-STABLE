@@ -46,9 +46,9 @@ assert.strictEqual(global.CAYStableTrackingBridge.__cayFirstResultsRuntimeGuardP
 
 let report=global.CAYStableTrackingBridge.create({}).report();
 assert.strictEqual(report.marker,'preserved');
-assert.strictEqual(report.firstResultsTestability.status,'PHYSICAL_TESTABLE','ready runtime without strict-frame evidence keeps legacy verdict');
+assert.strictEqual(report.firstResultsTestability.status,'INDISPONIBLE','missing attempted-frame evidence must block publication');
 assert.strictEqual(report.firstResultsTestability.runtimeTrackingReady,true);
-assert.strictEqual(report.playerCards.players[0].firstResults.status,'PHYSICAL_TESTABLE');
+assert.strictEqual(report.playerCards.players[0].firstResults.status,'INDISPONIBLE');
 
 observationBridge={attemptedObservationFrames:100,usableObservationFrames:90,unavailableObservationFrames:10,observationCoverage:.9,observationQuality:'FIABLE',unavailableReasons:{DETECTOR_INFERENCE_FAILED:10}};
 report=global.CAYStableTrackingBridge.create({}).report();
