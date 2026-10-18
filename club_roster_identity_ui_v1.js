@@ -16,7 +16,7 @@ const esc=v=>clean(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 function safeParse(raw,fallback){try{return JSON.parse(raw);}catch(_){return fallback;}}
 function sanitizePlayerDraft(raw={}){
   const number=raw.number==null||raw.number===''?null:Number(raw.number);
-  return {id:clean(raw.id),displayName:clean(raw.displayName),number:Number.isInteger(number)?number:null,primaryPosition:clean(raw.primaryPosition).toUpperCase(),photoUrl:clean(raw.photoUrl),status:'ACTIVE'};
+  return {id:clean(raw.id),displayName:clean(raw.displayName),number:Number.isInteger(number)?number:null,primaryPosition:clean(raw.primaryPosition).toUpperCase(),photoUrl:clean(raw.photoUrl),status:clean(raw.status).toUpperCase()||'ACTIVE',firstName:clean(raw.firstName),lastName:clean(raw.lastName),secondaryPosition:clean(raw.secondaryPosition).toUpperCase(),isGoalkeeper:raw.isGoalkeeper===true};
 }
 function normalizeStoredTeam(raw={}){
   const roster=[];
@@ -48,14 +48,50 @@ function currentTeam(){const t=store.team();return normalizeStoredTeam({...t,nam
 function positions(){return Array.isArray(Domain?.POSITIONS)?Domain.POSITIONS:['GK','RB','CB','LB','DM','CM','AM','RW','LW','ST'];}
 function addPlayer(raw){
   const team=currentTeam(),draft=sanitizePlayerDraft(raw);
-  if(!draft.displayName)return {accepted:false,reason:'PLAYER_NAME_REQUIRED'};
+  if(!draft.displayName&&!(draft.firstName||draft.lastName))return {accepted:false,reason:'PLAYER_NAME_REQUIRED'};
   if(draft.number!==null&&(draft.number<1||draft.number>99))return {accepted:false,reason:'INVALID_SHIRT_NUMBER'};
   if(!draft.id)draft.id='cay_player_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6);
   try{
     const player=Domain.createPlayer(draft);
-    const next=store.saveTeam({...team,roster:[...(team.roster||[]),player]});
+    const defaultLineup=[...(team.defaultLineup||[])],bench=[...(team.bench||[])];
+    if(player.status!=='INACTIVE'){
+      if(player.status==='SUBSTITUTE'||defaultLineup.length>=11)bench.push(player.id);
+      else defaultLineup.push(player.id);
+    }
+    const next=store.saveTeam({...team,roster:[...(team.roster||[]),player],defaultLineup,bench});
     return {accepted:true,player,team:next};
   }catch(e){return {accepted:false,reason:e.message||'PLAYER_REJECTED'};}
+}
+function prepareLineup(){
+  const team=currentTeam(),defaultLineup=[...(team.defaultLineup||[])],bench=[...(team.bench||[])];
+  const assigned=new Set([...defaultLineup,...bench]);
+  for(const p of team.roster){
+    if(assigned.has(p.id)||p.status==='INACTIVE')continue;
+    if(p.status==='SUBSTITUTE'||defaultLineup.length>=11)bench.push(p.id);
+    else defaultLineup.push(p.id);
+    assigned.add(p.id);
+  }
+  const candidate={...team,defaultLineup,bench};
+  const validation=Domain.validateLineup(candidate);
+  if(!validation.valid)return {accepted:false,reason:validation.errors.join(',')};
+  return {accepted:true,team:store.saveTeam(candidate)};
+}
+function setPlayerAssignment(playerId,destination){
+  const id=clean(playerId),role=clean(destination).toUpperCase(),team=currentTeam();
+  if(!['START','BENCH','INACTIVE'].includes(role))return {accepted:false,reason:'INVALID_ASSIGNMENT'};
+  if(!team.roster.some(p=>p.id===id))return {accepted:false,reason:'UNKNOWN_ROSTER_PLAYER'};
+  const defaultLineup=(team.defaultLineup||[]).filter(x=>x!==id);
+  const bench=(team.bench||[]).filter(x=>x!==id);
+  if(role==='START'){
+    if(defaultLineup.length>=11)return {accepted:false,reason:'LINEUP_OVER_11'};
+    defaultLineup.push(id);
+  }else if(role==='BENCH')bench.push(id);
+  const status=role==='START'?'ACTIVE':role==='BENCH'?'SUBSTITUTE':'INACTIVE';
+  const roster=team.roster.map(p=>p.id===id?{...p,status}:p);
+  const candidate={...team,roster,defaultLineup,bench};
+  const validation=Domain.validateLineup(candidate);
+  if(!validation.valid&&validation.errors.some(x=>x!=='LINEUP_EMPTY'))return {accepted:false,reason:validation.errors.join(',')};
+  return {accepted:true,team:store.saveTeam(candidate)};
 }
 function removePlayer(playerId){
   const id=clean(playerId),team=currentTeam();
@@ -71,7 +107,7 @@ function ensureRosterPanel(){
   const anchor=document.getElementById('analysisTeamName');if(!anchor)return null;
   panel=document.createElement('section');panel.id='cayClubRosterPanelV1';
   panel.style.cssText='margin-top:12px;padding:14px;border:1px solid rgba(205,31,45,.35);border-radius:14px;background:linear-gradient(145deg,rgba(205,31,45,.08),rgba(0,0,0,.22));color:#fff';
-  panel.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><strong>ÉQUIPE / TROMBINOSCOPE</strong><div style="font-size:11px;opacity:.68">Roster supérieur à 11 autorisé • 11 CAY maximum simultanément sur le terrain.</div></div><span id="cayRosterCountV1" style="font-size:12px;opacity:.72">0 joueur</span></div><div style="display:grid;grid-template-columns:80px minmax(150px,1fr) 100px minmax(150px,1fr) auto;gap:7px;margin-top:10px"><input id="cayRosterNumberV1" type="number" min="1" max="99" placeholder="#" aria-label="numéro"><input id="cayRosterNameV1" type="text" placeholder="Nom du joueur" aria-label="nom du joueur"><select id="cayRosterPositionV1" aria-label="poste"></select><input id="cayRosterPhotoV1" type="url" placeholder="Photo URL (optionnel)" aria-label="photo URL"><button id="cayRosterAddV1" type="button">AJOUTER</button></div><div id="cayRosterMessageV1" style="margin-top:7px;font-size:11px;opacity:.72"></div><div id="cayRosterListV1" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px"></div>';
+  panel.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><strong>ÉQUIPE / TROMBINOSCOPE</strong><div style="font-size:11px;opacity:.68">Roster supérieur à 11 autorisé • 11 CAY maximum simultanément sur le terrain.</div></div><span id="cayRosterCountV1" style="font-size:12px;opacity:.72">0 joueur</span></div><div style="display:grid;grid-template-columns:80px minmax(150px,1fr) 100px minmax(150px,1fr) auto;gap:7px;margin-top:10px"><input id="cayRosterNumberV1" type="number" min="1" max="99" placeholder="#" aria-label="numéro"><input id="cayRosterNameV1" type="text" placeholder="Nom du joueur" aria-label="nom du joueur"><select id="cayRosterPositionV1" aria-label="poste"></select><input id="cayRosterPhotoV1" type="url" placeholder="Photo URL (optionnel)" aria-label="photo URL"><button id="cayRosterAddV1" type="button">AJOUTER</button></div><button id="cayRosterPrepareV1" type="button" style="margin-top:9px;background:#b9192b;color:#fff;border-radius:8px;padding:7px 11px">PRÉPARER LE 11 + BANC</button><div id="cayRosterMessageV1" style="margin-top:7px;font-size:11px;opacity:.72"></div><div id="cayRosterListV1" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px"></div>';
   const host=anchor.closest('.grid2')||anchor.parentElement;host?.insertAdjacentElement('afterend',panel);
   const select=panel.querySelector('#cayRosterPositionV1');for(const p of positions()){const o=document.createElement('option');o.value=p;o.textContent=p;select.appendChild(o);}select.value='CM';
   panel.querySelector('#cayRosterAddV1').onclick=()=>{
@@ -79,12 +115,24 @@ function ensureRosterPanel(){
     panel.querySelector('#cayRosterMessageV1').textContent=result.accepted?'Joueur ajouté ✓':'Ajout refusé : '+result.reason;
     if(result.accepted){panel.querySelector('#cayRosterNumberV1').value='';panel.querySelector('#cayRosterNameV1').value='';panel.querySelector('#cayRosterPhotoV1').value='';renderRoster();renderIdentityPanel();}
   };
+  panel.querySelector('#cayRosterPrepareV1').onclick=()=>{
+    const result=prepareLineup();
+    panel.querySelector('#cayRosterMessageV1').textContent=result.accepted?'Composition préparée ✓':'Composition refusée : '+result.reason;
+    if(result.accepted){renderRoster();renderIdentityPanel();}
+  };
   return panel;
 }
 function renderRoster(){
   const panel=ensureRosterPanel();if(!panel)return false;const team=currentTeam(),list=panel.querySelector('#cayRosterListV1'),count=panel.querySelector('#cayRosterCountV1');
-  count.textContent=team.roster.length+' joueur'+(team.roster.length>1?'s':'');
-  list.innerHTML=team.roster.length?team.roster.map(p=>'<span data-player="'+esc(p.id)+'" style="display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:#111;border:1px solid rgba(255,255,255,.09);font-size:12px"><b>'+(p.number==null?'—':'#'+esc(p.number))+'</b> '+esc(p.displayName)+' <small style="opacity:.6">'+esc(p.primaryPosition||'')+'</small><button type="button" data-remove="'+esc(p.id)+'" title="Retirer" style="border:0;background:transparent;color:#ff8e96;cursor:pointer">×</button></span>').join(''):'<span style="opacity:.6;font-size:12px">Ajoute les joueurs avant l’identification des tracks.</span>';
+  count.textContent=team.roster.length+' joueur'+(team.roster.length>1?'s':'')+' • '+team.defaultLineup.length+'/11 titulaires';
+  list.innerHTML=team.roster.length?team.roster.map(p=>'<span data-player="'+esc(p.id)+'" style="display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:#111;border:1px solid rgba(255,255,255,.09);font-size:12px"><b>'+(p.number==null?'—':'#'+esc(p.number))+'</b> '+esc(p.displayName)+' <small style="opacity:.6">'+esc(p.primaryPosition||'')+' • '+(team.defaultLineup.includes(p.id)?'TITULAIRE':team.bench.includes(p.id)?'BANC':'HORS GROUPE')+'</small><button type="button" data-start="'+esc(p.id)+'" title="Mettre titulaire">11</button><button type="button" data-bench="'+esc(p.id)+'" title="Mettre remplaçant">BANC</button><button type="button" data-inactive="'+esc(p.id)+'" title="Hors groupe">HORS GROUPE</button><button type="button" data-remove="'+esc(p.id)+'" title="Retirer" style="border:0;background:transparent;color:#ff8e96;cursor:pointer">×</button></span>').join(''):'<span style="opacity:.6;font-size:12px">Ajoute les joueurs avant l’identification des tracks.</span>';
+  for(const [attribute,role] of [['data-start','START'],['data-bench','BENCH'],['data-inactive','INACTIVE']]){
+    list.querySelectorAll('['+attribute+']').forEach(btn=>btn.onclick=()=>{
+      const result=setPlayerAssignment(btn.getAttribute(attribute),role);
+      panel.querySelector('#cayRosterMessageV1').textContent=result.accepted?'Composition mise à jour ✓':'Modification refusée : '+result.reason;
+      if(result.accepted){renderRoster();renderIdentityPanel();}
+    });
+  }
   list.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{removePlayer(btn.getAttribute('data-remove'));renderRoster();renderIdentityPanel();});return true;
 }
 let lastReport=null,lastSession=null;
@@ -118,5 +166,5 @@ function patchBridge(){
 }
 function install(){if(typeof document==='undefined')return false;ensureRosterPanel();renderRoster();patchBridge();return true;}
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();}
-return {TEAM_KEY,BINDING_KEY,sanitizePlayerDraft,normalizeStoredTeam,createStore,addPlayer,removePlayer,currentTeam,renderRoster,renderIdentityPanel,refreshPlayerCards,patchBridge,install};
+return {TEAM_KEY,BINDING_KEY,sanitizePlayerDraft,normalizeStoredTeam,createStore,addPlayer,prepareLineup,setPlayerAssignment,removePlayer,currentTeam,renderRoster,renderIdentityPanel,refreshPlayerCards,patchBridge,install};
 });
