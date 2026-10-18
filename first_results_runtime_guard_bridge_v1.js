@@ -31,21 +31,31 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
-    const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
+    const count=v=>((typeof v==='number'&&Number.isInteger(v)&&v>=0)||(typeof v==='string'&&v.trim()!==''&&Number.isInteger(Number(v))&&Number(v)>=0))?Number(v):null;
+    const attempted=count(bridge.attemptedObservationFrames);
+    const hasEvidence=['attemptedObservationFrames','usableObservationFrames','unavailableObservationFrames','observationCoverage','observationQuality'].some(key=>Object.prototype.hasOwnProperty.call(bridge,key));
+    if(!(attempted>0)){
+      if(!hasEvidence)return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+      return {available:true,quality:'INDISPONIBLE',coverage:0,attempted:attempted||0,usable:null,unavailable:null,evidenceConsistent:false,evidenceReasons:['OBSERVATION_ATTEMPTS_MISSING_OR_ZERO'],reasons:{}};
+    }
+    const usable=count(bridge.usableObservationFrames);
+    const unavailable=count(bridge.unavailableObservationFrames);
+    const raw=bridge.observationCoverage;
+    const coverageProvided=raw!==null&&raw!==undefined&&!(typeof raw==='string'&&raw.trim()==='');
+    const declaredCoverage=coverageProvided&&Number.isFinite(Number(raw))&&Number(raw)>=0&&Number(raw)<=1?Number(raw):null;
+    const countsConsistent=usable!==null&&usable<=attempted&&(unavailable===null||(unavailable<=attempted&&usable+unavailable===attempted));
+    const derivedCoverage=countsConsistent?usable/attempted:null;
+    const coverageConsistent=!coverageProvided||(declaredCoverage!==null&&derivedCoverage!==null&&Math.abs(declaredCoverage-derivedCoverage)<=0.0001);
+    const evidenceConsistent=countsConsistent&&coverageConsistent;
+    const coverage=evidenceConsistent?derivedCoverage:0;
+    const measuredQuality=coverage>=.8?'FIABLE':(coverage>0?'PARTIEL':'INDISPONIBLE');
     const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
+    const quality=!evidenceConsistent||declared==='INDISPONIBLE'?'INDISPONIBLE'
+      :(declared==='PARTIEL'&&measuredQuality==='FIABLE'?'PARTIEL':measuredQuality);
     return {
-      available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
+      available:true,quality,coverage,attempted,usable,unavailable,
+      evidenceConsistent,
+      evidenceReasons:evidenceConsistent?[]:['OBSERVATION_COUNTS_OR_COVERAGE_INCONSISTENT'],
       reasons:{...(bridge.unavailableReasons||{})}
     };
   }
