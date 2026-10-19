@@ -15,8 +15,13 @@ assert.equal(r.rejectedObservations,1);
 assert.equal(r.trajectory.runs.length,2,'camera cut must split trajectory');
 assert.equal(r.trajectory.runs[0].length,3);
 assert.equal(r.trajectory.runs[1].length,2);
-const sum=r.heatmap.normalizedCells.flat().reduce((a,b)=>a+b,0);
-assert(Math.abs(sum-1)<1e-5,'normalized camera heatmap must sum to 1');
+assert.equal(r.heatmap.status,'INDISPONIBLE','no cross-camera image heatmap');
+assert.deepEqual(r.heatmap.normalizedCells,[]);
+assert.equal(r.heatmap.segmentHeatmaps.length,2);
+for(const s of r.heatmap.segmentHeatmaps){
+ const sum=s.normalizedCells.flat().reduce((a,b)=>a+b,0);
+ assert(Math.abs(sum-1)<1e-5,'per-segment camera heatmap must sum to 1');
+}
 assert(r.policy.includes('AUCUNE_METRIQUE_TERRAIN_DERIVEE'));
 const empty=V.build({fullPath:[]});
 assert.equal(empty.status,'INDISPONIBLE');

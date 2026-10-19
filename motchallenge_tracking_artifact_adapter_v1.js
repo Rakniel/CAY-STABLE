@@ -44,7 +44,7 @@
 
   function rowObject(row){
     if(Array.isArray(row)){
-      return {frame:Number(row[0]),track_id:Number(row[1]),bbox_ltwh:[Number(row[2]),Number(row[3]),Number(row[4]),Number(row[5])],score:Number(row[6]),world:[Number(row[7]),Number(row[8]),Number(row[9])]};
+      return {frame:Number(row[0]),track_id:Number(row[1]),bbox_ltwh:[Number(row[2]),Number(row[3]),Number(row[4]),Number(row[5])],score:row[6],world:[Number(row[7]),Number(row[8]),Number(row[9])]};
     }
     if(!row||typeof row!=='object')return null;
     const bbox=Array.isArray(row.bbox_ltwh)?row.bbox_ltwh:(Array.isArray(row.bbox)?row.bbox:null);
@@ -52,7 +52,7 @@
       frame:Number(row.frame??row.frame_id??row.image_id),
       track_id:Number(row.track_id??row.id??row.person_id),
       bbox_ltwh:bbox?bbox.map(Number):null,
-      score:Number(row.score??row.bbox_conf??row.confidence??1),
+      score:row.score??row.bbox_conf??row.confidence??1,
       category_id:row.category_id??row.category??row.class_id??row.label??null,
       person_id:row.person_id??null,
       video_id:row.video_id??null,
@@ -90,7 +90,7 @@
 
   function createArtifact(input,options={}){
     const width=Number(options.width),height=Number(options.height),fps=Number(options.fps);
-    if(!(width>0&&height>0&&fps>0))throw new Error('TRACKING_FRAME_GEOMETRY_REQUIRED');
+    if(![width,height,fps].every(v=>Number.isFinite(v)&&v>0))throw new Error('TRACKING_FRAME_GEOMETRY_REQUIRED');
     const provenance=normalizeProvenance(options.provenance,{requireWeightProvenance:options.requireWeightProvenance!==false});
     const frameBase=Number.isInteger(options.frameBase)?options.frameBase:1;
     const maxCayActive=Math.max(1,Math.min(11,Number(options.maxCayActive)||11));
@@ -105,8 +105,8 @@
     for(const row of rows){
       if(!Number.isInteger(row.frame)||row.frame<frameBase||!Number.isInteger(row.track_id)||row.track_id<0){rejectedId++;continue;}
       const b=row.bbox_ltwh;
-      if(!Array.isArray(b)||b.length!==4||!b.every(finite)||b[2]<=0||b[3]<=0){rejectedGeometry++;continue;}
-      const score=finite(row.score)?clamp01(row.score):1;if(score<minScore){rejectedScore++;continue;}
+      if(!Array.isArray(b)||b.length!==4||!b.every(finite)||b[2]<=0||b[3]<=0||b[0]>=width||b[1]>=height||b[0]+b[2]<=0||b[1]+b[3]<=0){rejectedGeometry++;continue;}
+      const score=row.score;if(typeof score!=='number'||!Number.isFinite(score)||score<0||score>1||score<minScore){rejectedScore++;continue;}
       let feature=null;
       if(Array.isArray(row.feature)){
         if(!row.feature.length||!row.feature.every(finite)){rejectedFeature++;continue;}
