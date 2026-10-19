@@ -79,10 +79,26 @@
     const provenance=provenanceVerdict(artifact.provenance);if(!provenance.allowed)return {ok:false,reason:provenance.reason};
     if(!Array.isArray(artifact.samples)||!artifact.samples.length)return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_SAMPLES_REQUIRED'};
     let previousTime=-Infinity;
-    for(const raw of artifact.samples){
-      const sample=normalizeSample(raw);if(!sample)return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_SAMPLE_INVALID'};
-      if(sample.time<previousTime)return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_SAMPLES_NOT_SORTED'};
+    const seenSamples=new Set();
+    for(let sampleIndex=0;sampleIndex<artifact.samples.length;sampleIndex++){
+      const raw=artifact.samples[sampleIndex];
+      const sample=normalizeSample(raw);
+      if(!sample)return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_SAMPLE_INVALID',sampleIndex};
+      if(sample.time<previousTime)return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_SAMPLES_NOT_SORTED',sampleIndex};
       previousTime=sample.time;
+      for(const key of ['confidence','inlierRatio','support','residual','forwardBackwardErrorPx','pitchLineAlignmentErrorPx']){
+        if(!Object.prototype.hasOwnProperty.call(raw,key))continue;
+        const value=raw[key];
+        const numericType=typeof value==='number'||(typeof value==='string'&&value.trim()!=='');
+        const n=Number(value);
+        const unitInterval=key==='confidence'||key==='inlierRatio';
+        if(!numericType||!Number.isFinite(n)||n<0||(unitInterval&&n>1)){
+          return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_EVIDENCE_INVALID',sampleIndex,evidenceField:key};
+        }
+      }
+      const sampleKey=JSON.stringify([sample.segment,sample.anchorTime,sample.time]);
+      if(seenSamples.has(sampleKey))return {ok:false,reason:'CAMERA_MOTION_ARTIFACT_DUPLICATE_SAMPLE',sampleIndex};
+      seenSamples.add(sampleKey);
     }
     return {ok:true,reason:null};
   }
