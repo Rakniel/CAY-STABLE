@@ -144,13 +144,13 @@ function render(model,target){
 }
 function install(){
   const Bridge=typeof globalThis!=='undefined'?globalThis.CAYStableTrackingBridge:null;
-  if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayPlayerCardRendererPatched)return false;
+  if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayPlayerCardRendererPatched||Bridge.__cayFirstResultsRuntimeGuardPatched)return false;
   const baseCreate=Bridge.create.bind(Bridge);
   Bridge.create=function(options){
     const instance=baseCreate(options),baseReport=instance.report.bind(instance);
     instance.report=function(projectors,visualOptions){
       const report=baseReport(projectors,visualOptions);
-      if(typeof document!=='undefined'&&report?.playerCards?.players)render(report.playerCards,'stableStatsCardsV2');
+      if(typeof document!=='undefined'&&report?.runtimeTrackingGuard?.ok===true&&report?.observationCoverageGuard&&report?.playerCards?.players)render(report.playerCards,'stableStatsCardsV2');
       return report;
     };
     return instance;

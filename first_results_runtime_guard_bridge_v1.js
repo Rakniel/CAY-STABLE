@@ -191,6 +191,42 @@
     return report;
   }
 
+
+  const PHYSICAL_FIELDS=['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount'];
+  function publicationSafe(report){
+    if(!report||!Array.isArray(report.playerCards?.players))return report;
+    const runtimeReady=report.runtimeTrackingGuard?.ok===true;
+    const coverage=report.observationCoverageGuard;
+    const visualAllowed=runtimeReady&&coverage?.visualResultsAllowed===true;
+    const physicalAllowed=runtimeReady&&coverage?.physicalResultsAllowed===true;
+    if(visualAllowed&&physicalAllowed)return report;
+    const reason=!runtimeReady?'TRACKING_RUNTIME_NOT_VERIFIED':!coverage?'OBSERVATION_COVERAGE_NOT_VERIFIED':'OBSERVATION_COVERAGE_NOT_DEFENDABLE';
+    if(!visualAllowed){
+      report.playerCards.summary={...(report.playerCards.summary||{}),status:'INDISPONIBLE',nextAction:runtimeReady?COVERAGE_ACTION:BLOCKED_ACTION};
+      const current=report.firstResultsTestability||report.playerCards.testability;
+      if(current){
+        const blocked={...current,status:'INDISPONIBLE',coreTestable:false,physicalTestable:false,observationCoverageReady:false};
+        report.firstResultsTestability=blocked;
+        report.playerCards.testability=blocked;
+      }
+    }
+    report.playerCards={...report.playerCards,players:report.playerCards.players.map(card=>{
+      const next={...card};
+      if(!visualAllowed){
+        next.firstResults=blockedReadiness(card.firstResults,[reason],runtimeReady?COVERAGE_ACTION:BLOCKED_ACTION);
+        next.observedVisuals={status:'INDISPONIBLE',reason};
+        next.pitchVisuals={status:'INDISPONIBLE',reason,trajectory:null,heatmap:null};
+        next.presence={...(card.presence||{}),observations:null,observedDuration:null,trackingCoverage:null};
+      }
+      if(!physicalAllowed){
+        next.metrics={...(card.metrics||{})};
+        for(const key of PHYSICAL_FIELDS)next.metrics[key]={status:'INDISPONIBLE',value:null,coverage:null,reason};
+      }
+      return next;
+    })};
+    return report;
+  }
+
   function apply(report,env=root){
     if(!report||typeof report!=='object')return report;
     const state=runtimeState(env);
@@ -198,7 +234,7 @@
     if(state.ok===true){
       if(report.firstResultsTestability)report.firstResultsTestability.runtimeTrackingReady=true;
       if(report.playerCards?.testability)report.playerCards.testability.runtimeTrackingReady=true;
-      return applyObservationGuard(report,observationState(report));
+      return publicationSafe(applyObservationGuard(report,observationState(report)));
     }
 
     const reasons=Array.isArray(state.reasons)&&state.reasons.length?state.reasons:['TRACKING_RUNTIME_INDISPONIBLE'];
@@ -237,7 +273,7 @@
       };
       if(report.firstResultsTestability)report.playerCards.testability=report.firstResultsTestability;
     }
-    return report;
+    return publicationSafe(report);
   }
 
   function install(env=root){
@@ -249,7 +285,13 @@
       if(!instance||typeof instance.report!=='function')return instance;
       const baseReport=instance.report.bind(instance);
       instance.report=function(...args){
-        return apply(baseReport(...args),env);
+        const guarded=apply(baseReport(...args),env);
+        const target=env?.document?.getElementById?.('stableStatsCardsV2');
+        if(target&&guarded?.playerCards&&typeof env?.CAYPlayerCardRenderer?.render==='function'){
+          try{env.CAYPlayerCardRenderer.render(guarded.playerCards,target);}
+          catch(_){target.textContent='INDISPONIBLE — affichage des preuves impossible';}
+        }
+        return guarded;
       };
       return instance;
     };
@@ -258,5 +300,5 @@
   }
 
   install(root);
-  return {VERSION,BLOCKED_ACTION,COVERAGE_ACTION,runtimeState,observationState,blockedReadiness,blockPhysicalReadiness,applyObservationGuard,apply,install};
+  return {VERSION,BLOCKED_ACTION,COVERAGE_ACTION,runtimeState,observationState,blockedReadiness,blockPhysicalReadiness,applyObservationGuard,publicationSafe,apply,install};
 });
