@@ -12,3 +12,6 @@ Sans couverture vérifiée : visuels et métriques INDISPONIBLE. Couverture part
 
 ## Validation
 3 campagnes V8 sur sources GitHub exactes, 24 assertions, syntaxe des deux modules vérifiée ; tests Python de l'installateur local : 4/4 sur 3 campagnes. Régression reproduite : 2 rendus en ordre garde→renderer avant, 1 après. CI complète et vidéo réelle à confirmer avant fusion.
+
+## Contrôle supplémentaire : rendu direct STABLE
+Le point d'entrée `renderPlayerStats(report)` de `stable_runtime_tracking_v2.js` est désormais bloqué sans verdict de tracking actif **et** couverture visuelle explicitement autorisée. Il efface les anciennes informations de couverture et affiche `INDISPONIBLE` plutôt qu'une fiche ou une métrique non prouvée. Tests synthétiques : 15 vérifications V8 (3 campagnes) ; appel du renderer sans garde : 1 avant / 0 après. L'export et la fin de tracking doivent être qualifiés séparément.

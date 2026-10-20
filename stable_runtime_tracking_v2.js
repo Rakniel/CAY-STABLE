@@ -111,6 +111,14 @@ function renderPlayerStats(report){
   ensureStatsPanel();
   const cards=$('stableStatsCardsV2'),coverage=$('stableStatsCoverageV2'),teamCoverage=$('stableTeamCoverageV2');
   if(!cards)return false;
+  // Only the canonical tracking/observation guard may authorize player-card publication.
+  if(report.runtimeTrackingGuard?.ok!==true||report.observationCoverageGuard?.visualResultsAllowed!==true){
+    if(coverage)coverage.textContent='Couverture analyse : INDISPONIBLE';
+    if(teamCoverage)teamCoverage.textContent='Statistiques équipe : INDISPONIBLE';
+    cards.innerHTML='<div style="padding:12px;border-radius:10px;background:rgba(141,16,24,.12);border:1px solid rgba(205,31,45,.28);font-size:12px">Fiches joueurs : <b>INDISPONIBLE</b> — preuves de tracking ou de couverture insuffisantes.</div>';
+    cards.dataset.cayRenderer='INDISPONIBLE';
+    return false;
+  }
   const pct=Math.round((report.team?.avgMetricCoverage||0)*100);
   const obsPct=Math.round((report.bridge?.observationCoverage||0)*100);
   const attempted=report.bridge?.attemptedObservationFrames||0,unavailable=report.bridge?.unavailableObservationFrames||0;
