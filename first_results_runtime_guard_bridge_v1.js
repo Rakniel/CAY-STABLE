@@ -213,7 +213,7 @@
     report.playerCards={...report.playerCards,players:report.playerCards.players.map(card=>{
       const next={...card};
       if(!visualAllowed){
-        next.firstResults=blockedReadiness(card.firstResults,[reason],runtimeReady?COVERAGE_ACTION:BLOCKED_ACTION);
+        next.firstResults=card.firstResults?.status==='INDISPONIBLE'&&card.firstResults?.diagnosticReadiness?card.firstResults:blockedReadiness(card.firstResults,[reason],runtimeReady?COVERAGE_ACTION:BLOCKED_ACTION);
         next.observedVisuals={status:'INDISPONIBLE',reason};
         next.pitchVisuals={status:'INDISPONIBLE',reason,trajectory:null,heatmap:null};
         next.presence={...(card.presence||{}),observations:null,observedDuration:null,trackingCoverage:null};
