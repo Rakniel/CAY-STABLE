@@ -30,24 +30,26 @@
   }
 
   function observationState(report){
-    const bridge=report?.bridge||{};
-    const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
-    const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
-    return {
-      available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
-    };
+    const bridge=report?.bridge;
+    const hasAttempted=!!bridge&&Object.prototype.hasOwnProperty.call(bridge,'attemptedObservationFrames');
+    const unavailableState={available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    // Reports without strict-frame evidence retain their existing diagnostic behavior.
+    if(!hasAttempted)return unavailableState;
+    const integer=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isSafeInteger(Number(v))&&Number(v)>=0;
+    const attempted=integer(bridge.attemptedObservationFrames)?Number(bridge.attemptedObservationFrames):null;
+    const usable=integer(bridge.usableObservationFrames)?Number(bridge.usableObservationFrames):null;
+    const unavailable=integer(bridge.unavailableObservationFrames)?Number(bridge.unavailableObservationFrames):null;
+    const reasons=bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'&&!Array.isArray(bridge.unavailableReasons)
+      ?{...bridge.unavailableReasons}:{};
+    if(attempted===null||attempted===0||usable===null||unavailable===null||usable+unavailable!==attempted){
+      return {available:true,quality:'INDISPONIBLE',coverage:null,attempted,usable,unavailable,reasons,
+        integrity:'INVALID_OBSERVATION_COUNTERS'};
+    }
+    // Upstream quality labels and rounded coverage never override counted observations.
+    const rawCoverage=usable/attempted;
+    const quality=rawCoverage>=.8?'FIABLE':rawCoverage>0?'PARTIEL':'INDISPONIBLE';
+    return {available:true,quality,coverage:+rawCoverage.toFixed(4),attempted,usable,unavailable,reasons,
+      integrity:'COUNTERS_RECOMPUTED'};
   }
 
   function blockedReadiness(readiness,reasons,action=BLOCKED_ACTION){
@@ -189,6 +191,42 @@
     return report;
   }
 
+
+  const PHYSICAL_FIELDS=['distanceM','avgSpeedKmh','maxSpeedKmh','sprintCount'];
+  function publicationSafe(report){
+    if(!report||!Array.isArray(report.playerCards?.players))return report;
+    const runtimeReady=report.runtimeTrackingGuard?.ok===true;
+    const coverage=report.observationCoverageGuard;
+    const visualAllowed=runtimeReady&&coverage?.visualResultsAllowed===true;
+    const physicalAllowed=runtimeReady&&coverage?.physicalResultsAllowed===true;
+    if(visualAllowed&&physicalAllowed)return report;
+    const reason=!runtimeReady?'TRACKING_RUNTIME_NOT_VERIFIED':!coverage?'OBSERVATION_COVERAGE_NOT_VERIFIED':'OBSERVATION_COVERAGE_NOT_DEFENDABLE';
+    if(!visualAllowed){
+      report.playerCards.summary={...(report.playerCards.summary||{}),status:'INDISPONIBLE',nextAction:runtimeReady?COVERAGE_ACTION:BLOCKED_ACTION};
+      const current=report.firstResultsTestability||report.playerCards.testability;
+      if(current){
+        const blocked={...current,status:'INDISPONIBLE',coreTestable:false,physicalTestable:false,observationCoverageReady:false};
+        report.firstResultsTestability=blocked;
+        report.playerCards.testability=blocked;
+      }
+    }
+    report.playerCards={...report.playerCards,players:report.playerCards.players.map(card=>{
+      const next={...card};
+      if(!visualAllowed){
+        next.firstResults=card.firstResults?.status==='INDISPONIBLE'&&card.firstResults?.diagnosticReadiness?card.firstResults:blockedReadiness(card.firstResults,[reason],runtimeReady?COVERAGE_ACTION:BLOCKED_ACTION);
+        next.observedVisuals={status:'INDISPONIBLE',reason};
+        next.pitchVisuals={status:'INDISPONIBLE',reason,trajectory:null,heatmap:null};
+        next.presence={...(card.presence||{}),observations:null,observedDuration:null,trackingCoverage:null};
+      }
+      if(!physicalAllowed){
+        next.metrics={...(card.metrics||{})};
+        for(const key of PHYSICAL_FIELDS)next.metrics[key]={status:'INDISPONIBLE',value:null,coverage:null,reason};
+      }
+      return next;
+    })};
+    return report;
+  }
+
   function apply(report,env=root){
     if(!report||typeof report!=='object')return report;
     const state=runtimeState(env);
@@ -196,7 +234,7 @@
     if(state.ok===true){
       if(report.firstResultsTestability)report.firstResultsTestability.runtimeTrackingReady=true;
       if(report.playerCards?.testability)report.playerCards.testability.runtimeTrackingReady=true;
-      return applyObservationGuard(report,observationState(report));
+      return publicationSafe(applyObservationGuard(report,observationState(report)));
     }
 
     const reasons=Array.isArray(state.reasons)&&state.reasons.length?state.reasons:['TRACKING_RUNTIME_INDISPONIBLE'];
@@ -235,7 +273,7 @@
       };
       if(report.firstResultsTestability)report.playerCards.testability=report.firstResultsTestability;
     }
-    return report;
+    return publicationSafe(report);
   }
 
   function install(env=root){
@@ -247,7 +285,13 @@
       if(!instance||typeof instance.report!=='function')return instance;
       const baseReport=instance.report.bind(instance);
       instance.report=function(...args){
-        return apply(baseReport(...args),env);
+        const guarded=apply(baseReport(...args),env);
+        const target=env?.document?.getElementById?.('stableStatsCardsV2');
+        if(target&&guarded?.playerCards&&typeof env?.CAYPlayerCardRenderer?.render==='function'){
+          try{env.CAYPlayerCardRenderer.render(guarded.playerCards,target);}
+          catch(_){target.textContent='INDISPONIBLE — affichage des preuves impossible';}
+        }
+        return guarded;
       };
       return instance;
     };
@@ -256,5 +300,5 @@
   }
 
   install(root);
-  return {VERSION,BLOCKED_ACTION,COVERAGE_ACTION,runtimeState,observationState,blockedReadiness,blockPhysicalReadiness,applyObservationGuard,apply,install};
+  return {VERSION,BLOCKED_ACTION,COVERAGE_ACTION,runtimeState,observationState,blockedReadiness,blockPhysicalReadiness,applyObservationGuard,publicationSafe,apply,install};
 });
