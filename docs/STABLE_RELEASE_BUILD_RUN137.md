@@ -8,7 +8,7 @@ Le paquet conserve sans modification le HTML canonique et son logo officiel, sou
 
 Provenance open source :
 - Python zipfile, hashlib, html.parser : bibliothèque standard Python 3.10+, Python Software Foundation License. Usage non modifié ; création du ZIP et du manifeste. Statut : intégré.
-- actions/upload-artifact : https://github.com/actions/upload-artifact ; version v4, commit ea165f8d65b6e75b540449e92b4886f43607fa02, licence MIT, copyright GitHub Inc. et contributeurs (LICENSE upstream). Utilisé sans modification pour publier l'archive de CI. Statut : intégré au workflow, exécution distante à vérifier.
+- actions/upload-artifact : https://github.com/actions/upload-artifact ; version v4, commit ea165f8d65b6e75b540449e92b4886f43607fa02, licence MIT, copyright GitHub Inc. et contributeurs (LICENSE upstream). Utilisé sans modification pour publier l'archive de CI. Statut : ÉTUDIÉ, NON INTÉGRÉ : la modification du workflow CI a été refusée par les contrôles de sécurité. Le ZIP doit être construit manuellement après validation de la CI.
 
 Remplace l'archivage manuel dispersé et les copies incohérentes du HTML. Gain attendu : 1 à 3 heures de préparation manuelle par livraison, estimation non chronométrée. Impact mesurable : archive déterministe par SHA-256 et vérification automatique des scripts. Dépendances : Python 3.10+, Node 20+, GitHub Actions. Risque : le packaging ne valide ni la détection sur vidéo réelle, ni le tracking, ni l'objectif des 20 minutes.
 
