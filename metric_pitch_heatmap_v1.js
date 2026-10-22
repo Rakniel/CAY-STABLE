@@ -5,7 +5,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(Motion){
   'use strict';
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const isPresentFinite=v=>v!==null&&v!==undefined&&!(typeof v==='string'&&v.trim()==='')&&Number.isFinite(Number(v));
+  const isPresentFinite=v=>(typeof v==='number'&&Number.isFinite(v))||(typeof v==='string'&&v.trim()!==''&&Number.isFinite(Number(v)));
   const finiteOptionOr=(value,fallback)=>isPresentFinite(value)?Number(value):fallback;
   const nonNegativeOptionOr=(value,fallback)=>isPresentFinite(value)&&Number(value)>=0?Number(value):fallback;
   const RAW_SPIKE_THRESHOLD_KMH=Number.isFinite(Number(Motion?.RAW_SPIKE_THRESHOLD_KMH))?Number(Motion.RAW_SPIKE_THRESHOLD_KMH):55;
@@ -13,7 +13,7 @@
   function projectorInfo(entry){
     if(!entry||entry.validated!==true||typeof entry.project!=='function')return {validated:false,project:null,confidence:null};
     const rawConfidence=entry.confidence;
-    const hasConfidence=rawConfidence!==null&&rawConfidence!==undefined&&!(typeof rawConfidence==='string'&&rawConfidence.trim()==='');
+    const hasConfidence=isPresentFinite(rawConfidence);
     const numericConfidence=hasConfidence?Number(rawConfidence):NaN;
     const confidence=Number.isFinite(numericConfidence)?clamp(numericConfidence,0,1):null;
     return {validated:true,project:entry.project,confidence};
