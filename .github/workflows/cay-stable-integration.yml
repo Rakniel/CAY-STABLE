@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/cay-stable-integration.yml'
       - 'CAY_ANALYZER_STABLE.html'
+      - 'index.html'
       - '*.js'
       - 'tools/integrate_tracking_v2.py'
       - 'tools/integrate_calibration_v2.py'
@@ -16,6 +17,7 @@ on:
     paths:
       - '.github/workflows/cay-stable-integration.yml'
       - 'CAY_ANALYZER_STABLE.html'
+      - 'index.html'
       - '*.js'
       - 'tools/integrate_tracking_v2.py'
       - 'tools/integrate_calibration_v2.py'
