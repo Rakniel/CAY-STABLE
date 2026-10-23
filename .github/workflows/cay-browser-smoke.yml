@@ -1,0 +1,43 @@
+name: CAY real-browser first-click smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'CAY_ANALYZER_STABLE.html'
+      - '*.js'
+      - 'tests/browser_first_click_smoke.cjs'
+      - '.github/workflows/cay-browser-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'CAY_ANALYZER_STABLE.html'
+      - '*.js'
+      - 'tests/browser_first_click_smoke.cjs'
+      - '.github/workflows/cay-browser-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  first-click:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check browser test syntax
+        run: node --check tests/browser_first_click_smoke.cjs
+      - name: Install pinned Playwright test tooling (CI only)
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Real-browser smoke with model CDNs blocked
+        run: node tests/browser_first_click_smoke.cjs

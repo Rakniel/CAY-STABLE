@@ -2,10 +2,12 @@ const assert = require('assert');
 const Guard = require('../stable_tracking_runtime_guard_v1.js');
 
 function fakeDoc(){
-  const nodes={
-    runTracking:{disabled:false,dataset:{}},
-    trackingStatus:{textContent:''},
-  };
+  // Real HTMLElement.dataset has a getter but no setter. Plain-object mocks
+  // concealed a startup TypeError that disabled real user interactions.
+  const button={disabled:false};
+  const dataset={};
+  Object.defineProperty(button,'dataset',{get(){return dataset;}});
+  const nodes={runTracking:button,trackingStatus:{textContent:''}};
   return {nodes,getElementById:id=>nodes[id]||null};
 }
 
