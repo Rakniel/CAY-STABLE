@@ -90,7 +90,7 @@
   }
 
   function matrixOk(matrix,rows,cols){
-    return Array.isArray(matrix)&&matrix.length===rows&&matrix.every(row=>Array.isArray(row)&&row.length===cols&&row.every(finite));
+    return Array.isArray(matrix)&&matrix.length===rows&&matrix.every(row=>Array.isArray(row)&&row.length===cols&&row.every(value=>finite(value)&&Number(value)>=0));
   }
 
   function hasTrajectory(spatial){
@@ -121,7 +121,7 @@
     const eligible=(Array.isArray(windows)?windows:[]).filter(window=>{
       const spatial=window?.spatial;
       const rows=Number(spatial?.rows),cols=Number(spatial?.cols);
-      return hasSpatialVisual(spatial)&&Number.isInteger(rows)&&Number.isInteger(cols)&&rows>0&&cols>0&&finite(spatial?.pitchLengthM)&&finite(spatial?.pitchWidthM);
+      return hasSpatialVisual(spatial)&&Number.isInteger(rows)&&Number.isInteger(cols)&&rows>0&&cols>0&&finite(spatial?.pitchLengthM)&&Number(spatial.pitchLengthM)>0&&finite(spatial?.pitchWidthM)&&Number(spatial.pitchWidthM)>0;
     });
     const durationReady=eligible.length>0&&eligible.every(window=>{
       const durationSeconds=windowDurationSeconds(window);
@@ -156,16 +156,20 @@
   function aggregateMatrix(rowsIn,key,rows,cols){
     if(!rowsIn.every(h=>matrixOk(h?.[key],rows,cols)))return null;
     const result=Array.from({length:rows},()=>Array(cols).fill(0));
-    for(const h of rowsIn)for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)result[y][x]+=Number(h[key][y][x]);
+    for(const h of rowsIn)for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+      result[y][x]+=Number(h[key][y][x]);
+      if(!Number.isFinite(result[y][x]))return null;
+    }
     return result;
   }
 
   function normalizeMatrix(matrix){
     if(!Array.isArray(matrix)||!matrix.length)return [];
     const rows=matrix.length,cols=Array.isArray(matrix[0])?matrix[0].length:0;
-    if(!cols||!matrix.every(row=>Array.isArray(row)&&row.length===cols))return [];
+    if(!cols||!matrixOk(matrix,rows,cols))return [];
     const values=matrix.flat().map(value=>finite(value)&&Number(value)>0?Number(value):0);
     const total=values.reduce((acc,value)=>acc+value,0);
+    if(!Number.isFinite(total))return [];
     if(!(total>0))return matrix.map(row=>row.map(()=>0));
     const scale=1000000;
     const scaled=values.map(value=>value/total*scale);
@@ -192,8 +196,10 @@
     const rowsIn=Array.isArray(heatmaps)?heatmaps:[];
     if(!rowsIn.length)return null;
     const first=rowsIn[0],rows=Number(first.rows),cols=Number(first.cols);
-    if(!Number.isInteger(rows)||!Number.isInteger(cols)||rows<=0||cols<=0||!finite(first.pitchLengthM)||!finite(first.pitchWidthM))return null;
+    if(!Number.isInteger(rows)||!Number.isInteger(cols)||rows<=0||cols<=0||!finite(first.pitchLengthM)||Number(first.pitchLengthM)<=0||!finite(first.pitchWidthM)||Number(first.pitchWidthM)<=0)return null;
     if(!rowsIn.every(h=>Number(h.rows)===rows&&Number(h.cols)===cols&&samePitch(first,h)))return null;
+    // Optional evidence may be absent, but supplied matrices must never be malformed or negative.
+    if(rowsIn.some(h=>(h.cells!=null&&!matrixOk(h.cells,rows,cols))||(h.timeCells!=null&&!matrixOk(h.timeCells,rows,cols))))return null;
     const units=rowsIn.map(h=>heatmapUnit(h,rows,cols));
     if(units.some(unit=>unit===null)||units.some(unit=>unit!==units[0]))return null;
     const useTime=units[0]==='TIME';
