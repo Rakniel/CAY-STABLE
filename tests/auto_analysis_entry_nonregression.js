@@ -75,8 +75,9 @@ for(const [entryName,entryHtml] of [
   assert(entryHtml.includes('currentFile=null;'),entryName+' must discard failed video provenance');
   assert(entryHtml.includes("'Vidéo illisible. Essaie un fichier MP4 encodé en H.264"),
     entryName+' must show an actionable unsupported-format message');
-  assert(entryHtml.includes("video.onloadedmetadata=()=>{\n   $('scanBtn').disabled=false;"),
-    entryName+' must unlock scan only after valid video metadata');
+  assert(entryHtml.includes("video.onloadedmetadata=()=>{\n   if(!validVideoMetadata(video))") &&
+    entryHtml.includes("return;\n   }\n   $('scanBtn').disabled=false;"),
+    entryName+' must reject invalid metadata before unlocking scan');
   assert(entryHtml.includes("status($('scanStatus'),'Chargement de la vidéo…');"),
     entryName+' must show progress during video loading');
 }
