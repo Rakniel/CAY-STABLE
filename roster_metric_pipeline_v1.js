@@ -163,6 +163,15 @@
     return result;
   }
 
+  function matrixSum(matrix){
+    let total=0;
+    for(const row of matrix)for(const value of row){
+      total+=Number(value);
+      if(!Number.isFinite(total))return null;
+    }
+    return total;
+  }
+
   function normalizeMatrix(matrix){
     if(!Array.isArray(matrix)||!matrix.length)return [];
     const rows=matrix.length,cols=Array.isArray(matrix[0])?matrix[0].length:0;
@@ -200,6 +209,25 @@
     if(!rowsIn.every(h=>Number(h.rows)===rows&&Number(h.cols)===cols&&samePitch(first,h)))return null;
     // Optional evidence may be absent, but supplied matrices must never be malformed or negative.
     if(rowsIn.some(h=>(h.cells!=null&&!matrixOk(h.cells,rows,cols))||(h.timeCells!=null&&!matrixOk(h.timeCells,rows,cols))))return null;
+    // Never publish heatmap evidence contradicting the participation window.
+    for(const h of rowsIn){
+      if(h.observations!==null&&h.observations!==undefined){
+        const observed=Number(h.observations);
+        if(!Number.isSafeInteger(observed)||observed<0||(h.cells!=null&&matrixSum(h.cells)!==observed))return null;
+      }
+      if(h.projectedIntervalSeconds!==null&&h.projectedIntervalSeconds!==undefined){
+        if(!finite(h.projectedIntervalSeconds)||Number(h.projectedIntervalSeconds)<0)return null;
+      }
+      const duration=windowDurationSeconds(h);
+      if(h.timeCells!=null){
+        const dwell=matrixSum(h.timeCells);
+        if(dwell===null)return null;
+        const reported=h.projectedIntervalSeconds==null?null:Number(h.projectedIntervalSeconds);
+        // Rounded microsecond cell values may differ slightly from the interval total.
+        if(reported!==null&&dwell>reported+0.0001)return null;
+        if(duration!==null&&(dwell>duration+0.0001||(reported!==null&&reported>duration+0.0001)))return null;
+      }
+    }
     const units=rowsIn.map(h=>heatmapUnit(h,rows,cols));
     if(units.some(unit=>unit===null)||units.some(unit=>unit!==units[0]))return null;
     const useTime=units[0]==='TIME';
@@ -235,7 +263,7 @@
         windowIndex:window.index,startMs:window.startMs,endMs:window.endMs,
         coordinateSystem:spatial.coordinateSystem,pitchLengthM:spatial.pitchLengthM,pitchWidthM:spatial.pitchWidthM,
         cols:spatial.cols,rows:spatial.rows,cells:spatial.cells,timeCells:spatial.timeCells,normalizedCells:spatial.normalizedCells,
-        heatmapBasis:spatial.heatmapBasis,observations:spatial.observations,metricCoverage:spatial.metricCoverage,
+        heatmapBasis:spatial.heatmapBasis,observations:spatial.observations,projectedIntervalSeconds:spatial.projectedIntervalSeconds,metricCoverage:spatial.metricCoverage,
         temporalCoverage:spatial.temporalCoverage,quality:spatial.quality
       });
     }
