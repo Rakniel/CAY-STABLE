@@ -5,12 +5,16 @@ on:
     branches: [main]
     paths:
       - '*.js'
+      - 'index.html'
+      - 'CAY_ANALYZER_STABLE.html'
       - 'tests/**'
       - '.github/workflows/cay-root-js-syntax.yml'
   push:
     branches: [main]
     paths:
       - '*.js'
+      - 'index.html'
+      - 'CAY_ANALYZER_STABLE.html'
       - 'tests/**'
       - '.github/workflows/cay-root-js-syntax.yml'
   workflow_dispatch:

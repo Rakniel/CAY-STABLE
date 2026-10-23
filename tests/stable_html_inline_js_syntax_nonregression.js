@@ -31,4 +31,41 @@ for(let i=0;i<scripts.length;i++){
   );
 }
 
+
+// The public entrypoint is index.html, not just the canonical integration file.
+// A syntactically valid inline bundle is unusable when a deployment silently
+// omits the sibling scripts referenced by its HTML. Verify both entrypoints.
+for(const [label,entryHtml] of [
+  ['index.html',fs.readFileSync('index.html','utf8')],
+  ['CAY_ANALYZER_STABLE.html',html]
+]){
+  const sources=[...entryHtml.matchAll(/<script\b[^>]*\bsrc=["']\.\/([^"']+\.js)["'][^>]*><\/script>/gi)]
+    .map(match=>match[1]);
+  assert(sources.length>=20,label+' must load its tracking/calibration runtime modules');
+  assert.strictEqual(new Set(sources).size,sources.length,label+' must not duplicate runtime modules');
+  for(const source of sources){
+    assert(fs.existsSync(source),label+' references a missing script: '+source);
+  }
+
+  const inline=[...entryHtml.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+    .filter(match=>!/\bsrc\s*=/.test(match[1]||''))
+    .map(match=>match[2]).filter(source=>source.trim());
+  for(let i=0;i<inline.length;i++){
+    assert.doesNotThrow(
+      ()=>new vm.Script(inline[i],{filename:label+'.inline-'+(i+1)+'.js'}),
+      label+' inline JavaScript block '+(i+1)+' must parse'
+    );
+  }
+
+  // These are the user's actual first actions. A missing handler means a
+  // visible control can do nothing even when all modules pass syntax checks.
+  for(const id of ['scanBtn','analyzeBtn','runTracking']){
+    assert(entryHtml.includes('id="'+id+'"'),label+' missing action button '+id);
+    assert(entryHtml.includes("$('"+id+"').onclick="),
+      label+' missing click handler for '+id);
+  }
+  assert(entryHtml.includes('id="fileInput"'),label+' missing video upload control');
+  console.log(label+' entrypoint smoke: PASS ('+sources.length+' local scripts, '+inline.length+' inline blocks)');
+}
+
 console.log(`stable HTML inline JavaScript syntax: PASS (${scripts.length} inline block(s))`);
