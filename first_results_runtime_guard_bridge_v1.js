@@ -31,22 +31,48 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
+    const hasAttempted=Object.prototype.hasOwnProperty.call(bridge,'attemptedObservationFrames');
+    // Older reports without strict-frame coverage retain the legacy diagnostic path.
+    if(!hasAttempted)return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+
     const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
-    const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
-    const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
+    function incoherent(reason){
+      return {
+        available:true,quality:'INDISPONIBLE',coverage:null,
+        attempted:Number.isSafeInteger(attempted)&&attempted>=0?attempted:null,
+        usable:null,unavailable:null,reasons:{[reason]:1}
+      };
+    }
+    if(bridge.attemptedObservationFrames===null||bridge.attemptedObservationFrames===undefined||
+       !Number.isSafeInteger(attempted)||attempted<0)return incoherent('OBSERVATION_ATTEMPT_COUNT_INVALID');
+    if(attempted===0)return incoherent('OBSERVATION_NO_ATTEMPTED_FRAMES');
+
+    const rawUsable=bridge.usableObservationFrames,rawUnavailable=bridge.unavailableObservationFrames;
+    const usable=Number(rawUsable),unavailable=Number(rawUnavailable);
+    if(rawUsable===null||rawUsable===undefined||rawUnavailable===null||rawUnavailable===undefined||
+       !Number.isSafeInteger(usable)||!Number.isSafeInteger(unavailable)||
+       usable<0||unavailable<0||usable+unavailable!==attempted){
+      return incoherent('OBSERVATION_FRAME_COUNTS_INCOHERENT');
+    }
+
+    const rawCoverage=bridge.observationCoverage,coverage=Number(rawCoverage);
+    const measured=usable/attempted;
+    // The strict frame guard rounds to four decimals; compare against the unrounded counts.
+    if(rawCoverage===null||rawCoverage===undefined||
+       (typeof rawCoverage==='string'&&rawCoverage.trim()==='')||
+       !Number.isFinite(coverage)||coverage<0||coverage>1||
+       Math.abs(coverage-measured)>0.000051){
+      return incoherent('OBSERVATION_COVERAGE_INCOHERENT');
+    }
+
+    const expectedQuality=measured>=.8?'FIABLE':(measured>0?'PARTIEL':'INDISPONIBLE');
+    const declared=String(bridge.observationQuality??'').trim().toUpperCase();
+    if(declared&&declared!==expectedQuality)return incoherent('OBSERVATION_QUALITY_INCOHERENTE');
     return {
-      available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
+      available:true,quality:expectedQuality,coverage,
+      attempted,usable,unavailable,
+      reasons:bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'
+        ?{...bridge.unavailableReasons}:{}
     };
   }
 
