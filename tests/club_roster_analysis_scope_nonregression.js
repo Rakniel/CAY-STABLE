@@ -22,6 +22,7 @@ assert.deepEqual(store.bindings('analysis:forged'),[]);
 store.saveBindings(binding);
 assert.deepEqual(store.bindings(),binding,'preserve the legacy API for existing tests');
 assert.deepEqual(store.bindings('session:two'),[],'legacy bindings cannot leak into runtime scope');
+global.CAYStableTrackingBridge={create(){return {report(){return {players:[]};}}}};
 assert.equal(UI.patchBridge(),true);
 const first=global.CAYStableTrackingBridge.create();first.report();
 const scope=UI.activeScope();assert.match(scope,/^session:/);
