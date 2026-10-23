@@ -798,6 +798,20 @@ function trainingCalibrationObject(){
 function validVideoMetadata(v){return !v.error&&Number.isFinite(v.duration)&&v.duration>0&&Number.isFinite(v.videoWidth)&&v.videoWidth>0&&Number.isFinite(v.videoHeight)&&v.videoHeight>0;}
 function setFile(f){
  if(!f)return;
+ // Une nouvelle source ne doit jamais afficher les résultats de la vidéo précédente.
+ $('results').classList.add('hidden');
+ $('results').style.display='';
+ $('validation55Section').classList.add('hidden');
+ $('metaStats').classList.add('hidden');
+ $('trackingGallery').replaceChildren();
+ $('exportTracking').disabled=true;
+ $('exportTrainingPack56').disabled=true;
+ lastTrackingReport=null;
+ lastValidation55=null;
+ lastDiagnostic=null;
+ scenes=[];currentScene=-1;
+ guidedCalibrationRefs=[];guidedCalibrationPos=-1;
+ manualClassOverrides={};
  expressAnalysisArmed=false;
  currentFile=f;if(objUrl)URL.revokeObjectURL(objUrl);
  objUrl=URL.createObjectURL(f);video.src=objUrl;
@@ -813,6 +827,7 @@ function setFile(f){
      return;
    }
    $('scanBtn').disabled=false;
+   $('runTracking').disabled=false;
    $('duration').textContent=tf(video.duration);
    $('resolution').textContent=`${video.videoWidth} × ${video.videoHeight}`;
    $('size').textContent=sf(f.size);
@@ -5544,6 +5559,7 @@ async function runTrackingTest(){
    status($('trackingStatus'),'Ajoute au moins 3 références de ton équipe.','warning');return;
  }
 
+ const trackingFile=currentFile;
  const start=trackingStart(),duration=+$('trackDuration').value||60,step=+$('trackStep').value||.5;
  const end=Math.min(video.duration-.2,start+duration),times=[];
  for(let t=start;t<=end+.001;t+=step)times.push(t);
@@ -5560,11 +5576,15 @@ async function runTrackingTest(){
  let prevSig=null,prevDetCount=0,sparseFrames=0;
  try{
    const model=await getModel();
+   if(currentFile!==trackingFile)throw new Error('Vidéo remplacée pendant le tracking');
    const stride=Math.max(1,Math.floor(times.length/12));
 
    for(let i=0;i<times.length;i++){
-     const t=times[i],c=await frame(t,900),poly=trackingPoly(t,c);
+     const t=times[i],c=await frame(t,900);
+     if(currentFile!==trackingFile)throw new Error('Vidéo remplacée pendant le tracking');
+     const poly=trackingPoly(t,c);
      let raw=await detectTracking(model,c);
+     if(currentFile!==trackingFile)throw new Error('Vidéo remplacée pendant le tracking');
      if(!poly)continue;
 
      const jerseyRecovered=recoverTeamByJersey(c,poly,raw,3);
@@ -5639,9 +5659,10 @@ async function runTrackingTest(){
      await new Promise(r=>setTimeout(r,0));
    }
 
+   if(currentFile!==trackingFile)throw new Error('Vidéo remplacée pendant le tracking');
    const tracks=trackingSummaryTracks(state),stable=tracks.filter(t=>t.seen>=5).length;
    lastTrackingReport={
-     version:'STABLE',video:currentFile.name,
+     version:'STABLE',video:trackingFile.name,
      team:($('analysisTeamName')?.value||'').trim(),
      start:+start.toFixed(2),end:+end.toFixed(2),step,
      createdIds:state.created,totalAssociations:state.totalMatches,
@@ -5651,9 +5672,9 @@ async function runTrackingTest(){
    $('exportTracking').disabled=false;
    status($('trackingStatus'),`Tracking terminé ✓ • ${state.segments} segment(s) caméra • max ${state.maxVisible}/11 visibles • ${stable} track(s) stables`,'success');
  }catch(err){
-   status($('trackingStatus'),'Erreur tracking : '+err.message,'warning');
+   if(currentFile===trackingFile)status($('trackingStatus'),'Erreur tracking : '+err.message,'warning');
  }finally{
-   $('runTracking').disabled=false;
+   if(currentFile===trackingFile)$('runTracking').disabled=false;
  }
 }
 
@@ -5740,7 +5761,18 @@ async function runFullValidation55(){
    status($('v55Status'),`Profil CAY incomplet (${refsFor('team').length}/3). Termine l’apprentissage initial une seule fois.`,'warning');expressAnalysisRunning=false;return;
  }
 
+ const analysisFile=currentFile;
  const btn=$('runFullValidation55');
+ const abortIfSourceChanged=()=>{
+   if(currentFile===analysisFile)return false;
+   expressAnalysisRunning=false;
+   btn.disabled=false;
+   // Le chargement de la nouvelle vidéo peut avoir eu lieu pendant l'ancien scan.
+   if(expressAnalysisArmed&&currentFile&&validVideoMetadata(video)&&!$('scanBtn').disabled){
+     setTimeout(()=>{if(expressAnalysisArmed&&!expressAnalysisRunning&&currentFile&&validVideoMetadata(video))$('scanBtn').click();},0);
+   }
+   return true;
+ };
  btn.disabled=true;$('exportTrainingPack56').disabled=true;
  $('v55Progress').classList.remove('hidden');$('v55Bar').style.width='0%';
  $('v55Pill').textContent='ANALYSE';
@@ -5763,6 +5795,7 @@ async function runFullValidation55(){
  }catch(err){
    errors.push('terrain/plans: '+err.message);
  }
+ if(abortIfSourceChanged())return null;
  $('v55Plans').textContent=suspectPlans;
  $('v55Bar').style.width='28%';
 
@@ -5784,6 +5817,7 @@ async function runFullValidation55(){
    };
    lastDiagnostic=diag;
  }
+ if(abortIfSourceChanged())return null;
  $('v55Bar').style.width='62%';
 
  // PHASE 3 — tracking tenté même si diagnostic partiel
@@ -5802,6 +5836,7 @@ async function runFullValidation55(){
    errors.push('tracking: '+err.message);
    tracking=lastTrackingReport||null;
  }
+ if(abortIfSourceChanged())return null;
  $('v55Bar').style.width='92%';
 
  const summary=diag?.summary||{};
@@ -5841,7 +5876,7 @@ async function runFullValidation55(){
  lastValidation55={
    version:'STABLE',
    generatedAt:new Date().toISOString(),
-   video:currentFile.name,
+   video:analysisFile.name,
    verdict,
    rules:V55_RULES,
    metrics,
