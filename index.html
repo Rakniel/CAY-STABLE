@@ -798,9 +798,13 @@ function trainingCalibrationObject(){
 function setFile(f){
  if(!f)return;
  currentFile=f;if(objUrl)URL.revokeObjectURL(objUrl);
- objUrl=URL.createObjectURL(f);video.src=objUrl;video.load();
+ objUrl=URL.createObjectURL(f);video.src=objUrl;
+ $('scanBtn').disabled=true;
+ $('scanSection').classList.remove('hidden');
+ status($('scanStatus'),'Chargement de la vidéo…');
  $('fileLabel').textContent=`${f.name} • ${sf(f.size)}`;
  video.onloadedmetadata=()=>{
+   $('scanBtn').disabled=false;
    $('duration').textContent=tf(video.duration);
    $('resolution').textContent=`${video.videoWidth} × ${video.videoHeight}`;
    $('size').textContent=sf(f.size);
@@ -817,6 +821,14 @@ function setFile(f){
    status($('scanStatus'),restoredVideo||restoredGlobal?'Profil CAY prêt • analyse automatique en cours…':'Première utilisation • pré-analyse automatique puis apprentissage CAY minimal une seule fois.',restoredVideo||restoredGlobal?'success':'');
    setTimeout(()=>{if(currentFile&&expressAnalysisArmed&&!expressAnalysisRunning&&!$('scanBtn').disabled)$('scanBtn').click();},250);
  }
+ video.onerror=()=>{
+   if(video.src!==objUrl)return;
+   currentFile=null;
+   expressAnalysisArmed=false;
+   $('scanBtn').disabled=true;
+   status($('scanStatus'),'Vidéo illisible. Essaie un fichier MP4 encodé en H.264 (ou un autre format compatible avec ce navigateur).','warning');
+ };
+ video.load();
 }
 input.onchange=()=>setFile(input.files[0]);['dragenter','dragover'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>setFile(e.dataTransfer.files[0]));
 $('scanInterval').oninput=e=>$('intervalLabel').textContent=e.target.value+' s';$('cutSensitivity').oninput=e=>$('sensLabel').textContent=['','Faible','Normale','Forte'][+e.target.value];
