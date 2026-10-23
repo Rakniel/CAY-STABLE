@@ -31,8 +31,8 @@ assert(
 const scanMarker="renderReviews();$('reviewSection').classList.add('hidden');";
 const scanPos=html.indexOf(scanMarker);
 assert(scanPos>=0,'scan completion block must exist');
-const scanEnd=html.indexOf("}catch(e){status($('scanStatus')",scanPos);
-assert(scanEnd>scanPos,'scan completion handler end must exist');
+const scanEnd=html.indexOf("}catch(e){",scanPos);
+assert(scanEnd>scanPos&&scanEnd<html.indexOf('function renderReviews(){',scanPos),'scan completion handler end must exist');
 const scanBlock=html.slice(scanPos,scanEnd);
 assert(
   scanBlock.includes("$('guidedCalibSection').classList.add('hidden');"),
