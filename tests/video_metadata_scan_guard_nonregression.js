@@ -16,7 +16,8 @@ for(const file of ['index.html','CAY_ANALYZER_STABLE.html']){
   assert.equal(check(valid),true,file+': valid 90 minute match rejected');
   for(const patch of [
     {duration:Infinity},{duration:NaN},{duration:0},{duration:-1},
-    {videoWidth:0},{videoWidth:NaN},{videoHeight:0},{videoHeight:Infinity}
+    {videoWidth:0},{videoWidth:NaN},{videoHeight:0},{videoHeight:Infinity},
+    {error:{code:3}}
   ]){
     assert.equal(check({...valid,...patch}),false,file+': corrupt video metadata accepted '+JSON.stringify(patch));
   }
@@ -82,7 +83,7 @@ console.log('Video metadata finite-scan non-regression: PASS');
   const scan=html.slice(html.indexOf("$('scanBtn').onclick=async()=>{"),html.indexOf('function renderReviews(){'));
   assert.ok(scan.includes('const scanFile=currentFile;'),file+': scan source not captured');
   assert.equal((scan.match(/if\(currentFile!==scanFile\)throw new Error/g)||[]).length,2,file+': source guard required after both frame awaits');
-  assert.ok(scan.includes("finally{if(currentFile===scanFile)$('scanBtn').disabled=false}"),file+': stale scan must not unlock new upload');
+  assert.ok(scan.includes("finally{if(currentFile===scanFile)$('scanBtn').disabled=!validVideoMetadata(video)}"),file+': failed video decode must not re-enable scan');
   console.log(file+': seek timeout, cancellation, cleanup and scan source guards PASS');
  }
 })().catch(err=>{console.error(err);process.exitCode=1;});
