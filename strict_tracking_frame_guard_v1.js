@@ -26,18 +26,13 @@
     return detectionCounts(input,context).assignable;
   }
 
-  function invalidFrameKey(time,segment){
-    const t=Number(time),s=Number(segment);
-    if(!Number.isFinite(t)||!Number.isFinite(s))return null;
-    return Math.round(t*1e6)+'@'+s;
-  }
-
   function create(options){
     const bridge=Base.create(options);
     const baseProcess=bridge.processFrame.bind(bridge);
     const baseReport=bridge.report.bind(bridge);
     const baseSnapshot=bridge.snapshot.bind(bridge);
     const invalidFrames=[];
+    let nextFrameOrdinal=0;
     const configuredGap=Number(options&&options.unavailableGapSegmentSeconds);
     const configuredLongGap=Number(options&&options.longGapSeconds);
     const unavailableGapSegmentSeconds=Math.max(.5,Number.isFinite(configuredGap)?configuredGap:(Number.isFinite(configuredLongGap)?configuredLongGap:2.5));
@@ -80,6 +75,7 @@
       const t=Number(time),event={
         time:Number.isFinite(t)?t:null,
         segment:bridge.state&&bridge.state.segment||null,
+        frameOrdinal:nextFrameOrdinal++,
         status:'INDISPONIBLE',
         reason:reason||'OBSERVATION_UNAVAILABLE',
         policy:'explicit_unavailable_no_fallback',
@@ -116,6 +112,7 @@
         return [];
       }
       const assigned=baseProcess(input,time,ctx);
+      nextFrameOrdinal++;
       const t=Number(time);
       if(Number.isFinite(t)){
         lastUsableTime=t;
@@ -146,27 +143,26 @@
     function report(projectors){
       const r=baseReport(projectors);
       const invalid=invalidFrames.map(x=>({...x}));
-      const invalidByFrame=new Map();
-      for(const x of invalid){
-        const key=invalidFrameKey(x.time,x.segment);
-        if(key!==null&&!invalidByFrame.has(key))invalidByFrame.set(key,x);
-      }
+      // A timestamp can legitimately repeat (seeks, decoded duplicates, multi-plan
+      // captures). Match the exact processed frame, never every frame at that time.
+      const invalidByOrdinal=new Map(invalid.map(x=>[x.frameOrdinal,x]));
+      let frameOrdinal=0;
       const timeline=(r.bridge&&Array.isArray(r.bridge.timeline)?r.bridge.timeline:[]).map(ev=>{
         if(ev.type!=='FRAME')return ev;
-        const key=invalidFrameKey(ev.time,ev.segment),hit=key===null?null:invalidByFrame.get(key);
+        const hit=invalidByOrdinal.get(frameOrdinal++);
         return hit?{...ev,dataQuality:'INDISPONIBLE',invalidReason:hit.reason,eligibleDetections:hit.eligibleDetections,assignableDetections:hit.assignableDetections,normalizationRejected:hit.normalizationRejected,policy:hit.policy}:ev;
       });
       const observationCoverage=coverageFromTimeline(timeline);
-      return {...r,bridge:{...(r.bridge||{}),timeline,invalidObservationFrames:invalid.length,invalidFrames:invalid,noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT',unavailableGapSegmentSeconds,unavailableRecoverySegmentBreaks,unavailableRecoveryPolicy:'SEGMENT_IF_LONG_BLIND_GAP_WITHOUT_VALIDATED_CONTINUITY',...observationCoverage}};
+      return {...r,bridge:{...(r.bridge||{}),timeline,invalidObservationFrames:invalid.length,invalidFrames:invalid,noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'FRAME_ORDINAL_WITH_TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_FRAME_ORDINAL',unavailableGapSegmentSeconds,unavailableRecoverySegmentBreaks,unavailableRecoveryPolicy:'SEGMENT_IF_LONG_BLIND_GAP_WITHOUT_VALIDATED_CONTINUITY',...observationCoverage}};
     }
 
     function snapshot(){
-      const base={...baseSnapshot(),invalidObservationFrames:invalidFrames.length,invalidFrames:invalidFrames.map(x=>({...x})),noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_TIME_AND_SEGMENT',unavailableGapSegmentSeconds,unavailableRecoverySegmentBreaks,unavailableRun:{frames:unavailableRunFrames,start:unavailableRunStart,last:unavailableRunLast},unavailableRecoveryPolicy:'SEGMENT_IF_LONG_BLIND_GAP_WITHOUT_VALIDATED_CONTINUITY'};
+      const base={...baseSnapshot(),invalidObservationFrames:invalidFrames.length,invalidFrames:invalidFrames.map(x=>({...x})),noSilentTruncation:true,overflowCountsAssignableDetections:true,invalidFrameProvenance:'FRAME_ORDINAL_WITH_TIME_AND_SEGMENT',invalidFrameLookup:'INDEXED_FRAME_ORDINAL',unavailableGapSegmentSeconds,unavailableRecoverySegmentBreaks,unavailableRun:{frames:unavailableRunFrames,start:unavailableRunStart,last:unavailableRunLast},unavailableRecoveryPolicy:'SEGMENT_IF_LONG_BLIND_GAP_WITHOUT_VALIDATED_CONTINUITY'};
       return base;
     }
 
     return {...bridge,processFrame,processUnavailableFrame,report,snapshot};
   }
 
-  return {...Base,create,eligibleCount,detectionCounts,strictFrameGuardVersion:'1.5.0'};
+  return {...Base,create,eligibleCount,detectionCounts,strictFrameGuardVersion:'1.6.0'};
 });

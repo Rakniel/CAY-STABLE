@@ -8,7 +8,7 @@ function ctx(extra={}){
   return {maxPlayers:11,width:1000,height:600,...extra};
 }
 
-assert.strictEqual(Bridge.strictFrameGuardVersion,'1.5.0','le garde strict doit exposer la politique de récupération après trou aveugle');
+assert.strictEqual(Bridge.strictFrameGuardVersion,'1.6.0','le garde strict doit exposer la politique de récupération après trou aveugle');
 
 const longGap=Bridge.create({maxPlayers:11,lostAfter:8,longGapSeconds:2.5});
 longGap.processFrame([det()],0,ctx());

@@ -21,16 +21,16 @@ assert.strictEqual(snap.invalidFrames[0].assignableDetections,12);
 assert.strictEqual(snap.invalidFrames[0].normalizationRejected,0);
 assert.strictEqual(snap.noSilentTruncation,true);
 assert.strictEqual(snap.overflowCountsAssignableDetections,true);
-assert.strictEqual(snap.invalidFrameProvenance,'TIME_AND_SEGMENT');
-assert.strictEqual(snap.invalidFrameLookup,'INDEXED_TIME_AND_SEGMENT');
+assert.strictEqual(snap.invalidFrameProvenance,'FRAME_ORDINAL_WITH_TIME_AND_SEGMENT');
+assert.strictEqual(snap.invalidFrameLookup,'INDEXED_FRAME_ORDINAL');
 assert.ok(snap.maxVisible<=11,'le tracker ne doit jamais exposer plus de 11 joueurs simultanés');
 
 let report=bridge.report({});
 assert.strictEqual(report.bridge.invalidObservationFrames,1);
 assert.strictEqual(report.bridge.noSilentTruncation,true);
 assert.strictEqual(report.bridge.overflowCountsAssignableDetections,true);
-assert.strictEqual(report.bridge.invalidFrameProvenance,'TIME_AND_SEGMENT');
-assert.strictEqual(report.bridge.invalidFrameLookup,'INDEXED_TIME_AND_SEGMENT');
+assert.strictEqual(report.bridge.invalidFrameProvenance,'FRAME_ORDINAL_WITH_TIME_AND_SEGMENT');
+assert.strictEqual(report.bridge.invalidFrameLookup,'INDEXED_FRAME_ORDINAL');
 let bad=report.bridge.timeline.find(e=>e.type==='FRAME'&&Math.abs(e.time-.5)<1e-6);
 assert.ok(bad,'la frame rejetée doit rester dans la timeline globale');
 assert.strictEqual(bad.dataQuality,'INDISPONIBLE');
@@ -107,6 +107,6 @@ assert.strictEqual(scaleReport.bridge.attemptedObservationFrames,600,'le rapport
 assert.strictEqual(scaleReport.bridge.unavailableObservationFrames,200,'le rapport indexé doit retrouver toutes les frames indisponibles sans balayage quadratique');
 assert.strictEqual(scaleReport.bridge.usableObservationFrames,400,'le rapport indexé doit conserver exactement les frames utilisables');
 assert.strictEqual(scaleReport.bridge.observationCoverage,.6667,'la couverture longue doit rester exacte après indexation');
-assert.strictEqual(scaleReport.bridge.invalidFrameLookup,'INDEXED_TIME_AND_SEGMENT','le rapport doit exposer la stratégie de recherche indexée');
+assert.strictEqual(scaleReport.bridge.invalidFrameLookup,'INDEXED_FRAME_ORDINAL','le rapport doit exposer la stratégie de recherche indexée');
 
 console.log('strict tracking frame guard non-regression: PASS (57 checks)');
