@@ -795,8 +795,10 @@ function trainingCalibrationObject(){
    cumulativeLearningHistory
  };
 }
+function validVideoMetadata(v){return !v.error&&Number.isFinite(v.duration)&&v.duration>0&&Number.isFinite(v.videoWidth)&&v.videoWidth>0&&Number.isFinite(v.videoHeight)&&v.videoHeight>0;}
 function setFile(f){
  if(!f)return;
+ expressAnalysisArmed=false;
  currentFile=f;if(objUrl)URL.revokeObjectURL(objUrl);
  objUrl=URL.createObjectURL(f);video.src=objUrl;
  $('scanBtn').disabled=true;
@@ -804,6 +806,12 @@ function setFile(f){
  status($('scanStatus'),'Chargement de la vidéo…');
  $('fileLabel').textContent=`${f.name} • ${sf(f.size)}`;
  video.onloadedmetadata=()=>{
+   if(!validVideoMetadata(video)){
+     expressAnalysisArmed=false;
+     $('scanBtn').disabled=true;
+     status($('scanStatus'),'Métadonnées vidéo invalides ou durée inconnue. Utilise un fichier MP4 H.264 avec une durée définie.','warning');
+     return;
+   }
    $('scanBtn').disabled=false;
    $('duration').textContent=tf(video.duration);
    $('resolution').textContent=`${video.videoWidth} × ${video.videoHeight}`;
@@ -819,7 +827,7 @@ function setFile(f){
    const restoredGlobal=refsFor('team').length>=3?false:restoreGlobalCAYProfile();
    expressAnalysisArmed=true;
    status($('scanStatus'),restoredVideo||restoredGlobal?'Profil CAY prêt • analyse automatique en cours…':'Première utilisation • pré-analyse automatique puis apprentissage CAY minimal une seule fois.',restoredVideo||restoredGlobal?'success':'');
-   setTimeout(()=>{if(currentFile&&expressAnalysisArmed&&!expressAnalysisRunning&&!$('scanBtn').disabled)$('scanBtn').click();},250);
+   setTimeout(()=>{if(currentFile===f&&expressAnalysisArmed&&!expressAnalysisRunning&&!$('scanBtn').disabled)$('scanBtn').click();},250);
  }
  video.onerror=()=>{
    if(video.src!==objUrl)return;
@@ -833,7 +841,25 @@ function setFile(f){
 input.onchange=()=>setFile(input.files[0]);['dragenter','dragover'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.add('drag')}));['dragleave','drop'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.remove('drag')}));drop.addEventListener('drop',e=>setFile(e.dataTransfer.files[0]));
 $('scanInterval').oninput=e=>$('intervalLabel').textContent=e.target.value+' s';$('cutSensitivity').oninput=e=>$('sensLabel').textContent=['','Faible','Normale','Forte'][+e.target.value];
 
-function seek(t){return new Promise((res,rej)=>{const ok=()=>{cl();res()},bad=()=>{cl();rej(new Error('Lecture impossible'))},cl=()=>{video.removeEventListener('seeked',ok);video.removeEventListener('error',bad)};video.addEventListener('seeked',ok,{once:true});video.addEventListener('error',bad,{once:true});video.currentTime=Math.min(Math.max(t,0),Math.max(0,video.duration-.05))})}
+function seek(t){
+ return new Promise((res,rej)=>{
+  const sourceFile=currentFile,sourceUrl=objUrl;
+  if(!sourceFile||!validVideoMetadata(video)){rej(new Error('Vidéo indisponible'));return;}
+  const target=Math.min(Math.max(Number(t)||0,0),Math.max(0,video.duration-.05));
+  if(video.readyState>=2&&Math.abs(video.currentTime-target)<.04){res();return;}
+  let settled=false,timer=null;
+  const cleanup=()=>{clearTimeout(timer);video.removeEventListener('seeked',onSeeked);video.removeEventListener('error',onError);video.removeEventListener('emptied',onEmptied);};
+  const finish=err=>{if(settled)return;settled=true;cleanup();err?rej(err):res();};
+  const onSeeked=()=>currentFile===sourceFile&&objUrl===sourceUrl?finish():finish(new Error('Vidéo remplacée pendant le scan'));
+  const onError=()=>finish(new Error('Lecture impossible'));
+  const onEmptied=()=>finish(new Error('Vidéo remplacée pendant le scan'));
+  video.addEventListener('seeked',onSeeked);
+  video.addEventListener('error',onError);
+  video.addEventListener('emptied',onEmptied);
+  timer=setTimeout(()=>finish(new Error('Image vidéo indisponible après 8 secondes (MP4 H.264 conseillé).')),8000);
+  try{video.currentTime=target;}catch(err){finish(new Error('Recherche image impossible : '+err.message));}
+ });
+}
 async function frame(t,maxW=420){await seek(t);let sc=Math.min(1,maxW/video.videoWidth),w=Math.round(video.videoWidth*sc),h=Math.round(video.videoHeight*sc),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(video,0,0,w,h);return c}
 function hist(c){let d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,H=new Array(64).fill(0),n=0;for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){let i=(y*c.width+x)*4,r=d[i]>>6,g=d[i+1]>>6,b=d[i+2]>>6;H[r*16+g*4+b]++;n++}return H.map(v=>v/n)}
 function hd(a,b){let s=0;for(let i=0;i<a.length;i++)s+=Math.abs(a[i]-b[i]);return s}
@@ -1582,10 +1608,22 @@ if($('exportTrainingData'))$('exportTrainingData').onclick=()=>{
 };
 
 $('scanBtn').onclick=async()=>{
- if(!currentFile)return;$('scanBtn').disabled=true;$('scanProgress').classList.remove('hidden');$('scanPill').textContent='SCAN…';let iv=+$('scanInterval').value,sens=+$('cutSensitivity').value,thr=[0,.62,.50,.40][sens],times=[];for(let t=0;t<video.duration;t+=iv)times.push(t);
+ if(!currentFile)return;
+ if(!validVideoMetadata(video)){
+   $('scanBtn').disabled=true;
+   status($('scanStatus'),'Scan indisponible : durée ou dimensions vidéo invalides.','warning');
+   return;
+ }
+ const iv=Number($('scanInterval').value);
+ if(!Number.isFinite(iv)||iv<=0||Math.ceil(video.duration/iv)>3600){
+   status($('scanStatus'),'Scan indisponible : intervalle invalide ou vidéo trop longue pour ce réglage (maximum 3600 images).','warning');
+   return;
+ }
+ const scanFile=currentFile;
+ $('scanBtn').disabled=true;$('scanProgress').classList.remove('hidden');$('scanPill').textContent='SCAN…';let sens=+$('cutSensitivity').value,thr=[0,.62,.50,.40][sens],times=[];for(let t=0;t<video.duration;t+=iv)times.push(t);
  let prev=null,candidates=[];
  try{
-  for(let i=0;i<times.length;i++){let t=times[i],c=await frame(t,110),h=hist(c);if(prev){let score=hd(prev.h,h);if(score>thr)candidates.push({t,score})}prev={h,t};$('scanBar').style.width=Math.round((i+1)/times.length*100)+'%';status($('scanStatus'),`Scan ${i+1}/${times.length} • ${tf(t)}`);await new Promise(r=>setTimeout(r,0))}
+  for(let i=0;i<times.length;i++){let t=times[i],c=await frame(t,110);if(currentFile!==scanFile)throw new Error('Scan annulé : vidéo remplacée.');let h=hist(c);if(prev){let score=hd(prev.h,h);if(score>thr)candidates.push({t,score})}prev={h,t};$('scanBar').style.width=Math.round((i+1)/times.length*100)+'%';status($('scanStatus'),`Scan ${i+1}/${times.length} • ${tf(t)}`);await new Promise(r=>setTimeout(r,0))}
   // NMS in time: keep strongest cut in a 25 s neighborhood, then hard-cap to 24 strongest cuts.
   candidates.sort((a,b)=>b.score-a.score);let kept=[];
   for(const c of candidates){if(!kept.some(k=>Math.abs(k.t-c.t)<25))kept.push(c)}
@@ -1597,7 +1635,7 @@ $('scanBtn').onclick=async()=>{
   let autoN=0,reviewN=0;
   for(let i=0;i<scenes.length;i++){
  let s=scenes[i],kt=Math.min(s.end-.1,s.start+Math.max(1,Math.min(5,(s.end-s.start)*.3)));
- let c=await frame(kt,600),af=autoField(c),ev=evaluateAutoField(c,af,null);
+ let c=await frame(kt,600);if(currentFile!==scanFile)throw new Error('Scan annulé : vidéo remplacée.');let af=autoField(c),ev=evaluateAutoField(c,af,null);
  s.auto=af.poly;s.autoRole='COARSE_GRASS_MASK_ONLY';s.conf=af.confidence;s.autoEval=ev;
  // Un masque de pelouse mauvais reste un diagnostic, jamais une demande de calibrage.
  s.review=false;
@@ -1637,7 +1675,7 @@ $('scanBtn').onclick=async()=>{
     status($('guidedStatus'),'Première utilisation : sélectionne quelques joueurs CAY une seule fois. Le profil sera mémorisé pour tous les prochains matchs.','warning');
     setTimeout(()=>chooseThreeReferenceImages(),100);
   }
- }catch(e){status($('scanStatus'),'Erreur : '+e.message,'warning')}finally{$('scanBtn').disabled=false}
+ }catch(e){if(currentFile===scanFile)status($('scanStatus'),'Erreur : '+e.message,'warning')}finally{if(currentFile===scanFile)$('scanBtn').disabled=!validVideoMetadata(video)}
 };
 
 function renderReviews(){
