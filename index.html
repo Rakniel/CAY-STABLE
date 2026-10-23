@@ -795,8 +795,10 @@ function trainingCalibrationObject(){
    cumulativeLearningHistory
  };
 }
+function validVideoMetadata(v){return Number.isFinite(v.duration)&&v.duration>0&&Number.isFinite(v.videoWidth)&&v.videoWidth>0&&Number.isFinite(v.videoHeight)&&v.videoHeight>0;}
 function setFile(f){
  if(!f)return;
+ expressAnalysisArmed=false;
  currentFile=f;if(objUrl)URL.revokeObjectURL(objUrl);
  objUrl=URL.createObjectURL(f);video.src=objUrl;
  $('scanBtn').disabled=true;
@@ -804,6 +806,12 @@ function setFile(f){
  status($('scanStatus'),'Chargement de la vidéo…');
  $('fileLabel').textContent=`${f.name} • ${sf(f.size)}`;
  video.onloadedmetadata=()=>{
+   if(!validVideoMetadata(video)){
+     expressAnalysisArmed=false;
+     $('scanBtn').disabled=true;
+     status($('scanStatus'),'Métadonnées vidéo invalides ou durée inconnue. Utilise un fichier MP4 H.264 avec une durée définie.','warning');
+     return;
+   }
    $('scanBtn').disabled=false;
    $('duration').textContent=tf(video.duration);
    $('resolution').textContent=`${video.videoWidth} × ${video.videoHeight}`;
@@ -819,7 +827,7 @@ function setFile(f){
    const restoredGlobal=refsFor('team').length>=3?false:restoreGlobalCAYProfile();
    expressAnalysisArmed=true;
    status($('scanStatus'),restoredVideo||restoredGlobal?'Profil CAY prêt • analyse automatique en cours…':'Première utilisation • pré-analyse automatique puis apprentissage CAY minimal une seule fois.',restoredVideo||restoredGlobal?'success':'');
-   setTimeout(()=>{if(currentFile&&expressAnalysisArmed&&!expressAnalysisRunning&&!$('scanBtn').disabled)$('scanBtn').click();},250);
+   setTimeout(()=>{if(currentFile===f&&expressAnalysisArmed&&!expressAnalysisRunning&&!$('scanBtn').disabled)$('scanBtn').click();},250);
  }
  video.onerror=()=>{
    if(video.src!==objUrl)return;
@@ -1582,7 +1590,18 @@ if($('exportTrainingData'))$('exportTrainingData').onclick=()=>{
 };
 
 $('scanBtn').onclick=async()=>{
- if(!currentFile)return;$('scanBtn').disabled=true;$('scanProgress').classList.remove('hidden');$('scanPill').textContent='SCAN…';let iv=+$('scanInterval').value,sens=+$('cutSensitivity').value,thr=[0,.62,.50,.40][sens],times=[];for(let t=0;t<video.duration;t+=iv)times.push(t);
+ if(!currentFile)return;
+ if(!validVideoMetadata(video)){
+   $('scanBtn').disabled=true;
+   status($('scanStatus'),'Scan indisponible : durée ou dimensions vidéo invalides.','warning');
+   return;
+ }
+ const iv=Number($('scanInterval').value);
+ if(!Number.isFinite(iv)||iv<=0||Math.ceil(video.duration/iv)>3600){
+   status($('scanStatus'),'Scan indisponible : intervalle invalide ou vidéo trop longue pour ce réglage (maximum 3600 images).','warning');
+   return;
+ }
+ $('scanBtn').disabled=true;$('scanProgress').classList.remove('hidden');$('scanPill').textContent='SCAN…';let sens=+$('cutSensitivity').value,thr=[0,.62,.50,.40][sens],times=[];for(let t=0;t<video.duration;t+=iv)times.push(t);
  let prev=null,candidates=[];
  try{
   for(let i=0;i<times.length;i++){let t=times[i],c=await frame(t,110),h=hist(c);if(prev){let score=hd(prev.h,h);if(score>thr)candidates.push({t,score})}prev={h,t};$('scanBar').style.width=Math.round((i+1)/times.length*100)+'%';status($('scanStatus'),`Scan ${i+1}/${times.length} • ${tf(t)}`);await new Promise(r=>setTimeout(r,0))}
