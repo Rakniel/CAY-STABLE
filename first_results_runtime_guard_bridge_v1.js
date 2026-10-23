@@ -31,23 +31,26 @@
 
   function observationState(report){
     const bridge=report?.bridge||{};
+    const keys=['attemptedObservationFrames','usableObservationFrames','unavailableObservationFrames','observationCoverage','observationQuality'];
+    if(!keys.some(key=>Object.prototype.hasOwnProperty.call(bridge,key)))
+      return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    const numeric=value=>(typeof value==='number'||(typeof value==='string'&&value.trim()!==''))&&Number.isFinite(Number(value));
+    const validCount=value=>numeric(value)&&Number.isSafeInteger(Number(value))&&Number(value)>=0;
     const attempted=Number(bridge.attemptedObservationFrames);
-    if(!(Number.isFinite(attempted)&&attempted>0))return {available:false,quality:null,coverage:null,attempted:0,usable:null,unavailable:null,reasons:{}};
+    const usable=Number(bridge.usableObservationFrames);
+    const unavailable=Number(bridge.unavailableObservationFrames);
     const coverage=Number(bridge.observationCoverage);
-    const normalizedCoverage=Number.isFinite(coverage)?Math.max(0,Math.min(1,coverage)):0;
+    const countsValid=validCount(bridge.attemptedObservationFrames)&&attempted>0&&validCount(bridge.usableObservationFrames)&&validCount(bridge.unavailableObservationFrames)&&usable+unavailable===attempted;
+    const coverageValid=numeric(bridge.observationCoverage)&&coverage>=0&&coverage<=1;
+    const coherent=countsValid&&coverageValid&&Math.abs(coverage-usable/attempted)<=0.0001;
     const declared=String(bridge.observationQuality||'').trim().toUpperCase();
-    const quality=['FIABLE','PARTIEL','INDISPONIBLE'].includes(declared)
-      ?declared
-      :(normalizedCoverage>=.8?'FIABLE':(normalizedCoverage>0?'PARTIEL':'INDISPONIBLE'));
-    return {
-      available:true,
-      quality,
-      coverage:normalizedCoverage,
-      attempted,
-      usable:Number.isFinite(Number(bridge.usableObservationFrames))?Number(bridge.usableObservationFrames):null,
-      unavailable:Number.isFinite(Number(bridge.unavailableObservationFrames))?Number(bridge.unavailableObservationFrames):null,
-      reasons:{...(bridge.unavailableReasons||{})}
-    };
+    const levels=['INDISPONIBLE','PARTIEL','FIABLE'];
+    const measured=coherent?(coverage>=.8?'FIABLE':(coverage>0?'PARTIEL':'INDISPONIBLE')):'INDISPONIBLE';
+    const quality=levels.includes(declared)?levels[Math.min(levels.indexOf(measured),levels.indexOf(declared))]:'INDISPONIBLE';
+    const reasons={...(bridge.unavailableReasons&&typeof bridge.unavailableReasons==='object'&&!Array.isArray(bridge.unavailableReasons)?bridge.unavailableReasons:{})};
+    if(!coherent)reasons.OBSERVATION_EVIDENCE_INCOHERENT=1;
+    else if(quality!==declared)reasons.OBSERVATION_QUALITY_OVERRATED=1;
+    return {available:true,quality,coverage:coverageValid?coverage:0,attempted:validCount(bridge.attemptedObservationFrames)?attempted:0,usable:countsValid?usable:null,unavailable:countsValid?unavailable:null,reasons};
   }
 
   function blockedReadiness(readiness,reasons,action=BLOCKED_ACTION){

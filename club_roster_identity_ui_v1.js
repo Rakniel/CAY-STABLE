@@ -11,6 +11,12 @@
 'use strict';
 const TEAM_KEY='CAY_STABLE_TEAM_ROSTER_V1';
 const BINDING_KEY='CAY_STABLE_TRACK_ROSTER_BINDINGS_V1';
+// Tracking IDs are unique only inside one analysis. A report-provided hash is not
+// trusted evidence of video provenance: cross-reload persistence is disabled.
+function analysisScope(_report,sessionScope){
+  const value=clean(sessionScope);
+  return /^session:[a-z0-9:._-]{1,120}$/i.test(value)?value:null;
+}
 const clean=v=>String(v==null?'':v).trim();
 const esc=v=>clean(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function safeParse(raw,fallback){try{return JSON.parse(raw);}catch(_){return fallback;}}
@@ -33,13 +39,24 @@ function normalizeStoredTeam(raw={}){
   return Domain.createTeam({id:clean(raw.id)||'cay_team',name:clean(raw.name)||'C.A. Yenne',category:clean(raw.category)||'SENIOR',roster:deduped,kits:Array.isArray(raw.kits)?raw.kits:[],defaultLineup,bench});
 }
 function createStore(storage){
-  const s=storage||null;
+  const s=storage||null,transientBindings=new Map();
   const read=(key,fallback)=>s&&typeof s.getItem==='function'?safeParse(s.getItem(key)||'',fallback):fallback;
   const write=(key,value)=>{if(s&&typeof s.setItem==='function')s.setItem(key,JSON.stringify(value));};
+  const copy=list=>Array.isArray(list)?list.map(item=>({...item})):[];
   function team(){return normalizeStoredTeam(read(TEAM_KEY,{}));}
   function saveTeam(value){const t=normalizeStoredTeam(value);write(TEAM_KEY,t);return t;}
-  function bindings(){const v=read(BINDING_KEY,[]);return Array.isArray(v)?v:[];}
-  function saveBindings(v){const list=Array.isArray(v)?v:[];write(BINDING_KEY,list);return list;}
+  function bindings(scope=null){
+    if(scope===null)return copy(read(BINDING_KEY,[])); // Legacy API; not used by the analysis UI.
+    const key=analysisScope(null,scope);
+    return key?copy(transientBindings.get(key)):[];
+  }
+  function saveBindings(value,scope=null){
+    const list=copy(value);
+    if(scope===null){write(BINDING_KEY,list);return copy(list);} // Legacy API compatibility.
+    const key=analysisScope(null,scope);
+    if(key)transientBindings.set(key,copy(list));
+    return key?copy(list):[];
+  }
   return {team,saveTeam,bindings,saveBindings};
 }
 const store=createStore(typeof localStorage!=='undefined'?localStorage:null);
@@ -62,7 +79,7 @@ function removePlayer(playerId){
   const before=team.roster.length,nextRoster=team.roster.filter(p=>p.id!==id);
   if(nextRoster.length===before)return {removed:false,reason:'UNKNOWN_ROSTER_PLAYER'};
   const next=store.saveTeam({...team,roster:nextRoster,defaultLineup:(team.defaultLineup||[]).filter(x=>String(x)!==id),bench:(team.bench||[]).filter(x=>String(x)!==id)});
-  const kept=store.bindings().filter(b=>clean(b.playerId)!==id);store.saveBindings(kept);
+  const kept=store.bindings(lastScope).filter(b=>clean(b.playerId)!==id);store.saveBindings(kept,lastScope);
   return {removed:true,team:next};
 }
 function ensureRosterPanel(){
@@ -87,7 +104,9 @@ function renderRoster(){
   list.innerHTML=team.roster.length?team.roster.map(p=>'<span data-player="'+esc(p.id)+'" style="display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border-radius:10px;background:#111;border:1px solid rgba(255,255,255,.09);font-size:12px"><b>'+(p.number==null?'—':'#'+esc(p.number))+'</b> '+esc(p.displayName)+' <small style="opacity:.6">'+esc(p.primaryPosition||'')+'</small><button type="button" data-remove="'+esc(p.id)+'" title="Retirer" style="border:0;background:transparent;color:#ff8e96;cursor:pointer">×</button></span>').join(''):'<span style="opacity:.6;font-size:12px">Ajoute les joueurs avant l’identification des tracks.</span>';
   list.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{removePlayer(btn.getAttribute('data-remove'));renderRoster();renderIdentityPanel();});return true;
 }
-let lastReport=null,lastSession=null;
+let lastReport=null,lastSession=null,lastScope=null;
+let sessionSequence=0;
+function activeScope(){return lastScope;}
 function ensureIdentityPanel(){
   if(typeof document==='undefined')return null;let panel=document.getElementById('cayIdentityBindingPanelV1');if(panel)return panel;
   const stats=document.getElementById('stablePlayerStatsV2')||document.getElementById('trackingGallery');if(!stats)return null;
@@ -95,28 +114,40 @@ function ensureIdentityPanel(){
   stats.insertAdjacentElement('afterend',panel);return panel;
 }
 function refreshPlayerCards(){
-  if(!lastReport||!ViewModel?.build)return false;const model=ViewModel.build(lastReport,{team:currentTeam(),bindings:lastSession?lastSession.exportBindings():store.bindings()});
+  if(!lastReport||!ViewModel?.build)return false;const model=ViewModel.build(lastReport,{team:currentTeam(),bindings:lastSession?lastSession.exportBindings():store.bindings(lastScope)});
   if(root.CAYPlayerCardRenderer?.render)return root.CAYPlayerCardRenderer.render(model,'stableStatsCardsV2');
   return false;
 }
 function renderIdentityPanel(){
   if(!lastReport)return false;const panel=ensureIdentityPanel();if(!panel)return false;
-  const team=currentTeam(),tracks=(lastReport.players||[]).map(p=>({id:p.id}));lastSession=BindingSession.createSession({team,tracks,bindings:store.bindings()});
+  const team=currentTeam(),tracks=(lastReport.players||[]).map(p=>({id:p.id}));lastSession=BindingSession.createSession({team,tracks,bindings:store.bindings(lastScope)});
   const summary=lastSession.summary(),rows=panel.querySelector('#cayIdentityRowsV1');panel.querySelector('#cayIdentitySummaryV1').innerHTML='<b>'+summary.linked+'/'+summary.tracks+' liés</b> • '+summary.unlinked+' à identifier';
   rows.innerHTML='';
   for(const trackId of lastSession.trackIds){
     const existing=lastSession.exportBindings().find(b=>String(b.trackId)===String(trackId)),candidatePlayers=lastSession.candidates(trackId),row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:110px minmax(160px,1fr) auto auto;gap:8px;align-items:center;padding:8px;border-radius:10px;background:rgba(255,255,255,.04)';
     const label=document.createElement('strong');label.textContent='Track #'+trackId;const select=document.createElement('select');select.setAttribute('aria-label','joueur pour track '+trackId);const empty=document.createElement('option');empty.value='';empty.textContent=existing?'Modifier l’identité…':'Choisir le joueur…';select.appendChild(empty);for(const p of candidatePlayers){const o=document.createElement('option');o.value=p.id;o.textContent=(p.number==null?'':'#'+p.number+' ')+(p.displayName||'Joueur')+(p.primaryPosition?' • '+p.primaryPosition:'');select.appendChild(o);}
-    const confirm=document.createElement('button');confirm.type='button';confirm.textContent='CONFIRMER';confirm.disabled=!candidatePlayers.length;confirm.onclick=()=>{if(!select.value)return;const r=lastSession.assign(trackId,select.value,{confirmed:true,source:'coach_click'});if(r.accepted){store.saveBindings(lastSession.exportBindings());renderIdentityPanel();refreshPlayerCards();}};
-    const linked=document.createElement('span');linked.style.cssText='font-size:11px;opacity:.72';linked.textContent=existing?'LIÉ ✓':'NON LIÉ';if(existing){const un=document.createElement('button');un.type='button';un.textContent='DÉLIER';un.onclick=()=>{lastSession.unassign(trackId);store.saveBindings(lastSession.exportBindings());renderIdentityPanel();refreshPlayerCards();};row.append(label,select,confirm,un);}else row.append(label,select,confirm,linked);rows.appendChild(row);
+    const confirm=document.createElement('button');confirm.type='button';confirm.textContent='CONFIRMER';confirm.disabled=!candidatePlayers.length;confirm.onclick=()=>{if(!select.value)return;const r=lastSession.assign(trackId,select.value,{confirmed:true,source:'coach_click'});if(r.accepted){store.saveBindings(lastSession.exportBindings(),lastScope);renderIdentityPanel();refreshPlayerCards();}};
+    const linked=document.createElement('span');linked.style.cssText='font-size:11px;opacity:.72';linked.textContent=existing?'LIÉ ✓':'NON LIÉ';if(existing){const un=document.createElement('button');un.type='button';un.textContent='DÉLIER';un.onclick=()=>{lastSession.unassign(trackId);store.saveBindings(lastSession.exportBindings(),lastScope);renderIdentityPanel();refreshPlayerCards();};row.append(label,select,confirm,un);}else row.append(label,select,confirm,linked);rows.appendChild(row);
   }
   refreshPlayerCards();return true;
 }
 function patchBridge(){
   const Bridge=root.CAYStableTrackingBridge;if(!Bridge||typeof Bridge.create!=='function'||Bridge.__cayClubRosterIdentityUIPatched)return false;
-  const baseCreate=Bridge.create.bind(Bridge);Bridge.create=function(options){const instance=baseCreate(options),baseReport=instance.report.bind(instance);instance.report=function(projectors,visualOptions){const report=baseReport(projectors,visualOptions);lastReport=report;setTimeout(()=>{try{renderRoster();renderIdentityPanel();}catch(_){}},0);return report;};return instance;};Bridge.__cayClubRosterIdentityUIPatched=true;return true;
+  const baseCreate=Bridge.create.bind(Bridge);Bridge.create=function(options){
+    const sessionScope='session:'+Date.now().toString(36)+':'+(++sessionSequence);
+    const instance=baseCreate(options);
+    if(!instance||typeof instance.report!=='function')return instance;
+    const baseReport=instance.report.bind(instance);
+    instance.report=function(projectors,visualOptions){
+      const report=baseReport(projectors,visualOptions);
+      lastReport=report;lastScope=analysisScope(report,sessionScope);lastSession=null;
+      setTimeout(()=>{try{renderRoster();renderIdentityPanel();}catch(_){}},0);
+      return report;
+    };
+    return instance;
+  };Bridge.__cayClubRosterIdentityUIPatched=true;return true;
 }
 function install(){if(typeof document==='undefined')return false;ensureRosterPanel();renderRoster();patchBridge();return true;}
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();}
-return {TEAM_KEY,BINDING_KEY,sanitizePlayerDraft,normalizeStoredTeam,createStore,addPlayer,removePlayer,currentTeam,renderRoster,renderIdentityPanel,refreshPlayerCards,patchBridge,install};
+return {TEAM_KEY,BINDING_KEY,analysisScope,activeScope,sanitizePlayerDraft,normalizeStoredTeam,createStore,addPlayer,removePlayer,currentTeam,renderRoster,renderIdentityPanel,refreshPlayerCards,patchBridge,install};
 });
