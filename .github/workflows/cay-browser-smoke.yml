@@ -35,6 +35,10 @@ jobs:
           node-version: '22'
       - name: Check browser test syntax
         run: node --check tests/browser_first_click_smoke.cjs
+      - name: Video source provenance regression
+        run: |
+          node --check tests/video_provenance_nonregression.js
+          node tests/video_provenance_nonregression.js
       - name: Install pinned Playwright test tooling (CI only)
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
