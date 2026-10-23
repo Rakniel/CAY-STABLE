@@ -37,10 +37,25 @@ const server=http.createServer((req,res)=>{
    await page.waitForFunction(()=>document.querySelector('#scanStatus')?.textContent.includes('Vidéo illisible'),null,{timeout:8000});
    assert.equal(await page.locator('#scanBtn').isDisabled(),true,html+': scan enabled for invalid video');checks++;
    assert.match(await page.locator('#fileLabel').innerText(),/invalid-video\.mp4/,html+': upload did not update label');checks++;
+   // A second upload must not expose results, tracking frames or exports
+   // produced for a previous video, even when the new video cannot decode.
+   await page.evaluate(()=>{
+     document.querySelector('#results').classList.remove('hidden');
+     document.querySelector('#results').style.display='block';
+     document.querySelector('#validation55Section').classList.remove('hidden');
+     document.querySelector('#trackingGallery').innerHTML='<div class="trackcard">old-video-frame</div>';
+     document.querySelector('#exportTracking').disabled=false;
+   });
+   await page.locator('#fileInput').setInputFiles({name:'second-invalid-video.mp4',mimeType:'video/mp4',buffer:Buffer.from('second invalid video')});
+   await page.waitForFunction(()=>document.querySelector('#scanStatus')?.textContent.includes('Vidéo illisible'),null,{timeout:8000});
+   assert.equal(await page.locator('#results').evaluate(el=>el.classList.contains('hidden')),true,html+': old results remain visible');checks++;
+   assert.equal(await page.locator('#validation55Section').evaluate(el=>el.classList.contains('hidden')),true,html+': old validation remains visible');checks++;
+   assert.equal(await page.locator('#trackingGallery').innerHTML(),'',html+': old tracking frames remain visible');checks++;
+   assert.equal(await page.locator('#exportTracking').isDisabled(),true,html+': old tracking export remains enabled');checks++;
    await page.locator('.infohelp').first().click({timeout:5000});
    assert.equal(await page.locator('.infohelp').first().evaluate(el=>el.classList.contains('open')),true,html+': real mouse click failed');checks++;
    assert.deepEqual(exceptions,[],html+': uncaught JavaScript exceptions');checks++;
-   console.log(html+': first-click smoke PASS (6 checks, model CDNs blocked)');
+   console.log(html+': first-click smoke PASS (10 checks, model CDNs blocked)');
    await page.close();
   }
   console.log(checks+'/'+checks+' browser smoke assertions PASS');
