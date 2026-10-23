@@ -795,7 +795,7 @@ function trainingCalibrationObject(){
    cumulativeLearningHistory
  };
 }
-function validVideoMetadata(v){return Number.isFinite(v.duration)&&v.duration>0&&Number.isFinite(v.videoWidth)&&v.videoWidth>0&&Number.isFinite(v.videoHeight)&&v.videoHeight>0;}
+function validVideoMetadata(v){return !v.error&&Number.isFinite(v.duration)&&v.duration>0&&Number.isFinite(v.videoWidth)&&v.videoWidth>0&&Number.isFinite(v.videoHeight)&&v.videoHeight>0;}
 function setFile(f){
  if(!f)return;
  expressAnalysisArmed=false;
@@ -1675,7 +1675,7 @@ $('scanBtn').onclick=async()=>{
     status($('guidedStatus'),'Première utilisation : sélectionne quelques joueurs CAY une seule fois. Le profil sera mémorisé pour tous les prochains matchs.','warning');
     setTimeout(()=>chooseThreeReferenceImages(),100);
   }
- }catch(e){if(currentFile===scanFile)status($('scanStatus'),'Erreur : '+e.message,'warning')}finally{if(currentFile===scanFile)$('scanBtn').disabled=false}
+ }catch(e){if(currentFile===scanFile)status($('scanStatus'),'Erreur : '+e.message,'warning')}finally{if(currentFile===scanFile)$('scanBtn').disabled=!validVideoMetadata(video)}
 };
 
 function renderReviews(){
