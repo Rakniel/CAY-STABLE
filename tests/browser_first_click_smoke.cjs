@@ -27,7 +27,7 @@ const server=http.createServer((req,res)=>{
   for(const html of ['index.html','CAY_ANALYZER_STABLE.html']){
    const page=await browser.newPage();
    const exceptions=[];
-   page.on('pageerror',error=>exceptions.push(error.message));
+   page.on('pageerror',error=>exceptions.push(error.stack||error.message));
    await page.route(/https:\/\/(cdn\.jsdelivr\.net|unpkg\.com)\//,route=>route.abort());
    await page.goto('http://127.0.0.1:'+server.address().port+'/'+html,{waitUntil:'domcontentloaded',timeout:20000});
    await page.waitForFunction(()=>document.querySelector('#splash')?.classList.contains('hide'),null,{timeout:4000});
