@@ -32,8 +32,9 @@
     const button=doc.getElementById('runTracking');
     const statusEl=doc.getElementById('trackingStatus');
     if(button){
-      button.dataset=button.dataset||{};
-      button.dataset.cayRuntimeGuard=state.ok?'READY':'BLOCKED';
+      // HTMLElement.dataset is a read-only accessor; mutate its entries, never replace it.
+      if(button.dataset)button.dataset.cayRuntimeGuard=state.ok?'READY':'BLOCKED';
+      else if(typeof button.setAttribute==='function')button.setAttribute('data-cay-runtime-guard',state.ok?'READY':'BLOCKED');
       if(!state.ok)button.disabled=true;
     }
     if(!state.ok){
