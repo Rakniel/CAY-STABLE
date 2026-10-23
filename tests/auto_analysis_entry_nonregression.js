@@ -64,4 +64,21 @@ assert(
   'manual pitch calibration count must never be an analysis entry gate'
 );
 
+
+// A bad/unsupported video used to leave the first action apparently inert.
+// The user must see a clear failure and be able to retry with another file.
+for(const [entryName,entryHtml] of [
+  ['index.html',fs.readFileSync('index.html','utf8')],
+  ['CAY_ANALYZER_STABLE.html',html]
+]){
+  assert(entryHtml.includes('video.onerror=()=>{'),entryName+' must handle video decode failure');
+  assert(entryHtml.includes('currentFile=null;'),entryName+' must discard failed video provenance');
+  assert(entryHtml.includes("'Vidéo illisible. Essaie un fichier MP4 encodé en H.264"),
+    entryName+' must show an actionable unsupported-format message');
+  assert(entryHtml.includes("video.onloadedmetadata=()=>{\n   $('scanBtn').disabled=false;"),
+    entryName+' must unlock scan only after valid video metadata');
+  assert(entryHtml.includes("status($('scanStatus'),'Chargement de la vidéo…');"),
+    entryName+' must show progress during video loading');
+}
+
 console.log('auto-analysis entry non-regression: PASS');
